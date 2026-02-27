@@ -6,7 +6,8 @@ This document provides a summary of models available in the application, categor
 ---
 
 ## ⚠️ IMPORTANT: Exact API Model Names / WAŻNE: Dokładne nazwy modeli w API
-
+Here is link to the list of models: https://llm.hpc.pcss.pl
+and cloud if you need to use it: https://cloud.pcss.pl
 **Use these EXACT names when selecting models in the application:**  
 **Używaj tych DOKŁADNYCH nazw przy wyborze modeli w aplikacji:**
 
@@ -21,7 +22,7 @@ This document provides a summary of models available in the application, categor
 | **General** | `llama3.3:70b` | Meta's state-of-the-art general model |
 | **General** | `GLM-4.7` | Strong bilingual (CN/EN) model |
 | **General** | `MiniMax-M2.1` | Creative writing and complex logic |
-| **Vision** | `Qwen3-VL-235B-A22B-Instruct` | **Multi-modal** (Vision) capabilities |
+| **Vision** | `Qwen3-VL-235B-A22B-Instruct` | **Multi-modal (Active)**: Visual analysis & OCR |
 | **Medical** | `Meditron3:70b` | Medical specialization |
 | **Biology** | `OpenBioLLM:70b` | Biology/biomedicine |
 | **Tools** | `Nanonets-OCR-s` | OCR (not for chat) |
@@ -108,8 +109,8 @@ Models with specialized domain knowledge.
     *   **Use:** Not a chatbot. Extracts text from images, scans, and PDF files. Use via `ocr_image` tool.
 
 *   **Qwen3-VL** (`Qwen3-VL-235B-A22B-Instruct`)
-    *   **Type:** Multi-modal (Vision).
-    *   **Use:** High-capacity model capable of understanding images and complex visual layouts.
+    *   **Type:** Multi-modal (Vision). **FULLY ACTIVE**.
+    *   **Use:** High-capacity model capable of understanding images, charts, and complex visual layouts. Powering the `analyze_image` tool.
 
 *   **gpt-oss_120b / 20b**
     *   **Type:** Experimental/Internal PCSS models.
@@ -192,8 +193,8 @@ Modele posiadające specjalistyczną wiedzę dziedzinową.
     *   **Zastosowanie:** Wyciąganie tekstu ze zdjęć i skanów. Używaj przez narzędzie `ocr_image`.
 
 *   **Qwen3-VL** (`Qwen3-VL-235B-A22B-Instruct`)
-    *   **Typ:** Model multimodalny (Vision).
-    *   **Zastosowanie:** Rozumienie obrazów, wykresów i złożonych układów wizualnych.
+    *   **Typ:** Model multimodalny (Vision). **W PEŁNI AKTYWNY**.
+    *   **Zastosowanie:** Rozumienie obrazów, wykresów i złożonych układów wizualnych. Obsługuje narzędzie `analyze_image`.
 
 *   **gpt-oss_120b / 20b**
     *   **Typ:** Modele eksperymentalne/wewnętrzne PCSS.

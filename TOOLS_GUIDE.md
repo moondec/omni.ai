@@ -45,8 +45,9 @@ Basic and advanced operations within the workspace.
 
 ## 👁️ OCR & Vision
 *   **ocr_image**: Extracts text from photos and scans using **Nanonets-OCR-s**.
-*   **analyze_image**: Multi-modal analysis. 
-    *   *Note:* Requires a vision-capable model like `Qwen3-VL-235B-A22B-Instruct`.
+*   **analyze_image** ⭐ (Active):
+    *   *Function:* Multi-modal analysis of images.
+    *   *Capabilities:* Uses **Qwen3-VL-235B-A22B-Instruct** on PCSS to describe scenes, understand charts, and analyze visual layouts.
 
 ## 🤖 Example Prompts
 *   *"Conduct deep research on AI trends in Poland and save a summary PDF."* (Uses `deep_research` -> `save_document`)

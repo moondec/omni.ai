@@ -63,8 +63,9 @@ class LangChainAgentEngine:
         pandoc_tools = PandocTools(root_dir=str(self.workspace_path))
         self.tools.extend(pandoc_tools.get_tools())
 
-        # Add Vision Tools (Hybrid Agent)
-        vision_tools = VisionTools(root_dir=str(self.workspace_path), api_key=self.api_key, model_name=self.model_name)
+        # Vision tools - specifically use Qwen3-VL for image analysis
+        vision_model = "Qwen3-VL-235B-A22B-Instruct"
+        vision_tools = VisionTools(root_dir=str(self.workspace_path), api_key=self.api_key, model_name=vision_model)
         self.tools.extend(vision_tools.get_tools())
 
         # Add Web Search Tools
@@ -419,7 +420,7 @@ Begin!"""
                 
                 # Heuristic: a direct answer is usually >30 chars of plain text
                 # with no Action markers at all.
-                has_no_action_markers = "Action:" not in output
+                has_no_action_markers = "Action:" not in output and "Action Input:" not in output
                 is_substantial = len(clean_output) > 30
                 
                 if has_no_action_markers and is_substantial:

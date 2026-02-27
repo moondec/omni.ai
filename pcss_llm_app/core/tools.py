@@ -676,28 +676,19 @@ class VisionTools(_WorkspaceMixin):
             api_key=api_key,
             base_url="https://llm.hpc.pcss.pl/v1"
         )
-        self.model = model_name
-        # PCSS currently has no multimodal models
-        self.vision_available = False
+        self.model = model_name or "Qwen3-VL-235B-A22B-Instruct"
+        self.vision_available = True
 
-    def analyze_image(self, file_path: str, prompt: str = "Describe this image in detail.") -> str:
+    def analyze_image(self, file_path: str, prompt: str = "Opisz szczegółowo ten obraz.") -> str:
         """
-        Analyzes an image file using a Vision LLM.
-        NOTE: PCSS currently has NO multimodal models. Use ocr_image for text extraction.
+        Analyzes an image file using a Vision LLM (Qwen3-VL).
         Args:
             file_path: The name of the image file (e.g., 'chart.png').
-            prompt: Question or instruction about the image.
+            prompt: Question or instruction about the image (in Polish/English).
         """
         # PCSS has no multimodal models - return helpful error
         if not self.vision_available:
-            return (
-                "⚠️ Image analysis (analyze_image) is NOT available on PCSS.\n"
-                "PCSS currently has no multimodal models (GPT-4o, Claude-3, etc.).\n\n"
-                "ALTERNATIVES:\n"
-                "- Use `ocr_image` to extract TEXT from images (uses Nanonets-OCR-s)\n"
-                "- For charts/graphs: describe the data you want to visualize instead\n"
-                "- For documents: use `ocr_image` to read the text content"
-            )
+            return "Error: Vision tools are currently disabled."
         
         try:
             full_path = self._get_full_path(file_path)
@@ -741,7 +732,7 @@ class VisionTools(_WorkspaceMixin):
             StructuredTool.from_function(
                 func=self.analyze_image,
                 name="analyze_image",
-                description="Analyzes an image using GPT-4o. Use this to descriptive scenes, understand charts, or analyze document layouts. Input: file_path and prompt."
+                description="Analizuje obraz przy użyciu modelu multimodalnego (Qwen3-VL). Używaj do opisywania scen, rozumienia wykresów lub analizy układu dokumentów. Wymaga: file_path (ścieżka do pliku obrazu) oraz prompt (pytanie/polecenie)."
             )
         ]
 
