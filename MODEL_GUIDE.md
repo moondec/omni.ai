@@ -6,8 +6,13 @@ This document provides a summary of models available in the application, categor
 ---
 
 ## ⚠️ IMPORTANT: Exact API Model Names / WAŻNE: Dokładne nazwy modeli w API
-Here is link to the list of models: https://llm.hpc.pcss.pl
-and cloud if you need to use it: https://cloud.pcss.pl
+
+::: callout-tip
+## Linki do systemów PCSS
+Lista dostępnych modeli: [https://llm.hpc.pcss.pl](https://llm.hpc.pcss.pl)  
+Dostęp do Cloud (Grants): [https://cloud.pcss.pl](https://cloud.pcss.pl)
+:::
+
 **Use these EXACT names when selecting models in the application:**  
 **Używaj tych DOKŁADNYCH nazw przy wyborze modeli w aplikacji:**
 
