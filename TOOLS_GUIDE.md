@@ -2,46 +2,53 @@
 
 This document describes the tools available to the Autonomous Agent in the PCSS LLM Client. The agent automatically selects the best tool for the job.
 
+> [!IMPORTANT]
+> **Workspace Sandboxing:** For security, the agent is strictly confined to the directory defined in Settings. It cannot read or write files outside this path. Absolute paths and traversal attempts are automatically blocked.
+
 ## 📂 File Management
-Basic file system operations within the workspace.
+Basic and advanced operations within the workspace.
 *   **list_directory**: Lists files and folders.
-*   **create_directory**: Creates a new folder (folder path).
-*   **read_file**: Reads proper contents of text files.
+*   **create_directory**: Creates a new folder.
+*   **read_file**: Reads contents of text files.
 *   **write_file**: Creates or overwrites text files.
+*   **edit_file** ⭐ (New): 
+    *   *Function:* Replaces a specific block of text in a file.
+    *   *Advantage:* Much safer for large files as it doesn't overwrite the whole file. Requires an exact match of the target block.
+*   **search_files** ⭐ (New):
+    *   *Function:* Searches for a string across all files in the workspace (or matching a pattern like `*.py`).
 *   **copy_file / move_file / delete_file**: Standard file operations.
 
-## 📄 Document Processing (Advanced)
-Specialized tools for handling office documents.
+## 🐍 Code & Data
+*   **run_python** ⭐ (New):
+    *   *Function:* Executes Python code in a secure sandbox.
+    *   *Capabilities:* Includes `math`, `json`, `numpy`, `pandas`, and `matplotlib`.
+    *   *Security:* File operations are restricted to the workspace. No access to `os.system` or `subprocess`.
+*   **generate_chart**:
+    *   *Function:* Creates bar, line, pie, or scatter charts from data and saves them as PNG/JPG.
+
+## 📄 Document Processing
 *   **read_docx / read_pdf**: Extracts text from DOCX and PDF files.
-*   **write_docx**: Creates simple Word documents (plain text only).
 *   **save_document** ⭐ (Recommended):
-    *   *Function:* Creates formatted PDF, DOCX, HTML, or TXT files from HTML-formatted content.
-    *   *Usage:* Provide HTML content (h1, h2, p, ul, li, b, i tags) and the tool handles conversion.
-    *   *Example:* `save_document({"file_path": "report.pdf", "content": "<h1>Title</h1><p>Content...</p>", "title": "My Report"})`
-    *   *Requires:* Pandoc (external tool).
-*   **convert_document**:
-    *   *Function:* Converts files between formats (e.g., HTML -> DOCX, HTML -> PDF).
-    *   *Usage Strategy:* To create a complex report, the Agent first writes an HTML file (with tables, headers, bold text) and then converts it to DOCX/PDF.
+    *   *Function:* Creates formatted PDF, DOCX, HTML, or TXT from HTML-formatted content.
+    *   *Features:* Automatically downloads and embeds remote images into the final document.
+*   **convert_document**: Converts files between formats using Pandoc.
 
-## 👁️ OCR & Scanning
-Tools for extracting text from images.
+## 🌐 Internet & Research
+*   **search_web**: General DuckDuckGo search for links/snippets.
+*   **search_news**: Specialized search for the latest news articles.
+*   **visit_page**: 
+    *   *Function:* Fetches full text from a URL. 
+    *   *Limit:* Supports up to **15,000 characters** per page.
+    *   *Capability:* Uses `readability` to strip ads and extract the main article content.
+*   **deep_research** ⭐⭐⭐ (New):
+    *   *Function:* Automates complex research. It generates multiple search queries, visits several top sources, summarizes them using AI, and presents a consolidated report.
 
-*   **ocr_image** ⭐ (Recommended):
-    *   *Model:* **Nanonets-OCR-s**.
-    *   *Function:* Extracts text from scans, photos, and images. Essential for reading invoices, charts, or document photos.
+## 👁️ OCR & Vision
+*   **ocr_image**: Extracts text from photos and scans using **Nanonets-OCR-s**.
+*   **analyze_image**: Multi-modal analysis. 
+    *   *Note:* Requires a vision-capable model like `Qwen3-VL-235B-A22B-Instruct`.
 
-*   **analyze_image** (Legacy/Disabled):
-    *   *Note:* Currently **not available** on PCSS due to lack of multimodal models. Use `ocr_image` instead to extract text and then ask the agent to interpret it.
-
-## 🤖 How to use?
-Just ask the agent!
-*   *"Read this invoice.png and tell me the total."* (Uses `ocr_image`)
-*   *"Create a sales report PDF with a table."* (Uses `write_file` [html] -> `convert_document`)
-
-## 🌐 Internet Access
-Tools that connect the agent to the outside world.
-
-*   **search_web**:
-    *   *Function:* Searches DuckDuckGo for real-time information.
-    *   *Privacy:* No user tracking, no API keys required.
-    *   *Use Cases:* Checking weather, stock prices, latest news, or documentation for new libraries.
+## 🤖 Example Prompts
+*   *"Conduct deep research on AI trends in Poland and save a summary PDF."* (Uses `deep_research` -> `save_document`)
+*   *"Search for 'ConfigManager' in all python files."* (Uses `search_files`)
+*   *"Write a script to calculate the average of sales.csv and show it on a bar chart."* (Uses `run_python` -> `generate_chart`)

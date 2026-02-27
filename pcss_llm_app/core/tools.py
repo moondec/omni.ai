@@ -1,5 +1,9 @@
 import os
-from typing import Optional
+import sys
+import io
+import contextlib
+import subprocess
+from typing import Optional, List
 try:
     from langchain_core.tools import tool, StructuredTool
 except ImportError:
@@ -15,6 +19,7 @@ try:
 except ImportError:
     pypandoc = None
 
+import re
 import xml.dom.minidom
 
 try:
@@ -23,20 +28,70 @@ except ImportError:
     from duckduckgo_search import DDGS
 
 
+# ---------------------------------------------------------------------------
+# Workspace sandbox — all tools must call _safe_path() before touching disk.
+# ---------------------------------------------------------------------------
+
+def _safe_path(root_dir: str, user_path: str) -> str:
+    """
+    Resolve a user-supplied path relative to root_dir and verify it stays
+    within the workspace.  Raises PermissionError on sandbox violations.
+
+    Protects against:
+    - Path traversal:  ../../etc/passwd
+    - Absolute paths:  /etc/passwd  (explicitly rejected)
+    - Symlink escapes: symlinks that resolve outside the workspace
+    """
+    root = os.path.realpath(root_dir)
+
+    # Explicitly reject absolute paths — do not silently reroot them
+    if os.path.isabs(user_path):
+        raise PermissionError(
+            f"Access denied: absolute path '{user_path}' is not allowed. "
+            f"Provide a path relative to the workspace."
+        )
+
+    candidate = os.path.realpath(os.path.join(root, user_path))
+
+    # os.path.commonpath raises ValueError if paths are on different drives (Windows)
+    try:
+        common = os.path.commonpath([root, candidate])
+    except ValueError:
+        common = ""
+
+    if common != root:
+        raise PermissionError(
+            f"Access denied: '{user_path}' resolves outside the workspace "
+            f"(workspace: '{root}', resolved: '{candidate}')."
+        )
+    return candidate
+
+
+class _WorkspaceMixin:
+    """Mixin that provides the safe path resolver for tool classes."""
+    root_dir: str
+
+    def _get_full_path(self, file_path: str) -> str:
+        return _safe_path(self.root_dir, file_path)
+
+
+# ---------------------------------------------------------------------------
 # Pydantic schemas for tools with multiple parameters
+# ---------------------------------------------------------------------------
 class SaveDocumentSchema(BaseModel):
     file_path: str = Field(description="Target file name with extension (e.g., 'report.pdf', 'summary.docx')")
     content: str = Field(description="HTML-formatted content (use <h1>, <p>, <ul>, <li>, <b>, <i> tags for formatting)")
     title: str = Field(default="Document", description="Document title (used in HTML header)")
 
-class DocumentTools:
+class DocumentTools(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
 
     def _get_full_path(self, file_path: str) -> str:
-        """Resolve path relative to root_dir and ensure safety."""
-        # Simple path join, in production needs traversal protection
-        return os.path.join(self.root_dir, file_path)
+        try:
+            return _safe_path(self.root_dir, file_path)
+        except PermissionError as e:
+            raise PermissionError(str(e))
     
     # @tool("write_file")
     def write_file(self, file_path: str, text: str):
@@ -77,6 +132,8 @@ class DocumentTools:
                 f.write(final_content)
                 
             return f"Successfully saved file: {file_path}"
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error writing file: {str(e)}"
 
@@ -95,6 +152,8 @@ class DocumentTools:
                 doc.add_paragraph(line)
             doc.save(full_path)
             return f"Successfully created DOCX file: {file_path}"
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error writing DOCX file: {str(e)}"
 
@@ -115,6 +174,8 @@ class DocumentTools:
             for para in doc.paragraphs:
                 full_text.append(para.text)
             return '\n'.join(full_text)
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error reading DOCX file: {str(e)}"
 
@@ -135,6 +196,8 @@ class DocumentTools:
             for page in reader.pages:
                 text += page.extract_text() + "\n"
             return text
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error reading PDF file: {str(e)}"
 
@@ -342,6 +405,8 @@ class DocumentTools:
             
             return f"Unsupported format: {ext}. Use .pdf, .docx, .html, or .txt"
             
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error saving document: {str(e)}"
 
@@ -395,12 +460,9 @@ class CreateDirectorySchema(BaseModel):
 class ListDirectorySchema(BaseModel):
     dir_path: str = Field(default=".", description="The path of the directory to list.")
 
-class FolderTools:
+class FolderTools(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
-
-    def _get_full_path(self, file_path: str) -> str:
-        return os.path.join(self.root_dir, file_path)
 
     def create_directory(self, directory_path: str) -> str:
         """
@@ -412,6 +474,8 @@ class FolderTools:
             full_path = self._get_full_path(directory_path)
             os.makedirs(full_path, exist_ok=True)
             return f"Successfully created directory: {directory_path}"
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error creating directory: {str(e)}"
 
@@ -465,6 +529,8 @@ class FolderTools:
                     output.append(f"[FILE] {f}")
             
             return "\n".join(output)
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error listing directory: {str(e)}"
 
@@ -486,7 +552,7 @@ class FolderTools:
             )
         ]
 
-class OCRTools:
+class OCRTools(_WorkspaceMixin):
     def __init__(self, root_dir: str, api_key: str):
         self.root_dir = root_dir
         self.api_key = api_key
@@ -495,9 +561,6 @@ class OCRTools:
             base_url="https://llm.hpc.pcss.pl/v1"
         )
         self.model = "Nanonets-OCR-s"
-
-    def _get_full_path(self, file_path: str) -> str:
-        return os.path.join(self.root_dir, file_path)
 
     def ocr_image(self, file_path: str) -> str:
         """
@@ -536,6 +599,8 @@ class OCRTools:
                 ]
             )
             return response.choices[0].message.content
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error performing OCR: {str(e)}"
 
@@ -548,12 +613,9 @@ class OCRTools:
             )
         ]
 
-class PandocTools:
+class PandocTools(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
-
-    def _get_full_path(self, file_path: str) -> str:
-         return os.path.join(self.root_dir, file_path)
 
     def convert_document(self, source_path: str, output_format: str) -> str:
         """
@@ -606,13 +668,7 @@ class PandocTools:
         ]
 
 
-class VisionTools:
-    """
-    Vision/Image analysis tools.
-    NOTE: PCSS does not currently have multimodal models (like GPT-4o).
-    Use ocr_image for text extraction from images instead.
-    """
-    
+class VisionTools(_WorkspaceMixin):
     def __init__(self, root_dir: str, api_key: str, model_name: str = None):
         self.root_dir = root_dir
         self.api_key = api_key
@@ -623,9 +679,6 @@ class VisionTools:
         self.model = model_name
         # PCSS currently has no multimodal models
         self.vision_available = False
-
-    def _get_full_path(self, file_path: str) -> str:
-        return os.path.join(self.root_dir, file_path)
 
     def analyze_image(self, file_path: str, prompt: str = "Describe this image in detail.") -> str:
         """
@@ -693,7 +746,7 @@ class VisionTools:
         ]
 
 
-class ChartTools:
+class ChartTools(_WorkspaceMixin):
     """
     Tools for generating charts and visualizations using matplotlib.
     """
@@ -804,8 +857,8 @@ class ChartTools:
             
             plt.tight_layout()
             
-            # Resolve path
-            full_path = os.path.join(self.root_dir, file_path)
+            # Resolve and validate path through sandbox
+            full_path = _safe_path(self.root_dir, file_path)
             os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path) else ".", exist_ok=True)
             
             # Determine format from extension
@@ -821,6 +874,8 @@ class ChartTools:
             
         except ImportError:
             return "Error: matplotlib is required. Install with: pip install matplotlib"
+        except PermissionError:
+            raise
         except Exception as e:
             return f"Error generating chart: {str(e)}"
     
@@ -914,6 +969,74 @@ class WebSearchTools:
         except Exception as e:
             return f"News search error: {str(e)}"
 
+    def _summarize_content(self, text: str, max_chars: int = 2000) -> str:
+        """
+        Uses the LLM to summarize long content into key findings.
+        """
+        if not self.client or not text:
+            return text[:max_chars] + "..." if len(text) > max_chars else text
+            
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "Jesteś ekspertem od analizy danych. Podsumuj poniższy tekst w punktach, wyciągając najważniejsze fakty i wnioski. Odpowiadaj po polsku."},
+                    {"role": "user", "content": f"Tekst do podsumowania (maksymalnie {max_chars} znaków):\n\n{text[:6000]}"}
+                ],
+                temperature=0.3,
+                max_tokens=800
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"(Błąd sumaryzacji: {e}) " + text[:max_chars]
+
+    def deep_research(self, topic: str, max_sources: int = 3) -> str:
+        """
+        Performs comprehensive research on a topic by visiting multiple sources and summarizing findings.
+        Args:
+            topic: The research topic or question.
+            max_sources: Number of top sources to analyze deeply (default 3).
+        """
+        try:
+            # 1. Search for sources
+            search_query = topic
+            with DDGS() as ddgs:
+                results = list(ddgs.text(search_query, region="pl-pl", max_results=max_sources + 2))
+            
+            if not results:
+                return "Nie znaleziono żadnych wyników dla podanego tematu."
+            
+            research_report = [f"# Raport Deep Research: {topic}\n"]
+            
+            # 2. Visit and summarize selected sources
+            processed_count = 0
+            for i, res in enumerate(results):
+                if processed_count >= max_sources:
+                    break
+                    
+                url = res.get('href')
+                title = res.get('title', 'Brak tytułu')
+                
+                if not url: continue
+                
+                content = self.visit_page(url)
+                if "Error" in content or "Timeout" in content:
+                    continue
+                
+                summary = self._summarize_content(content)
+                research_report.append(f"## [{i+1}] {title}")
+                research_report.append(f"**Źródło:** {url}")
+                research_report.append(f"**Kluczowe ustalenia:**\n{summary}\n")
+                processed_count += 1
+            
+            if processed_count == 0:
+                return "Udało się znaleźć linki, ale nie udało się pobrać treści z żadnego ze źródeł."
+                
+            return "\n".join(research_report)
+            
+        except Exception as e:
+            return f"Błąd podczas głębokiego researchu: {str(e)}"
+
     def visit_page(self, url: str) -> str:
         """
         Visits a URL and extracts the main article content.
@@ -923,34 +1046,32 @@ class WebSearchTools:
         """
         try:
             import requests
+            import time
             from readability import Document
             
             headers = {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "pl-PL,pl;q=0.9,en;q=0.8",
-                "Accept-Charset": "utf-8, iso-8859-2;q=0.5",
             }
             
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
+            # Add retry logic for reliability
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    response = requests.get(url, headers=headers, timeout=20)
+                    response.raise_for_status()
+                    break
+                except (requests.exceptions.RequestException, requests.exceptions.Timeout) as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    time.sleep(1) # Small delay before retry
             
-            # Better encoding detection
-            # 1. Check Content-Type header for charset
+            # Encoding detection
             content_type = response.headers.get('Content-Type', '')
             if 'charset=' in content_type.lower():
                 declared_encoding = content_type.split('charset=')[-1].split(';')[0].strip()
                 response.encoding = declared_encoding
-            # 2. Check HTML meta charset tag
-            elif b'charset=' in response.content[:1000].lower():
-                # Try to extract from content
-                import re
-                match = re.search(rb'charset=["\']?([^"\'\s>]+)', response.content[:1000], re.IGNORECASE)
-                if match:
-                    response.encoding = match.group(1).decode('ascii', errors='ignore')
-                else:
-                    response.encoding = 'utf-8'
-            # 3. Default to UTF-8 (most common)
             else:
                 response.encoding = 'utf-8'
             
@@ -958,58 +1079,262 @@ class WebSearchTools:
             doc = Document(response.text)
             title = doc.title()
             
-            # Get clean HTML content and convert to text
             from bs4 import BeautifulSoup
             content_html = doc.summary()
             soup = BeautifulSoup(content_html, 'html.parser')
             
-            # Extract text with better formatting
+            # Extract text with improved structure
             text_parts = []
-            for elem in soup.find_all(['p', 'h1', 'h2', 'h3', 'li']):
+            for elem in soup.find_all(['p', 'h1', 'h2', 'h3', 'li', 'td', 'th']):
                 text = elem.get_text(strip=True)
-                if text and len(text) > 20:  # Skip short fragments
+                if text and len(text) > 15:
                     text_parts.append(text)
             
             content = "\n\n".join(text_parts)
             
-            if not content or len(content) < 100:
-                # Fallback to basic extraction if readability fails
+            # High-quality fallback
+            if not content or len(content) < 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
-                    tag.decompose()
-                content = soup.get_text(separator='\n', strip=True)
+                # Prioritize semantic tags
+                main_content = soup.find(['article', 'main']) or soup.find('div', class_=re.compile(r'content|article|post', re.I))
+                if main_content:
+                    content = main_content.get_text(separator='\n\n', strip=True)
+                else:
+                    for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'form']):
+                        tag.decompose()
+                    content = soup.get_text(separator='\n\n', strip=True)
             
-            # Limit to ~10000 chars (roughly 2500 words)
-            if len(content) > 10000:
-                content = content[:10000] + "\n\n[... Content truncated ...]"
+            # Higher limit for deep research (15k chars)
+            max_limit = 15000
+            if len(content) > max_limit:
+                 content = content[:max_limit] + "\n\n[... Treść ucięta ze względu na limit ...]"
             
             return f"=== {title} ===\nSource: {url}\n\n{content}"
             
         except ImportError as ie:
-            return f"Missing library: {ie}. Install with: pip install readability-lxml requests beautifulsoup4"
-        except requests.exceptions.Timeout:
-            return f"Timeout: Page took too long to load: {url}"
-        except requests.exceptions.HTTPError as he:
-            return f"HTTP Error {he.response.status_code}: Cannot access {url}"
+            return f"Brak biblioteki: {ie}. Zainstaluj: pip install readability-lxml requests beautifulsoup4"
         except Exception as e:
-            return f"Error visiting page: {str(e)}"
+            return f"Błąd podczas odwiedzania strony {url}: {str(e)}"
 
     def get_tools(self):
         return [
             StructuredTool.from_function(
                 func=self.search_web,
                 name="search_web",
-                description="Search the web for general information (definitions, guides, reference). Returns links with snippets. Use visit_page to read full content."
+                description="Wyszukuje informacje w internecie. Zwraca linki i krótkie fragmenty. Użyj visit_page aby przeczytać pełną treść."
             ),
             StructuredTool.from_function(
                 func=self.search_news,
                 name="search_news",
-                description="Search for recent NEWS and current events. Returns news articles with dates and sources. Use visit_page to read full articles."
+                description="Wyszukuje najnowsze WIADOMOŚCI. Zwraca artykuły z datami. Użyj visit_page aby przeczytać całość."
             ),
             StructuredTool.from_function(
                 func=self.visit_page,
                 name="visit_page",
-                description="Visit a URL and extract the main article text. Use AFTER search_web or search_news to read full content from a link."
+                description="Odwiedza podany adres URL i wyciąga czysty tekst z artykułu. Używaj po search_web."
+            ),
+            StructuredTool.from_function(
+                func=self.deep_research,
+                name="deep_research",
+                description="Automatyczny proces głębokiego researchu. Odwiedza wiele źródeł, podsumowuje je przez AI i tworzy raport zbiorczy. Najlepsze dla złożonych pytań."
+            )
+        ]
+
+
+class PythonREPL:
+    """
+    A simple Python REPL for executing code safely.
+    """
+    def __init__(self, root_dir: str = "."):
+        self.root_dir = root_dir
+
+    def run_python(self, code: str) -> str:
+        """
+        Executes Python code and returns the standard output.
+        Args:
+            code: The Python code to execute.
+        """
+        # --- Hardened REPL Sandbox ---
+        # Block dangerous builtins that can escape the workspace.
+        blocked_builtins = {'open', 'exec', 'eval', 'compile', '__import__',
+                            'breakpoint', 'input', 'memoryview'}
+        safe_builtins = {k: v for k, v in __builtins__.items()
+                         if k not in blocked_builtins} if isinstance(__builtins__, dict) else {
+            k: getattr(__builtins__, k) for k in dir(__builtins__)
+            if k not in blocked_builtins and not k.startswith('_')
+        }
+        # Provide safe file I/O restricted to workspace
+        root = os.path.realpath(self.root_dir)
+
+        def _safe_open(path, mode='r', *args, **kwargs):
+            resolved = os.path.realpath(os.path.join(root, str(path).lstrip('/\\')))
+            if not resolved.startswith(root):
+                raise PermissionError(f"Access denied: '{path}' is outside the workspace.")
+            return open(resolved, mode, *args, **kwargs)
+
+        # A minimal os-like namespace — no os.system, no subprocess, no chdir
+        import math, json, datetime as dt, collections, itertools
+        try:
+            import numpy as np_mod
+        except ImportError:
+            np_mod = None
+        try:
+            import pandas as pd_mod
+        except ImportError:
+            pd_mod = None
+        try:
+            import matplotlib.pyplot as plt_mod
+        except ImportError:
+            plt_mod = None
+
+        sandbox_globals = {
+            '__builtins__': safe_builtins,
+            'open': _safe_open,
+            'os': type('os', (), {
+                'path': os.path,
+                'listdir': lambda p='.': os.listdir(os.path.join(root, p.lstrip('/\\'))),
+                'getcwd': lambda: root,
+                'sep': os.sep,
+            })(),
+            'math': math,
+            'json': json,
+            'datetime': dt,
+            'collections': collections,
+            'itertools': itertools,
+            'np': np_mod,
+            'pd': pd_mod,
+            'plt': plt_mod,
+            'matplotlib': plt_mod,
+        }
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                exec(code, sandbox_globals)  # noqa: S102
+            except Exception as e:
+                return f"Error executing Python: {str(e)}"
+
+        output = stdout.getvalue()
+        err = stderr.getvalue()
+        if err:
+            output += f"\n[stderr]:\n{err}"
+        return output if output else "Code executed successfully (no output)."
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.run_python,
+                name="run_python",
+                description="Executes Python code in a local environment. Useful for data processing, math, or complex logic. Returns standard output."
+            )
+        ]
+
+
+class EditFileSchema(BaseModel):
+    file_path: str = Field(description="The path to the file to edit.")
+    target_content: str = Field(description="The exact block of text to be replaced.")
+    replacement_content: str = Field(description="The new text to replace the target block with.")
+
+class EditFileTool(_WorkspaceMixin):
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+
+    def edit_file(self, file_path: str, target_content: str, replacement_content: str) -> str:
+        """
+        Replaces a specific block of text in a file.
+        Args:
+            file_path: Path to the file.
+            target_content: Exact string to find.
+            replacement_content: String to replace it with.
+        """
+        try:
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return f"Error: File {file_path} not found."
+
+            with open(full_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            if target_content not in content:
+                # Try to be flexible with whitespace?
+                # For now, strict match.
+                return f"Error: Target content not found in {file_path}. Ensure it matches exactly (including indentation)."
+
+            new_content = content.replace(target_content, replacement_content, 1) # Only replace first occurrence
+            
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+                
+            return f"Successfully edited {file_path}."
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error editing file: {str(e)}"
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.edit_file,
+                name="edit_file",
+                description="Edits a file by replacing a specific block of text. PREFERRED over write_file for modifying existing code. Requires exact match of the target block.",
+                args_schema=EditFileSchema
+            )
+        ]
+
+
+class SearchTools(_WorkspaceMixin):
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+
+    def search_files(self, query: str, pattern: str = "*", recursive: bool = True) -> str:
+        """
+        Searches for a string (query) inside files matching the pattern.
+        Args:
+            query: The text to search for.
+            pattern: Glob pattern for files (e.g., '*.py').
+            recursive: Whether to search subdirectories.
+        """
+        try:
+            results = []
+            import fnmatch
+            
+            search_path = self.root_dir
+            for root, dirs, files in os.walk(search_path):
+                if not recursive and root != search_path:
+                    continue
+                
+                for filename in fnmatch.filter(files, pattern):
+                    if filename.startswith('.'): continue
+                    
+                    full_path = os.path.join(root, filename)
+                    rel_path = os.path.relpath(full_path, self.root_dir)
+                    
+                    try:
+                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            for i, line in enumerate(f, 1):
+                                if query.lower() in line.lower():
+                                    results.append(f"{rel_path}:{i}: {line.strip()}")
+                                    if len(results) > 50:
+                                        return "Too many results (truncated):\n" + "\n".join(results[:50])
+                    except:
+                        continue
+            
+            if not results:
+                return f"No matches found for '{query}'."
+            
+            return "\n".join(results)
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error searching files: {str(e)}"
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.search_files,
+                name="search_files",
+                description="Searches for a specific string within files in the workspace. Returns file names and line numbers."
             )
         ]
 

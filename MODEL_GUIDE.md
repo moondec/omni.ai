@@ -14,12 +14,14 @@ This document provides a summary of models available in the application, categor
 |----------------|----------------|-------------|
 | **Polish** | `bielik_11b` | Polish specialized (11B params) |
 | **Polish** | `bielik_4.5b` | Polish smaller (4.5B params) |
-| **General** | `DeepSeek-V3.1-vLLM` | Logic, math, coding (long context) |
-| **General** | `DeepSeek-V3.1-vLLM-2` | Alternative instance |
-| **General** | `llama3.3:70b` | Meta's general purpose (70B) |
-| **General** | `Qwen2.5:72b` | Alibaba's math/coding model (72B) |
-| **Coding** | `qwen3-coder:30b` | Specialized coding model (30B) |
-| **Coding** | `Mistral-Small-3.2:24b` | Fast coding/efficiency (24B) |
+| **Logic/Coding** | `DeepSeek-V3.1-vLLM` | Reasoning, math, coding (long context) |
+| **Logic/Coding** | `Qwen2.5:72b` | Alibaba's math/coding flagship (72B) |
+| **Logic/Coding** | `qwen3-coder:30b` | Specialized coding model (30B) |
+| **Logic/Coding** | `Qwen3-Coder-Next` | Next-gen coding specialist |
+| **General** | `llama3.3:70b` | Meta's state-of-the-art general model |
+| **General** | `GLM-4.7` | Strong bilingual (CN/EN) model |
+| **General** | `MiniMax-M2.1` | Creative writing and complex logic |
+| **Vision** | `Qwen3-VL-235B-A22B-Instruct` | **Multi-modal** (Vision) capabilities |
 | **Medical** | `Meditron3:70b` | Medical specialization |
 | **Biology** | `OpenBioLLM:70b` | Biology/biomedicine |
 | **Tools** | `Nanonets-OCR-s` | OCR (not for chat) |
@@ -66,12 +68,22 @@ Powerful models with general knowledge, comparable to GPT-4.
     *   **Strengths:** Often tops Open Source leaderboards. Excellent in math and coding.
     *   **Best for:** Complex instructions, STEM tasks.
 
+*   **GLM-4.7** (`GLM-4.7`)
+    *   **Maker:** Zhipu AI.
+    *   **Strengths:** Strong bilingual capabilities, excellent at following complex instructions.
+    *   **Best for:** General assistance, translation, and structured data extraction.
+
+*   **MiniMax-M2.1** (`MiniMax-M2.1`)
+    *   **Maker:** MiniMax.
+    *   **Strengths:** High reasoning performance and creative writing.
+    *   **Best for:** Brainstorming, creative content, and complex logical puzzles.
+
 ### 💻 Coding
 Models trained specifically to understand programming languages.
 
-*   **Qwen3-Coder** (`qwen3-coder:30b`)
+*   **Qwen3-Coder** (`qwen3-coder:30b` or `Qwen3-Coder-Next`)
     *   **Specialization:** Programming.
-    *   **Best for:** Writing scripts (Python, JS, C++), debugging, explaining code. Often outperforms general 70B models at code.
+    *   **Best for:** Writing scripts (Python, JS, C++), debugging, explaining code. Often outperforms general 70B models at code. `Next` version is experimental and more capable.
 
 *   **Mistral-Small** (`Mistral-Small-3.2:24b`)
     *   **Strengths:** Speed and efficiency. Great quality-to-speed ratio.
@@ -93,11 +105,15 @@ Models with specialized domain knowledge.
 
 *   **Nanonets-OCR** (`Nanonets-OCR-s`)
     *   **Type:** OCR (Optical Character Recognition).
-    *   **Use:** Not a chatbot. Extracts text from images, scans, and PDF files without a text layer.
+    *   **Use:** Not a chatbot. Extracts text from images, scans, and PDF files. Use via `ocr_image` tool.
+
+*   **Qwen3-VL** (`Qwen3-VL-235B-A22B-Instruct`)
+    *   **Type:** Multi-modal (Vision).
+    *   **Use:** High-capacity model capable of understanding images and complex visual layouts.
 
 *   **gpt-oss_120b / 20b**
     *   **Type:** Experimental/Internal PCSS models.
-    *   **Use:** Likely large open-source models (e.g., Falcon or Mixtral) for testing. Worth trying if others fail at specific tasks.
+    *   **Use:** Likely large open-source models for testing.
 
 ---
 
@@ -133,15 +149,25 @@ Najpotężniejsze modele o ogólnej wiedzy, porównywalne z GPT-4.
 
 *   **Qwen2.5** (`Qwen2.5:72b`)
     *   **Producent:** Alibaba.
-    *   **Mocne strony:** Często wygrywa rankingi Open Source. Świetny w matematyce i kodowaniu.
+    *   **Mocne strony:** Świetny w matematyce i kodowaniu. Topowe wyniki w rankingach open-source.
     *   **Najlepsze do:** Skomplikowanych instrukcji, zadań ścisłych.
+
+*   **GLM-4.7** (`GLM-4.7`)
+    *   **Producent:** Zhipu AI.
+    *   **Mocne strony:** Bardzo silny model ogólny, świetnie podąża za instrukcjami.
+    *   **Najlepsze do:** Asystenta ogólnego, tłumaczeń i ekstrakcji danych.
+
+*   **MiniMax-M2.1** (`MiniMax-M2.1`)
+    *   **Producent:** MiniMax.
+    *   **Mocne strony:** Wysoka sprawność logiczna i kreatywność w pisaniu.
+    *   **Najlepsze do:** Kreatywnego pisania, rozwiązywania zagadek logicznych.
 
 ### 💻 Programowanie i Kod (Coding)
 Modele wytrenowane specjalnie do rozumienia języków programowania.
 
-*   **Qwen3-Coder** (`qwen3-coder:30b`)
+*   **Qwen3-Coder** (`qwen3-coder:30b` lub `Qwen3-Coder-Next`)
     *   **Specjalizacja:** Programowanie.
-    *   **Najlepsze do:** Pisania skryptów (Python, JS, C++), debugowania, wyjaśniania kodu. Radzi sobie lepiej z kodem niż ogólne modele 70B.
+    *   **Najlepsze do:** Pisania skryptów (Python, JS, C++), debugowania, wyjaśniania kodu. Wersja `Next` jest bardziej zaawansowana.
 
 *   **Mistral-Small** (`Mistral-Small-3.2:24b`)
     *   **Mocne strony:** Szybkość i efektywność. Bardzo dobry stosunek jakości do prędkości.
@@ -163,8 +189,12 @@ Modele posiadające specjalistyczną wiedzę dziedzinową.
 
 *   **Nanonets-OCR** (`Nanonets-OCR-s`)
     *   **Typ:** OCR (Optical Character Recognition).
-    *   **Zastosowanie:** To nie jest chatbot. Służy do wyciągania tekstu ze zdjęć, skanów dokumentów i plików PDF, które nie mają warstwy tekstowej.
+    *   **Zastosowanie:** Wyciąganie tekstu ze zdjęć i skanów. Używaj przez narzędzie `ocr_image`.
+
+*   **Qwen3-VL** (`Qwen3-VL-235B-A22B-Instruct`)
+    *   **Typ:** Model multimodalny (Vision).
+    *   **Zastosowanie:** Rozumienie obrazów, wykresów i złożonych układów wizualnych.
 
 *   **gpt-oss_120b / 20b**
     *   **Typ:** Modele eksperymentalne/wewnętrzne PCSS.
-    *   **Zastosowanie:** Prawdopodobnie duże modele open-source (np. Falcon lub Mixtral) udostępnione testowo. Warto sprawdzić, jeśli inne modele nie dają rady w specyficznych zadaniach.
+    *   **Zastosowanie:** Duże modele open-source do testów.

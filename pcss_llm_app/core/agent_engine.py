@@ -5,7 +5,11 @@ import datetime
 from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import FileManagementToolkit
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from pcss_llm_app.core.tools import DocumentTools, OCRTools, PandocTools, VisionTools, WebSearchTools, ChartTools, FolderTools
+from pcss_llm_app.core.tools import (
+    DocumentTools, OCRTools, PandocTools, VisionTools, 
+    WebSearchTools, ChartTools, FolderTools, PythonREPL,
+    EditFileTool, SearchTools
+)
 
 class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
@@ -75,6 +79,18 @@ class LangChainAgentEngine:
         chart_tools = ChartTools(root_dir=str(self.workspace_path))
         self.tools.extend(chart_tools.get_tools())
 
+        # Add Python REPL
+        repl = PythonREPL(root_dir=str(self.workspace_path))
+        self.tools.extend(repl.get_tools())
+
+        # Add Edit File Tool
+        edit_tool = EditFileTool(root_dir=str(self.workspace_path))
+        self.tools.extend(edit_tool.get_tools())
+
+        # Add Search Tools
+        search_tools = SearchTools(root_dir=str(self.workspace_path))
+        self.tools.extend(search_tools.get_tools())
+
 
 
 
@@ -118,11 +134,16 @@ Examples:
 - search_web: {{"query": "news Poland"}}
 
 Rules:
-- Use search_news for current events, search_web for general info
-- Use visit_page to read full content from URLs (2-3 max)
-- For documents: save_document with HTML content
-- For simple text: write_file with 'file_path' and 'text'
-- Be efficient - stop when you have enough information
+- Speak strictly POLISH to the user.
+- Write Code, Comments, and Technical docs strictly in ENGLISH.
+- Use `search_files` to find content within files.
+- Use `edit_file` to modify existing code instead of rewriting everything.
+- Use `run_python` for math, data analysis, or testing logic.
+- Use `search_news` for current events, `search_web` for general info.
+- Use `deep_research` for complex topics that need multiple sources and analysis.
+- Use `visit_page` to read full content from URLs (2-3 max).
+- For documents: use `save_document` with HTML content.
+- Be efficient - stop when you have enough information.
 - IF YOU NEED TO ASK THE USER A QUESTION: You MUST use "Final Answer: [your question]" to return control to the user. Do not just "think" the question.
 
 {f"User Instructions: " + self.custom_instructions if self.custom_instructions else ""}
@@ -149,6 +170,7 @@ Begin!"""
             prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
 
         max_steps = 50
+        self._consecutive_format_errors = 0  # Reset format error counter
         action_history = []
         thought_history = []
         observation_history = []
@@ -378,12 +400,46 @@ Begin!"""
                 prompt += obs_text
                 self.active_scratchpad += obs_text
             else:
+                # No Action and no Final Answer found in output
                 if "Action:" in output and "Action Input:" not in output:
+                     # Model started an action but didn't provide input — help it complete
                      prompt += "\nAction Input:"
                      self.active_scratchpad += "\nAction Input:"
                      continue
-                if not output.strip(): return "Error: Agent produced empty response."
-                fmt_error = "\nObservation: Invalid format. Please use 'Action:' and 'Action Input:'\nThought:"
+                
+                if not output.strip():
+                    return "Error: Agent produced empty response."
+
+                # ----------------------------------------------------------------
+                # Smart fallback: if the model produced a natural-language response
+                # without the ReAct format, treat it as a direct Final Answer
+                # rather than forcing it into a tool-usage loop.
+                # ----------------------------------------------------------------
+                clean_output = output.replace("Thought:", "").strip()
+                
+                # Heuristic: a direct answer is usually >30 chars of plain text
+                # with no Action markers at all.
+                has_no_action_markers = "Action:" not in output
+                is_substantial = len(clean_output) > 30
+                
+                if has_no_action_markers and is_substantial:
+                    self._log("Auto-detecting direct response as Final Answer (no ReAct markers found).")
+                    self.active_scratchpad = ""
+                    return clean_output
+                
+                # If it's very short and not a final answer, give the model ONE more chance
+                # but limit consecutive format errors to prevent infinite loops
+                if not hasattr(self, '_consecutive_format_errors'):
+                    self._consecutive_format_errors = 0
+                self._consecutive_format_errors += 1
+                
+                if self._consecutive_format_errors >= 3:
+                    self._log("⚠️ Too many format errors. Returning last output as Final Answer.")
+                    self._consecutive_format_errors = 0
+                    self.active_scratchpad = ""
+                    return clean_output if clean_output else "Agent could not produce a valid response."
+                
+                fmt_error = "\nObservation: Invalid format. You MUST use either 'Final Answer: [response]' or 'Action: [tool]' with 'Action Input: [args]'.\nThought:"
                 prompt += fmt_error
                 self.active_scratchpad += fmt_error
 

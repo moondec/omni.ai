@@ -14,5 +14,7 @@ settings.json
 # Temporary / User files
 TOOLS_GUIDE.html
 TOOLS_GUIDE_files/
+README.html
+README_files/
 zadanie
 openapi.json
