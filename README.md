@@ -96,7 +96,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 
 ## ⚙️ Configuration
 
-1.  **API Key**: On first launch, enter your PCSS Cloud API Token (corresponds to your active Grant).
+1.  **API Key**: On first launch, enter your PCSS Cloud API Token (corresponds to your active Grant). See [MODEL_GUIDE.md](MODEL_GUIDE.md) for more information.
 2.  **Workspace**: In **Settings**, select the directory where the Agent is allowed to operate (Default: `~/Documents/Bielik_Workspace`).
 
 ## ▶️ Usage

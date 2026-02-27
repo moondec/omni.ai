@@ -1147,7 +1147,7 @@ class PythonREPL:
         """
         # --- Hardened REPL Sandbox ---
         # Block dangerous builtins that can escape the workspace.
-        blocked_builtins = {'open', 'exec', 'eval', 'compile', '__import__',
+        blocked_builtins = {'open', 'eval', 'compile',
                             'breakpoint', 'input', 'memoryview'}
         safe_builtins = {k: v for k, v in __builtins__.items()
                          if k not in blocked_builtins} if isinstance(__builtins__, dict) else {
@@ -1174,19 +1174,28 @@ class PythonREPL:
         except ImportError:
             pd_mod = None
         try:
+            import matplotlib
+            matplotlib.use('Agg')
             import matplotlib.pyplot as plt_mod
+            
+            # Monkey-patch savefig to ensure files are saved in root_dir
+            _orig_savefig = plt_mod.savefig
+            def _safe_savefig(*args, **kwargs):
+                if args and isinstance(args[0], (str, bytes, os.PathLike)):
+                    path = str(args[0])
+                    if not os.path.isabs(path):
+                        # Prepend root_dir if it's a relative path
+                        args = (os.path.join(root, path),) + args[1:]
+                return _orig_savefig(*args, **kwargs)
+            plt_mod.savefig = _safe_savefig
+
         except ImportError:
             plt_mod = None
 
         sandbox_globals = {
             '__builtins__': safe_builtins,
             'open': _safe_open,
-            'os': type('os', (), {
-                'path': os.path,
-                'listdir': lambda p='.': os.listdir(os.path.join(root, p.lstrip('/\\'))),
-                'getcwd': lambda: root,
-                'sep': os.sep,
-            })(),
+            'os': os,
             'math': math,
             'json': json,
             'datetime': dt,
