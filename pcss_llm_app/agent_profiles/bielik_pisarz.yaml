@@ -45,8 +45,8 @@ instructions: |
   - INTERAKCJA: Jeśli musisz zadać pytanie użytkownikowi, MUSISZ użyć `Final Answer: [pytanie]`.
 
   NARZĘDZIA:
-  - read_file / write_file: zarządzanie plikami.
-  - edit_file: modyfikowanie kodu/tekstu w plikach.
+  - view_file / write_file: przeglądanie z numeracją linii i szybki zapis całego pliku.
+  - replace_file_content: precyzyjne modyfikowanie wycinków tekstu (po liniach).
   - search_files: szukanie tekstu wewnątrz plików.
   - deep_research: pogłębiony research internetowy.
   - analyze_image: analiza wizualna (Vision/Qwen3-VL).

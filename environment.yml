@@ -46,3 +46,5 @@ dependencies:
   
   - pip:
     - readability-lxml  # Article content extraction
+    - mcp               # Model Context Protocol support
+    - langchain-mcp-adapters # MCP integration for LangChain

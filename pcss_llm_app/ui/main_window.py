@@ -196,9 +196,11 @@ class MainWindow(QMainWindow):
         self.db = DatabaseManager()
         
         self.current_conversation_id = None
-        self.current_conversation_id = None
         self.current_agent_conversation_id = None
         self.chat_history = [] 
+
+        self.prompt_history = []
+        self.prompt_history_idx = 0 
 
         # Agent Log Signal
         self.agent_logger = AgentLogSignal()
@@ -267,6 +269,28 @@ class MainWindow(QMainWindow):
         }
     }
     
+    def _add_to_prompt_history(self, text):
+        if not hasattr(self, 'prompt_history'):
+            self.prompt_history = []
+        if not self.prompt_history or self.prompt_history[-1] != text:
+            self.prompt_history.append(text)
+        self.prompt_history_idx = len(self.prompt_history)
+
+    def _navigate_prompt_history(self, delta, input_widget):
+        if not hasattr(self, 'prompt_history') or not self.prompt_history:
+            return
+            
+        new_idx = self.prompt_history_idx + delta
+        if 0 <= new_idx < len(self.prompt_history):
+            self.prompt_history_idx = new_idx
+            input_widget.setPlainText(self.prompt_history[self.prompt_history_idx])
+            cursor = input_widget.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            input_widget.setTextCursor(cursor)
+        elif new_idx == len(self.prompt_history):
+            self.prompt_history_idx = new_idx
+            input_widget.setPlainText("")
+
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress:
              if hasattr(self, 'message_input') and source is self.message_input and \
@@ -277,6 +301,27 @@ class MainWindow(QMainWindow):
                 event.key() in [Qt.Key_Return, Qt.Key_Enter] and not (event.modifiers() & Qt.ShiftModifier):
                  self.send_to_agent()
                  return True
+                 
+             # Prompt History Navigation
+             if event.key() == Qt.Key_Up:
+                 for attr in ('message_input', 'agent_input'):
+                     if hasattr(self, attr):
+                         widget = getattr(self, attr)
+                         if source is widget:
+                             cursor = widget.textCursor()
+                             if cursor.blockNumber() == 0:
+                                 self._navigate_prompt_history(-1, widget)
+                                 return True
+             if event.key() == Qt.Key_Down:
+                 for attr in ('message_input', 'agent_input'):
+                     if hasattr(self, attr):
+                         widget = getattr(self, attr)
+                         if source is widget:
+                             cursor = widget.textCursor()
+                             if cursor.blockNumber() == widget.document().blockCount() - 1:
+                                 self._navigate_prompt_history(1, widget)
+                                 return True
+                                 
         return super().eventFilter(source, event)
 
     def _init_ui(self):
@@ -406,6 +451,7 @@ class MainWindow(QMainWindow):
         # Input
         input_layout = QHBoxLayout()
         self.message_input = QTextEdit()
+        self.message_input.setAcceptRichText(False)
         self.message_input.setFixedHeight(80)
         self.message_input.installEventFilter(self)
         input_layout.addWidget(self.message_input)
@@ -499,6 +545,7 @@ class MainWindow(QMainWindow):
         # Input Area
         input_layout = QHBoxLayout()
         self.agent_input = QTextEdit()
+        self.agent_input.setAcceptRichText(False)
         self.agent_input.setFixedHeight(80)
         self.agent_input.installEventFilter(self)
         input_layout.addWidget(self.agent_input)
@@ -782,11 +829,22 @@ class MainWindow(QMainWindow):
         cursor = self.console_display.textCursor()
         cursor.movePosition(QTextCursor.End)
         self.console_display.setTextCursor(cursor)
+        
+        # Log to file for Antigravity AI hook
+        try:
+            log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".agent_debug.log"))
+            with open(log_path, "a", encoding="utf-8") as f:
+                ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                f.write(f"[{ts}] {message}\n")
+        except Exception:
+            pass
 
     def send_message(self):
         text = self.message_input.toPlainText().strip()
         if not text:
             return
+
+        self._add_to_prompt_history(text)
 
         model = self.model_combo.currentText()
         # print(f"DEBUG: Sending message with model: {model}")
@@ -906,6 +964,28 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", f"Profiles directory not found: {profiles_dir}")
 
     # --- Agent Mode Methods ---
+    def _get_llm_instructions(self, model_name):
+        """Loads specific operational instructions based on the selected LLM."""
+        llm_profiles_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "llm_profiles"))
+        if not os.path.exists(llm_profiles_dir):
+            return ""
+
+        # Try to find exact model match
+        target_file = os.path.join(llm_profiles_dir, f"{model_name}.yaml")
+        if not os.path.exists(target_file):
+            # Fallback to default
+            target_file = os.path.join(llm_profiles_dir, "default.yaml")
+
+        if os.path.exists(target_file):
+            try:
+                with open(target_file, 'r', encoding='utf-8') as f:
+                    profile = yaml.safe_load(f)
+                    if profile and 'instructions' in profile:
+                        return profile['instructions']
+            except Exception as e:
+                self.append_log(f"Warning: Failed to load LLM profile {target_file}: {e}")
+        return ""
+
     def create_assistant(self):
         name = self.agent_name_input.text() or "Assistant"
         # Get instructions from selected profile
@@ -921,13 +1001,17 @@ class MainWindow(QMainWindow):
         workspace = self.config.get_workspace_path()
         model = self.model_combo.currentText()
         
+        # Determine LLM-specific operational rules
+        llm_rules = self._get_llm_instructions(model)
+        
         try:
             self.agent_status_label.setText("Initializing Agent...")
-            # Initialize engine with profile instructions
+            # Initialize engine with both task instructions and LLM-specific rules
             self.agent_engine = LangChainAgentEngine(
                 api_key, model, workspace, 
                 log_callback=self.agent_logger.log_message.emit,
-                custom_instructions=instructions
+                custom_instructions=instructions,
+                llm_instructions=llm_rules
             )
             
             self.agent_status_label.setText("Agent Ready")
@@ -937,6 +1021,7 @@ class MainWindow(QMainWindow):
             self.current_agent_conversation_id = None # Will be created on first message
             
             self.agent_display.append(f"<b>System:</b> Agent '{name}' initialized with profile: {profile_name}<br>")
+            self.agent_display.append(f"<b>System:</b> Active LLM Model: {model} (Loaded operational rules)<br>")
             self.agent_display.append(f"<b>System:</b> Workspace: {workspace}<br>")
             self.agent_display.append(f"<b>System:</b> Tools: [Files, Documents, OCR, Vision, Web Search]<br>")
             
@@ -960,6 +1045,8 @@ class MainWindow(QMainWindow):
         text = self.agent_input.toPlainText().strip()
         if not text:
             return
+            
+        self._add_to_prompt_history(text)
             
         html = markdown.markdown(text)
         self.agent_display.append(f"<b>User:</b> {html}<br>")

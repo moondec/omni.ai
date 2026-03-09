@@ -9,17 +9,21 @@ This document describes the tools available to the Autonomous Agent in the PCSS 
 Basic and advanced operations within the workspace.
 *   **list_directory**: Lists files and folders.
 *   **create_directory**: Creates a new folder.
-*   **read_file**: Reads contents of text files.
+*   **view_file** ⭐ (New):
+    *   *Function:* Reads contents of text files and prepends **1-indexed line numbers** to every line. This is crucial for making precise edits. (Auto-truncates large files).
 *   **write_file**: Creates or overwrites text files.
-*   **edit_file** ⭐ (New): 
-    *   *Function:* Replaces a specific block of text in a file.
-    *   *Advantage:* Much safer for large files as it doesn't overwrite the whole file. Requires an exact match of the target block.
+*   **replace_file_content** ⭐ (New): 
+    *   *Function:* Surgically replaces a specific block of text based on an exact integer line range (`start_line`, `end_line`).
+    *   *Advantage:* Extremely safe for large files; bypasses the string-matching escaping bugs inherent to weak LLMs.
 *   **search_files** ⭐ (New):
     *   *Function:* Searches for a string across all files in the workspace (or matching a pattern like `*.py`).
 *   **copy_file / move_file / delete_file**: Standard file operations.
 
 ## 🐍 Code & Data
-*   **run_python** ⭐ (New):
+*   **run_terminal** ⭐ (New):
+    *   *Function:* Executes shell commands (e.g., `python script.py`, `npm start`) directly in the workspace.
+    *   *Safety:* Strict timeout and SIGKILL process management protect the application from hanging servers.
+*   **run_python**:
     *   *Function:* Executes Python code in a secure sandbox.
     *   *Capabilities:* Includes `math`, `json`, `numpy`, `pandas`, and `matplotlib`.
     *   *Security:* File operations are restricted to the workspace. No access to `os.system` or `subprocess`.
@@ -42,6 +46,22 @@ Basic and advanced operations within the workspace.
     *   *Capability:* Uses `readability` to strip ads and extract the main article content.
 *   **deep_research** ⭐⭐⭐ (New):
     *   *Function:* Automates complex research. It generates multiple search queries, visits several top sources, summarizes them using AI, and presents a consolidated report.
+
+## 🧠 Memory & Context
+*   **update_context** ⭐ (New):
+    *   *Function:* Allows the agent to write persistent briefing notes into a hidden `.agent_context.md` file. It ensures the agent "remembers" project state across different chat sessions or restarts.
+
+## 🌐 Browser Automation (MCP)
+Powered by the **Model Context Protocol** and Playwright.
+*   **playwright_navigate / playwright_screenshot**:
+    *   *Function:* Navigates to a website and takes visual snapshots of the rendered page.
+*   **playwright_click / playwright_fill / playwright_evaluate**:
+    *   *Function:* Interacted with web elements (buttons, forms) and executes custom JavaScript.
+*   **Limitations & Requirements:**
+    *   **Headless:** The browser runs entirely in the background. No window will appear.
+    *   **Isolated Execution:** To prevent system crashes (Qt/macOS), each tool call runs in a separate, isolated process. 
+    *   **Installation:** Requires `npx playwright install chromium` to be executed once on the machine.
+    *   **No Persistent Session:** Because of the process isolation, each tool call starts a fresh browser session. The agent cannot "stay logged in" or maintain state between separate turns unless a persistent profile is configured.
 
 ## 👁️ OCR & Vision
 *   **ocr_image**: Extracts text from photos and scans using **Nanonets-OCR-s**.

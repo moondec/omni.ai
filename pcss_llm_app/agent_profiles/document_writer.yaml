@@ -38,7 +38,7 @@ instructions: |
   - INTERACTION: If you need to ask a question, YOU MUST use `Final Answer: [your question]`.
 
   TOOLS:
-  - read_file / write_file / edit_file: Managing draft content.
+  - view_file / write_file / replace_file_content: Managing draft content.
   - deep_research / search_web: Fact gathering.
   - run_python / generate_chart: Visualization.
   - analyze_image: Understanding visual sources.

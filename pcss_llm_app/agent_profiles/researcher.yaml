@@ -35,5 +35,5 @@ instructions: |
   - search_web / visit_page: Standard web tools.
   - run_python: Sandboxed logic and data analysis.
   - analyze_image: Multi-modal visual synthesis.
-  - search_files / read_file: Local repository context.
+  - search_files / view_file: Local repository context.
   - save_document: Professional report export.

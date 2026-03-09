@@ -18,11 +18,13 @@ A Python desktop application (GUI) for interacting with the PCSS LLM Service, bu
 The application features a powerful Agent capable of performing complex, multi-step tasks.
 
 **File Management**
--   `list_directory`, `read_file`, `write_file`, `copy_file`, `move_file`, `delete_file`
--   `edit_file` — precision in-place editing: replaces specific text blocks without overwriting the whole file
+-   `list_directory`, `write_file`, `copy_file`, `move_file`, `delete_file`
+-   `view_file` — read file content with **1-indexed line numbers** (auto-truncates to protect context limits).
+-   `replace_file_content` — **precision line-based editing**: surgically targets specific code blocks via start/end line integers instead of brittle string matching.
 -   `search_files` — cross-file pattern/string search across the workspace
 
-**Code & Data**
+**Code & Data Execution**
+-   `run_terminal` — sandboxed shell execution (e.g., `python app.py`) with strict workspace constraints and robust timeout / SIGKILL logic.
 -   `run_python` — execute Python code snippets for calculations, data processing, and logic testing
 
 **Internet & Research**
@@ -31,14 +33,18 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   `visit_page` — fetch and extract full article text from a URL (up to 15,000 chars)
 -   `deep_research` — **automated research pipeline**: runs multiple searches, visits top sources, summarizes each with AI, and returns a structured report
 
+**Browser Automation (MCP)**
+-   `playwright_*` — 33+ tools for headless browser control (navigate, click, type, screenshot) using **Model Context Protocol**
+
 **Document Processing**
 -   `read_pdf`, `read_docx`, `save_document`, `convert_document` — read and generate PDF/DOCX files
 -   `ocr_image` — extract text from images/scans (Nanonets OCR)
 -   `generate_chart` — generate charts and visualizations from data
 
-**Configuration**
--   **Profiles**: YAML-based agent personas (researcher, coder, writer…).
--   **Workspace Security**: Agent is strictly confined to a configured directory.
+**System Architecture**
+-   **Profiles**: YAML-based agent personas (researcher, coder, writer…) enforcing strict ReAct paradigms.
+-   **Persistent Memory**: Agents utilize `.agent_context.md` auto-briefing upon load/restart, carrying over project knowledge across sessions.
+-   **Workspace Security**: Agent execution (Terminal & Files) is strictly confined to a configured root directory.
 
 ### 3. 🔒 Security
 -   **Secure Storage**: API Keys are stored in the system Keyring (macOS Keychain, Windows Credential Locker), never in plain text.
@@ -63,6 +69,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 ### Prerequisites
 -   **Anaconda** or **Miniconda** installed.
 -   Python **3.10+**
+-   **Node.js / npm** — required for the Playwright MCP server (`npx`).
 -   **Pandoc** >= 3.0 ([Download](https://github.com/jgm/pandoc/releases)) — required for document conversion.
 
 ### Setup
@@ -87,7 +94,7 @@ The application features a powerful Agent capable of performing complex, multi-s
         langchain langchain-openai langchain-community \
         pypdf python-docx pypandoc weasyprint \
         ddgs requests beautifulsoup4 \
-        readability-lxml \
+        readability-lxml mcp langchain-mcp-adapters \
         matplotlib pyyaml
     ```
 
@@ -122,6 +129,7 @@ python pcss_llm_app/main.py
 | **API** | OpenAI Compatible (PCSS HPC) |
 | **Database** | SQLite |
 | **Web Search** | DuckDuckGo (`ddgs`) |
+| **Browser Auto (MCP)** | `mcp`, `playwright-mcp-server` via `npx` |
 | **Web Scraping** | `requests`, `beautifulsoup4`, `readability-lxml` |
 | **Documents** | `pypdf`, `python-docx`, `pypandoc`, `weasyprint` |
 | **Visualization** | `matplotlib` |

@@ -3,6 +3,11 @@ import sys
 import io
 import contextlib
 import subprocess
+import shlex
+import time
+import re
+import json
+import datetime as dt
 from typing import Optional, List
 try:
     from langchain_core.tools import tool, StructuredTool
@@ -455,7 +460,7 @@ class DocumentTools(_WorkspaceMixin):
 
 
 class CreateDirectorySchema(BaseModel):
-    directory_path: str = Field(description="The name or path of the directory to create.")
+    dir_path: str = Field(description="The name or path of the directory to create.")
 
 class ListDirectorySchema(BaseModel):
     dir_path: str = Field(default=".", description="The path of the directory to list.")
@@ -464,16 +469,16 @@ class FolderTools(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
 
-    def create_directory(self, directory_path: str) -> str:
+    def create_directory(self, dir_path: str) -> str:
         """
         Creates a new directory (folder) at the specified path.
         Args:
-            directory_path: The name or path of the directory to create.
+            dir_path: The name or path of the directory to create.
         """
         try:
-            full_path = self._get_full_path(directory_path)
+            full_path = self._get_full_path(dir_path)
             os.makedirs(full_path, exist_ok=True)
-            return f"Successfully created directory: {directory_path}"
+            return f"Successfully created directory: {dir_path}"
         except PermissionError:
             raise
         except Exception as e:
@@ -1229,24 +1234,18 @@ class PythonREPL:
                 description="Executes Python code in a local environment. Useful for data processing, math, or complex logic. Returns standard output."
             )
         ]
+class ViewFileSchema(BaseModel):
+    file_path: str = Field(description="The path to the file to view.")
+    start_line: Optional[int] = Field(default=None, description="Optional starting line number (1-indexed).")
+    end_line: Optional[int] = Field(default=None, description="Optional ending line number (inclusive).")
 
-
-class EditFileSchema(BaseModel):
-    file_path: str = Field(description="The path to the file to edit.")
-    target_content: str = Field(description="The exact block of text to be replaced.")
-    replacement_content: str = Field(description="The new text to replace the target block with.")
-
-class EditFileTool(_WorkspaceMixin):
+class ViewFileTool(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
 
-    def edit_file(self, file_path: str, target_content: str, replacement_content: str) -> str:
+    def view_file(self, file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
         """
-        Replaces a specific block of text in a file.
-        Args:
-            file_path: Path to the file.
-            target_content: Exact string to find.
-            replacement_content: String to replace it with.
+        Views the contents of a file, prepending 1-indexed line numbers.
         """
         try:
             full_path = self._get_full_path(file_path)
@@ -1254,34 +1253,121 @@ class EditFileTool(_WorkspaceMixin):
                 return f"Error: File {file_path} not found."
 
             with open(full_path, "r", encoding="utf-8") as f:
-                content = f.read()
+                lines = f.readlines()
 
-            if target_content not in content:
-                # Try to be flexible with whitespace?
-                # For now, strict match.
-                return f"Error: Target content not found in {file_path}. Ensure it matches exactly (including indentation)."
+            if not lines:
+                return f"File {file_path} is empty."
 
-            new_content = content.replace(target_content, replacement_content, 1) # Only replace first occurrence
+            # Setup bounds
+            total_lines = len(lines)
+            start_idx = max(0, start_line - 1) if start_line else 0
+            
+            # Truncation logic: If end_line is not provided and file is > 150 lines, truncate.
+            if end_line:
+                end_idx = min(total_lines, end_line)
+                truncated = False
+            else:
+                if total_lines - start_idx > 150:
+                    end_idx = start_idx + 150
+                    truncated = True
+                else:
+                    end_idx = total_lines
+                    truncated = False
+
+            # Guard against invalid bounds
+            if start_idx >= total_lines or start_idx > end_idx:
+                return f"Error: Invalid line range {start_line}-{end_line} for file with {total_lines} lines."
+
+            # Construct numbered output
+            output_lines = [f"{i + 1}: {lines[i]}" for i in range(start_idx, end_idx)]
+            
+            result = f"File: {file_path} (Lines {start_idx + 1}-{end_idx} of {total_lines})\n"
+            result += "-" * 40 + "\n"
+            result += "".join(output_lines)
+            if not result.endswith("\n"):
+                 result += "\n"
+            result += "-" * 40
+            
+            if truncated:
+                result += f"\n[WARNING: File truncated at 150 lines to prevent context overflow."
+                result += f"\n To see the rest of the file, call view_file again with start_line={end_idx + 1} and end_line={min(total_lines, end_idx + 150)}]"
+                
+            return result
+            
+        except UnicodeDecodeError:
+            return f"Error: {file_path} appears to be a binary file."
+        except Exception as e:
+            return f"Error viewing file: {str(e)}"
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.view_file,
+                name="view_file",
+                description="View file contents with line numbers. CRITICAL: Use this BEFORE edit_file to get the exact line numbers to change.",
+                args_schema=ViewFileSchema
+            )
+        ]
+
+
+class ReplaceFileContentSchema(BaseModel):
+    file_path: str = Field(description="The target file to modify.")
+    start_line: int = Field(description="The starting line number of the chunk to replace (1-indexed).")
+    end_line: int = Field(description="The ending line number of the chunk (1-indexed, inclusive).")
+    replacement_content: str = Field(description="The exact text to replace the specified line range with.")
+
+class ReplaceFileContentTool(_WorkspaceMixin):
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+
+    def replace_file_content(self, file_path: str, start_line: int, end_line: int, replacement_content: str) -> str:
+        """
+        Replaces a specific range of lines in a file.
+        """
+        try:
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return f"Error: File {file_path} not found."
+
+            with open(full_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            total_lines = len(lines)
+            
+            # Validation
+            if start_line < 1 or end_line < start_line or start_line > total_lines:
+                return f"Error: Invalid line range [{start_line}, {end_line}] for file with {total_lines} lines."
+                
+            # Convert to 0-indexed indices for lists
+            start_idx = start_line - 1
+            # end_line is inclusive, so the slice goes up to end_line
+            end_idx = min(end_line, total_lines)
+            
+            # Prepare replacement block (ensure it ends with a newline if the file does)
+            if replacement_content and not replacement_content.endswith("\n"):
+                 replacement_content += "\n"
+
+            # Construct new content
+            new_lines = lines[:start_idx] + [replacement_content] + lines[end_idx:]
             
             with open(full_path, "w", encoding="utf-8") as f:
-                f.write(new_content)
+                f.writelines(new_lines)
                 
-            return f"Successfully edited {file_path}."
+            return f"Successfully replaced lines {start_line}-{end_line} in {file_path}."
         except PermissionError:
-            raise
+            return f"Error: Permission denied writing to {file_path}."
         except Exception as e:
             return f"Error editing file: {str(e)}"
 
     def get_tools(self):
         return [
             StructuredTool.from_function(
-                func=self.edit_file,
-                name="edit_file",
-                description="Edits a file by replacing a specific block of text. PREFERRED over write_file for modifying existing code. Requires exact match of the target block.",
-                args_schema=EditFileSchema
+                func=self.replace_file_content,
+                name="replace_file_content",
+                description="Modifies a file by replacing a block of lines (start_line to end_line) with new content. REPLACES EXACT STRING MATCHING. Always use view_file first to find the target lines.",
+                args_schema=ReplaceFileContentSchema
             )
         ]
-
 
 class SearchTools(_WorkspaceMixin):
     def __init__(self, root_dir: str):
@@ -1338,3 +1424,111 @@ class SearchTools(_WorkspaceMixin):
             )
         ]
 
+
+class TerminalSchema(BaseModel):
+    command: str = Field(description="The shell command to execute in the workspace.")
+
+class TerminalTool(_WorkspaceMixin):
+    def __init__(self, root_dir: str):
+        self.root_dir = os.path.abspath(root_dir)
+
+    def run_terminal(self, command: str) -> str:
+        """
+        Executes a shell command within the workspace directory.
+        Args:
+            command: The command to run (e.g., 'python app.py' or 'ls -la').
+        """
+        try:
+            import platform
+            is_unix = platform.system() != "Windows"
+            
+            start_time = time.time()
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                cwd=self.root_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=os.environ.copy(),
+                start_new_session=is_unix  # Put in new process group on Unix
+            )
+            
+            try:
+                stdout, stderr = process.communicate(timeout=15) # Shorter timeout for interactive agents
+            except subprocess.TimeoutExpired:
+                # Command took too long. We need to kill it and all its children.
+                if is_unix:
+                    import signal
+                    try:
+                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    except Exception:
+                        process.kill()
+                else:
+                    process.kill()
+                    
+                # Read whatever was produced before we killed it
+                try:
+                    stdout, stderr = process.communicate(timeout=2)
+                except subprocess.TimeoutExpired:
+                    stdout, stderr = "Output extraction hung", "Output extraction hung"
+                    
+                return f"Command execution stopped after 15s timeout (background server/process detected).\n[Partial Stdout]:\n{stdout}\n[Partial Stderr]:\n{stderr}"
+
+            output = stdout
+            if stderr:
+                output += f"\n[stderr]:\n{stderr}"
+            
+            if not output:
+                return f"Command executed successfully (exit code {process.returncode}), no output."
+            
+            # Truncate extremely long output
+            if len(output) > 10000:
+                output = output[:5000] + "\n... [Output truncated for length] ...\n" + output[-5000:]
+                
+            return output
+        except Exception as e:
+            return f"Error executing terminal command: {str(e)}"
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.run_terminal,
+                name="run_terminal",
+                description="Executes a shell command in the local workspace terminal. Use this to run applications, tests, or system utilities. DANGER: Use surgical commands.",
+                args_schema=TerminalSchema
+            )
+        ]
+
+class UpdateContextSchema(BaseModel):
+    summary: str = Field(description="A concise summary of current project state, key changes, and next steps.")
+
+class UpdateContextTool(_WorkspaceMixin):
+    def __init__(self, root_dir: str):
+        self.root_dir = os.path.abspath(root_dir)
+
+    def update_context(self, summary: str) -> str:
+        """
+        Updates the .agent_context.md file in the workspace to maintain persistence across sessions.
+        """
+        try:
+            context_path = os.path.join(self.root_dir, ".agent_context.md")
+            
+            with open(context_path, "w", encoding="utf-8") as f:
+                import datetime as dt_internal
+                timestamp = dt_internal.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                f.write(f"# Project Context\n\n**Last Updated:** {timestamp}\n\n{summary}\n")
+                
+            return f"Successfully updated .agent_context.md."
+        except Exception as e:
+            return f"Error updating context: {str(e)}"
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.update_context,
+                name="update_context",
+                description="Updates a hidden '.agent_context.md' file with the latest project status. USE THIS to 'save your place' for future sessions.",
+                args_schema=UpdateContextSchema
+            )
+        ]
