@@ -70,8 +70,21 @@ class ConfigManager:
         """
         default_path = str(Path.home() / "Documents" / "Bielik_Workspace")
         path = self._config.get("workspace_path", default_path)
-        # Ensure directory exists
-        Path(path).mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # Ensure directory exists
+            Path(path).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            # Fallback gracefully if settings.json contains a path from another OS
+            print(f"Warning: Could not access workspace path '{path}' ({e}). Falling back to default.")
+            path = default_path
+            # If even the default fails (e.g., Documents doesn't exist), just use home dir
+            try:
+                Path(path).mkdir(parents=True, exist_ok=True)
+            except Exception:
+                path = str(Path.home() / "Bielik_Workspace")
+                Path(path).mkdir(parents=True, exist_ok=True)
+                
         return path
 
     def set_workspace_path(self, path):
