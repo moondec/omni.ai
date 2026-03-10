@@ -971,7 +971,9 @@ class MainWindow(QMainWindow):
             return ""
 
         # Try to find exact model match
-        target_file = os.path.join(llm_profiles_dir, f"{model_name}.yaml")
+        # Sanitize filename for Windows compatibility (replace : with -)
+        safe_model_name = model_name.replace(":", "-")
+        target_file = os.path.join(llm_profiles_dir, f"{safe_model_name}.yaml")
         if not os.path.exists(target_file):
             # Fallback to default
             target_file = os.path.join(llm_profiles_dir, "default.yaml")
