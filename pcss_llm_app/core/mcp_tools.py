@@ -4,6 +4,7 @@ import json
 import subprocess
 import threading
 import atexit
+import ast
 from typing import Optional, List, Any
 
 try:
@@ -299,7 +300,6 @@ class PlaywrightMCPTools:
             """
             raw_res = tools_instance._send_request("playwright_evaluate", {"script": js})
             try:
-                import ast
                 if raw_res.startswith("[") and raw_res.endswith("]"):
                     blocks = ast.literal_eval(raw_res)
                     result_text = blocks[-1].get("text", raw_res)
@@ -382,7 +382,6 @@ class PlaywrightMCPTools:
         def _run(*args, **kwargs):
             raw_res = self._send_request("playwright_evaluate", {"script": js_script})
             try:
-                import ast
                 if raw_res.startswith("[") and raw_res.endswith("]"):
                     blocks = ast.literal_eval(raw_res)
                     json_str = blocks[-1].get("text", "")

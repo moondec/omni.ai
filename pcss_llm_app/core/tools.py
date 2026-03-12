@@ -1510,16 +1510,41 @@ class UpdateContextTool(_WorkspaceMixin):
     def update_context(self, summary: str) -> str:
         """
         Updates the .agent_context.md file in the workspace to maintain persistence across sessions.
+        Includes a simple de-duplication filter to prevent runaway repetitive AI output.
         """
         try:
+            # De-duplication filter: split by double newlines or lines
+            # and keep only unique paragraphs/lines while preserving order.
+            lines = summary.split('\n')
+            unique_lines = []
+            seen = set()
+            for line in lines:
+                clean_line = line.strip()
+                # We only de-duplicate lines that are likely part of repetitive headers/sections
+                # and are not empty. 
+                if clean_line and (clean_line.startswith('#') or len(clean_line) > 20):
+                    if clean_line not in seen:
+                        unique_lines.append(line)
+                        seen.add(clean_line)
+                    else:
+                        # Skip repetitive line
+                        pass
+                else:
+                    unique_lines.append(line)
+            
+            clean_summary = '\n'.join(unique_lines)
+            
             context_path = os.path.join(self.root_dir, ".agent_context.md")
             
             with open(context_path, "w", encoding="utf-8") as f:
                 import datetime as dt_internal
                 timestamp = dt_internal.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                f.write(f"# Project Context\n\n**Last Updated:** {timestamp}\n\n{summary}\n")
+                f.write(f"# Project Context\n\n**Last Updated:** {timestamp}\n\n{clean_summary}\n")
                 
-            return f"Successfully updated .agent_context.md."
+            msg = "Successfully updated .agent_context.md."
+            if len(clean_summary) < len(summary) * 0.8:
+                msg += " (Note: redundant repetitive content was automatically filtered)"
+            return msg
         except Exception as e:
             return f"Error updating context: {str(e)}"
 

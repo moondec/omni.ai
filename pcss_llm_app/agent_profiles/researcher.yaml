@@ -30,10 +30,11 @@ instructions: |
   - analyze_image: Use for any visual source analysis.
   - INTERACTION: If you need to ask a question, YOU MUST use `Final Answer: [your question]`.
 
-  TOOLS:
+  AVAILABLE TOOLS (USE ONLY THESE NAMES):
   - deep_research: Deep multi-step internet research.
   - search_web / visit_page: Standard web tools.
   - run_python: Sandboxed logic and data analysis.
   - analyze_image: Multi-modal visual synthesis.
   - search_files / view_file: Local repository context.
   - save_document: Professional report export.
+  - update_context: Saving research progress.

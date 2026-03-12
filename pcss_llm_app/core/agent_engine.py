@@ -3,6 +3,7 @@ import os
 import re
 import json
 import datetime
+import ast
 from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import FileManagementToolkit
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -76,7 +77,7 @@ class LangChainAgentEngine:
             base_url="https://llm.hpc.pcss.pl/v1",
             model=self.model_name,
             temperature=0.2,  # Small randomness to prevent deterministic loops
-            max_tokens=2048,  # Limit response length for faster generation
+            max_tokens=4096,  # Limit response length for faster generation, increased to prevent cutoff
             request_timeout=120  # 2 minute timeout
         )
 
@@ -219,6 +220,8 @@ Rules:
 - For documents: use `save_document` with HTML content.
 - Be efficient - stop when you have enough information.
 - IF YOU NEED TO ASK THE USER A QUESTION: You MUST use "Final Answer: [your question]" to return control to the user. Do not just "think" the question.
+- You MUST output at most ONE 'Action:' and ONE matching 'Action Input:' block per step. After each Action you MUST wait for the Observation before deciding the next step.
+- Before you claim that something was implemented, created, or verified (e.g., "aplikacja obsługuje X", "wszystkie wymagania zostały zaimplementowane"), you MUST first confirm it using appropriate tools such as `list_directory`, `view_file`, `run_python` or `run_terminal`. Never describe features that are not actually present in the code or files you have just created.
 
 {self.llm_instructions}
 
@@ -237,21 +240,20 @@ Begin!"""
             else:
                  history_text += f"Final Answer: {content}\n"
 
-        # Stateful Continuation Logic
-        # Smart Resume: If we have an active scratchpad from a previous turn (because we asked a question), resume automatically.
-        if self.active_scratchpad:
-            self._log("Resuming from persistent interaction state...")
-            # We treat the user's new input as an observation/answer to the agent's previous state
-            prompt = f"{system_template}\n{history_text}\n(Resuming task context...)\nThought: I should continue my work. Here is the history of my previous steps:\n{self.active_scratchpad}\nObservation: User Feedback/Answer: {input_text}\nNote: Decide if this answers your question or if you need to adjust your plan.\nThought:"
-        else:
-            self.active_scratchpad = "" # Ensure clean start
-            prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
+        # New-turn logic: always treat a new user message as a fresh step in the
+        # conversation, using only the summarized chat_history for context.
+        # We intentionally DO NOT resume from active_scratchpad across runs to avoid
+        # replaying old tool trajectories as answers to new instructions.
+        self.active_scratchpad = ""  # Ensure clean start for each run
+        prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
 
-        max_steps = 50
+        max_steps = 100
         self._consecutive_format_errors = 0  # Reset format error counter
         action_history = []
         thought_history = []
         observation_history = []
+        action_loop_warnings = 0
+        last_executed_tool = None
         
         for i in range(max_steps):
             # Reset variables at start of each iteration to prevent stale values
@@ -259,6 +261,7 @@ Begin!"""
             action_input = None
             tool_args = None
             match = None
+            pending_observation_prefix = ""
             
             self._log(f"--- Step {i+1} ---")
             
@@ -291,6 +294,34 @@ Begin!"""
             self.active_scratchpad += output # Mirror to scratchpad
             
             # Parse Action
+            # Safety check: enforce SINGLE Action per step.
+            # If multiple "Action:" markers appear in one LLM turn, salvage progress by
+            # executing ONLY the first action, and attach a warning to the Observation.
+            action_markers = output.count("Action:")
+            if action_markers > 1 and "Final Answer:" not in output:
+                self._log(f"⚠️ Format error: detected {action_markers} Action blocks in a single step. Salvaging by executing ONLY the first action.")
+                pending_observation_prefix = (
+                    "SYSTEM WARNING: You produced multiple 'Action:' blocks in a single step. "
+                    "I will execute ONLY the FIRST action and ignore the rest. "
+                    "Next time, output exactly ONE 'Action:' and ONE 'Action Input:' pair, then wait for the Observation.\n"
+                )
+                # Truncate output to the first Action/Input pair so parsers don't pick up later actions.
+                first_pair_pattern = r"(Action:\s*.+?\n+Action Input:\s*.+?)(?=\n+Thought:|\n+Final Answer:|$)"
+                first_pair_match = re.search(first_pair_pattern, output, re.DOTALL)
+                if first_pair_match:
+                    output = first_pair_match.group(1).strip()
+                else:
+                    # If we can't reliably salvage, fall back to correction prompt.
+                    fmt_obs = "\nObservation: Format error: You produced multiple 'Action:' blocks but I could not reliably extract the first one. Output exactly ONE action.\nThought:"
+                    prompt += fmt_obs
+                    self.active_scratchpad += fmt_obs
+                    continue
+                # IMPORTANT: this is a pure format issue, so we should not treat this
+                # step as part of an action loop. Clear recent action history snapshot
+                # to avoid accidental loop kills caused by long, repeated plans.
+                if action_history:
+                    action_history.pop()
+
             # Use non-greedy for Action and a more precise match for Input to allow trailing text
             pattern = r"Action:\s*(.+?)\n+Action Input:\s*(.+?)(?=\n+Thought:|\n+Final Answer:|$)"
             match = re.search(pattern, output, re.DOTALL)
@@ -313,6 +344,24 @@ Begin!"""
                 pass
             elif "Final Answer:" in output:
                 final_ans = output.split("Final Answer:")[-1].strip()
+
+                # Anti-hallucination gate: do not accept "done" claims without any verification tool usage.
+                verification_tools = {"list_directory", "view_file", "run_terminal", "run_python", "search_files"}
+                claim_markers = [
+                    "utworzy", "stworzy", "zakończ", "zrobion", "gotow",
+                    "wszystkie wymagania", "spełnia", "zaimplementowan", "completed", "done"
+                ]
+                looks_like_claim = any(m in final_ans.lower() for m in claim_markers)
+                if looks_like_claim and (last_executed_tool not in verification_tools):
+                    self._log("⚠️ Final Answer appears to claim completion without verification. Forcing validation step.")
+                    gate_obs = (
+                        "\nObservation: SYSTEM CHECK: You are claiming completion. "
+                        "Before answering, you MUST verify the actual workspace state using tools "
+                        "(e.g., list_directory and view_file). Do not claim files/features exist without verifying.\nThought:"
+                    )
+                    prompt += gate_obs
+                    self.active_scratchpad += gate_obs
+                    continue
                 
                 # Context Preservation Logic
                 # If Final Answer is a question, KEEP the scratchpad so we can resume next turn.
@@ -405,13 +454,30 @@ Begin!"""
                 try:
                     tool_args = json.loads(action_input)
                 except json.JSONDecodeError:
-                    import ast
+                    # JSON Repair Block: attempt to close unclosed JSON (common for truncated outputs)
+                    try:
+                        # Case 1: Missing closing brace
+                        if action_input.count('{') > action_input.count('}'):
+                            tool_args = json.loads(action_input + '}')
+                        # Case 2: Missing closing quote and brace (especially in 'text' blocks)
+                        elif action_input.strip().endswith('"') == False:
+                             tool_args = json.loads(action_input + '"}')
+                        else:
+                            raise json.JSONDecodeError("Manual trigger for fallback", action_input, 0)
+                    except:
+                        pass
                     try:
                         # Sometimes LLMs output Python dicts instead of JSON
                         tool_args = ast.literal_eval(action_input)
                     except (SyntaxError, ValueError):
-                        # Fix common unescaped control character issues (like \t or \n in strings)
                         fixed_input = action_input.replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
+                        # VERY common issue: LLMs output unescaped double quotes inside JSON strings
+                        # We try to escape quotes that are followed by characters other than , or } or ] or end of string
+                        # This is a bit risky but often helpful. Better yet: try to find the text block and escape it.
+                        if '"text": "' in fixed_input or '"replacement_content": "' in fixed_input:
+                             # Regex to find the content between the start of a key and the end of the JSON object
+                             pass # We use a more robust fallback below
+                        
                         try:
                             tool_args = json.loads(fixed_input)
                         except json.JSONDecodeError:
@@ -422,22 +488,20 @@ Begin!"""
                                 try:
                                     tool_args = json.loads(json_obj_match.group(1))
                                 except:
-                                    try:
-                                        tool_args = ast.literal_eval(json_obj_match.group(1))
-                                    except:
-                                        tool_args = action_input
+                                    # Final attempt: try to manually extract the fields if it's still broken
+                                    tool_args = fixed_input # Fallback to string for regex extractor below
                             else:
                                  tool_args = action_input
 
                 # Heuristic Fallback for broken JSON (especially write_file with unescaped newlines/quotes)
-                if isinstance(tool_args, str):
+                if isinstance(tool_args, str) and ("{" in tool_args or ":" in tool_args):
                     try:
                         # Try to manually regex out file_path and text for write_file/edit_file
                         fp_match = re.search(r'"(?:file_path|path|directory_path|source_path)"\s*:\s*"([^"]+)"', tool_args)
                         if fp_match:
                             extracted_path = fp_match.group(1)
                             # Now try to get the text/content field if it exists
-                            text_match = re.search(r'"(?:text|content)"\s*:\s*"(.*)"\s*\}?\s*$', tool_args, re.DOTALL)
+                            text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)"\s*\}?\s*$', tool_args, re.DOTALL)
                             if text_match:
                                 extracted_text = text_match.group(1)
                                 # The greedy match might include the closing "} at the very end, try to strip it
@@ -452,7 +516,7 @@ Begin!"""
                             else:
                                 # Maybe it only had a path (like read_file, create_directory)
                                 tool_args = {"file_path": extracted_path}
-                    except Exception as e:
+                    except Exception:
                         pass
 
                 # Argument Mapping Fallback
@@ -494,8 +558,11 @@ Begin!"""
                             if key in tool_args and "source_path" not in tool_args:
                                 tool_args["source_path"] = tool_args.pop(key)
 
-                    if action in ["write_file", "write_docx"] and "content" in tool_args and "text" not in tool_args:
-                         tool_args["text"] = tool_args.pop("content")
+                    if action in ["write_file", "write_docx"] and "text" not in tool_args:
+                         for old_key in ["content", "file_text", "body", "data"]:
+                             if old_key in tool_args:
+                                 tool_args["text"] = tool_args.pop(old_key)
+                                 break
                          
                     if action == "replace_file_content":
                         # Map common hallucinated arguments
@@ -538,9 +605,42 @@ Begin!"""
                 current_action = (action, action_input)
                 
                 # Check for 3 consecutive identical actions
-                if len(action_history) >= 2 and action_history[-1] == current_action and action_history[-2] == current_action:
-                    self._log("⚠️ Action Loop detected! Stopping agent.")
-                    return "Agent stopped: Repetitive action loop. I have tried this too many times."
+                is_identical_loop = len(action_history) >= 2 and action_history[-1] == current_action and action_history[-2] == current_action
+                
+                # Check for SIMILARITY loop (for long texts that might have tiny changes like timestamps)
+                is_similarity_loop = False
+                if not is_identical_loop and len(action_history) >= 1 and action == action_history[-1][0]:
+                    prev_obs = str(observation_history[-1]) if len(observation_history) > 0 else ""
+                    # Do not trigger similarity loop if previous action was an error (agent is likely trying to fix it)
+                    if not prev_obs.startswith("Error"):
+                        prev_input = action_history[-1][1]
+                        if len(action_input) > 200 and len(prev_input) > 200:
+                            # If inputs are long, check if they are 95% similar
+                            from difflib import SequenceMatcher
+                            similarity = SequenceMatcher(None, action_input[:2000], prev_input[:2000]).ratio()
+                            if similarity > 0.95:
+                                is_similarity_loop = True
+                                self._log(f"⚠️ Similarity Loop detected (ratio: {similarity:.2f})")
+
+                if is_identical_loop or is_similarity_loop:
+                    # First time: intervene with an explicit instruction instead of immediately stopping.
+                    # This helps weaker models recover from accidental repeats of idempotent actions.
+                    if action_loop_warnings < 1:
+                        action_loop_warnings += 1
+                        self._log("⚠️ Action Loop detected! Injecting intervention (warning 1/1).")
+                        observation = (
+                            "SYSTEM INTERVENTION: You are repeating the same (or highly similar) tool action. "
+                            "STOP repeating it. Do NOT call the same tool with similar input again. "
+                            "Change strategy now (e.g., move to the next file/task, or validate results with list_directory/view_file/run_terminal)."
+                        )
+                        observation_history.append(observation)
+                        obs_text = f"\nObservation: {observation}\nThought:"
+                        prompt += obs_text
+                        self.active_scratchpad += obs_text
+                        continue
+
+                    self._log("⚠️ Action Loop detected! Stopping agent after intervention.")
+                    return "Agent stopped: Repetitive action loop detected even after a system intervention. Please try a fundamentally different approach or ask the user for help."
                 
                 action_history.append(current_action)
 
@@ -549,7 +649,52 @@ Begin!"""
                     self._log(f"Executing Tool: {action} (Step {i+1}/{max_steps})")
                     tool = self.tool_map[action]
                     try:
+                        # ----------------------------------------------------------------
+                        # Preflight validation for common strict-schema tools.
+                        # If required args are missing, do NOT call the tool (prevents
+                        # repetitive Pydantic validation loops and forces strategy change).
+                        # ----------------------------------------------------------------
+                        if isinstance(tool_args, dict):
+                            if action == "write_file":
+                                missing = [k for k in ("file_path", "text") if k not in tool_args or tool_args.get(k) in (None, "")]
+                                if missing:
+                                    observation = (
+                                        "Error: write_file requires a dict with BOTH keys: "
+                                        "'file_path' and 'text'. "
+                                        f"Missing/empty: {', '.join(missing)}. "
+                                        "Fix your Action Input JSON. If the content is large, "
+                                        "write a small skeleton first, then use replace_file_content in small blocks."
+                                    )
+                                    self._log(f"Error: {observation}")
+                                    observation_history.append(observation)
+                                    obs_text = f"\nObservation: {observation}\nThought:"
+                                    prompt += obs_text
+                                    self.active_scratchpad += obs_text
+                                    continue
+
+                            if action == "replace_file_content":
+                                missing = [
+                                    k for k in ("file_path", "start_line", "end_line", "replacement_content")
+                                    if k not in tool_args or tool_args.get(k) in (None, "")
+                                ]
+                                if missing:
+                                    observation = (
+                                        "Error: replace_file_content requires: "
+                                        "'file_path', 'start_line', 'end_line', 'replacement_content'. "
+                                        f"Missing/empty: {', '.join(missing)}. "
+                                        "Fix your Action Input JSON and ensure line numbers are integers."
+                                    )
+                                    self._log(f"Error: {observation}")
+                                    observation_history.append(observation)
+                                    obs_text = f"\nObservation: {observation}\nThought:"
+                                    prompt += obs_text
+                                    self.active_scratchpad += obs_text
+                                    continue
+
                         observation = tool.run(tool_args) if hasattr(tool, "run") else tool(tool_args)
+                        last_executed_tool = action
+                        if pending_observation_prefix:
+                            observation = pending_observation_prefix + str(observation)
                         
                         # Observation Loop / Stagnation check
                         if len(observation_history) > 0 and observation == observation_history[-1]:
@@ -562,7 +707,8 @@ Begin!"""
                         observation = f"Error executing {action}: {e}"
                         self._log(f"Error: {observation}")
                 else:
-                    observation = f"Error: Tool '{action}' not found."
+                    available_tools = ", ".join(self.tool_map.keys())
+                    observation = f"Error: Tool '{action}' not found. Available tools: {available_tools}. Use only these names!"
                 
                 obs_text = f"\nObservation: {observation}\nThought:"
                 prompt += obs_text

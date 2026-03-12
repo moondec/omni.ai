@@ -13,5 +13,18 @@ instructions: |
   - Be direct and concise.
   - Prioritize executing code using `run_terminal` or `run_python` to verify it works before claiming completion.
 
+  AVAILABLE TOOLS (USE ONLY THESE NAMES):
+  - view_file: View file with line numbers (REQUIRED before editing).
+  - write_file: Write full file (New files).
+  - replace_file_content: Precise line-based modifications.
+  - run_terminal: Execute OS commands/scripts.
+  - search_files: Global string search.
+  - list_directory: Directory discovery.
+  - update_context: Persistent briefing notes.
+  - run_python: Sandboxed data analysis/math.
+  - analyze_image: Visual UI/UX review.
+  - search_web / deep_research: Technical research.
+  - save_document: Export reports.
+
 temperature: 0.1
 max_tokens: 4096

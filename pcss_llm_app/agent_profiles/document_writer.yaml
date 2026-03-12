@@ -37,9 +37,12 @@ instructions: |
   - run_python: Use for data cleanup and visualization.
   - INTERACTION: If you need to ask a question, YOU MUST use `Final Answer: [your question]`.
 
-  TOOLS:
-  - view_file / write_file / replace_file_content: Managing draft content.
+  AVAILABLE TOOLS (USE ONLY THESE NAMES):
+  - view_file: Reading drafts with line numbers.
+  - write_file: Writing full drafts.
+  - replace_file_content: Precise editing of document segments.
   - deep_research / search_web: Fact gathering.
   - run_python / generate_chart: Visualization.
   - analyze_image: Understanding visual sources.
   - save_document / convert_document: Exporting professional outputs.
+  - update_context: Saving progress notes.

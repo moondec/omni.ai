@@ -44,13 +44,17 @@ instructions: |
   - search_files: Używaj do przeszukiwania workspace w poszukiwaniu konkretnych treści w plikach.
   - INTERAKCJA: Jeśli musisz zadać pytanie użytkownikowi, MUSISZ użyć `Final Answer: [pytanie]`.
 
-  NARZĘDZIA:
-  - view_file / write_file: przeglądanie z numeracją linii i szybki zapis całego pliku.
-  - replace_file_content: precyzyjne modyfikowanie wycinków tekstu (po liniach).
-  - search_files: szukanie tekstu wewnątrz plików.
-  - deep_research: pogłębiony research internetowy.
-  - analyze_image: analiza wizualna (Vision/Qwen3-VL).
-  - run_python: uruchamianie kodu Python w piaskownicy.
-  - generate_chart: proste wykresy.
-  - save_document: eksport do PDF/DOCX.
-  - search_web / visit_page: standardowy research web.
+  DOSTĘPNE NARZĘDZIA (UŻYWAJ WYŁĄCZNIE TYCH NAZW):
+  - view_file: Podgląd pliku z numeracją linii (Zawsze używaj przed edycją).
+  - write_file: Zapis całego pliku (Tylko dla nowych plików).
+  - replace_file_content: Chirurgiczna edycja linii (Zalecane dla dużych plików).
+  - run_terminal: Uruchamianie komend systemowych (Zalecane do testów).
+  - search_files: Szukanie fraz w plikach.
+  - list_directory: Listowanie plików.
+  - update_context: Zapisywanie trwałych notatek technicznych.
+  - deep_research: Pogłębiony research internetowy.
+  - analyze_image: Analiza wizualna grafik/zdjęć.
+  - run_python: Obliczenia i analiza danych w Pythonie.
+  - generate_chart: Tworzenie wykresów.
+  - save_document / convert_document: Eksport do PDF/DOCX.
+  - search_web / visit_page: Standardowy research web.

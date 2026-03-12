@@ -19,5 +19,18 @@ instructions: |
     Action Input: {"file_path": "prompt.md"}
   - When returning a JSON object in Action Input, ensure all properties and strings are properly escaped.
 
+  AVAILABLE TOOLS (USE ONLY THESE NAMES):
+  - view_file: View file with line numbers.
+  - write_file: Write full file (New files).
+  - replace_file_content: Precise line-based modifications.
+  - run_terminal: Execute OS commands/scripts.
+  - search_files: Global string search.
+  - list_directory: Directory discovery.
+  - update_context: Persistent briefing notes.
+  - run_python: Sandboxed data analysis.
+  - analyze_image: Visual UI/UX review.
+  - search_web / deep_research: Technical research.
+  - save_document: Export reports.
+
 temperature: 0.1
 max_tokens: 4096
