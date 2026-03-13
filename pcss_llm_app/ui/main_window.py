@@ -144,6 +144,7 @@ class AgentWorker(QThread):
     status_update = Signal(str)
     error = Signal(str)
     cancelled = Signal()  # Signal when cancelled
+    chunk_received = Signal(str)
 
     def __init__(self, agent_engine, text, chat_history=None):
         super().__init__()
@@ -166,14 +167,32 @@ class AgentWorker(QThread):
                 return
                 
             self.status_update.emit("Agent thinking...")
-            # Run the agent (synchronous call in thread)
-            response = self.agent_engine.run(self.text, self.chat_history)
+            
+            final_response = ""
+            agent_gen = self.agent_engine.run(self.text, self.chat_history)
+            
+            if hasattr(agent_gen, '__next__'):
+                while True:
+                    try:
+                        chunk = next(agent_gen)
+                        if self._is_cancelled:
+                            self.cancelled.emit()
+                            return
+                        if chunk:
+                            self.chunk_received.emit(chunk)
+                    except StopIteration as e:
+                        if e.value is not None:
+                            final_response = e.value
+                        break
+            else:
+                # Fallback if run() simply returns a string
+                final_response = agent_gen
             
             if self._is_cancelled:
                 self.cancelled.emit()
                 return
                 
-            self.finished.emit(response)
+            self.finished.emit(final_response)
                 
         except Exception as e:
             if not self._is_cancelled:
@@ -336,10 +355,16 @@ class MainWindow(QMainWindow):
         
         self.history_list = QListWidget()
         self.history_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.history_list.setToolTip("Right-click to delete individual threads")
         self.history_list.customContextMenuRequested.connect(self.show_history_context_menu)
         self.history_list.itemClicked.connect(self.load_history_conversation)
         sidebar_layout.addWidget(QLabel("History"))
         sidebar_layout.addWidget(self.history_list)
+        
+        self.clear_history_btn = QPushButton("Clear All History")
+        self.clear_history_btn.clicked.connect(self.clear_history)
+        self.clear_history_btn.setStyleSheet("background-color: #fce4ec; color: #c2185b;")
+        sidebar_layout.addWidget(self.clear_history_btn)
         
         # --- Model Selection (Global) ---
         model_group = QWidget()
@@ -520,7 +545,9 @@ class MainWindow(QMainWindow):
         # Agent Chat Display
         self.agent_display = QTextBrowser()
         self.agent_display.setReadOnly(True)
-        self.agent_display.setOpenExternalLinks(True)
+        self.agent_display.setOpenExternalLinks(False)
+        self.agent_display.setOpenLinks(False)
+        self.agent_display.anchorClicked.connect(self._handle_link_click)
         agent_layout.addWidget(self.agent_display)
 
         # Agent Console Toggle
@@ -677,12 +704,22 @@ class MainWindow(QMainWindow):
         # Get current models from main combo
         current_models = [self.model_combo.itemText(i) for i in range(self.model_combo.count())]
         
+        # Capture current workspace before dialog to detect changes
+        old_workspace = self.config.get_workspace_path()
+        
         dlg = SettingsDialog(self.config, self, available_models=current_models)
         if dlg.exec():
             # Re-initialize API client
             self.api = PcssApiClient(self.config)
             # Refresh models (this will also restore the saved selection)
             self._refresh_models()
+            
+            # Check if workspace changed
+            new_workspace = self.config.get_workspace_path()
+            if old_workspace != new_workspace:
+                self.append_log(f"Workspace changed: {old_workspace} -> {new_workspace}. Re-initializing Assistant...")
+                self.create_assistant()
+            
             # Log the current selected model for user confirmation
             current_model = self.model_combo.currentText()
             self.append_log(f"Settings saved. Current model: {current_model}")
@@ -1008,12 +1045,16 @@ class MainWindow(QMainWindow):
         
         try:
             self.agent_status_label.setText("Initializing Agent...")
+            # Fetch top-rated examples for this model
+            top_examples = self.db.get_top_rated_interactions(model, limit=3)
+            
             # Initialize engine with both task instructions and LLM-specific rules
             self.agent_engine = LangChainAgentEngine(
                 api_key, model, workspace, 
                 log_callback=self.agent_logger.log_message.emit,
                 custom_instructions=instructions,
-                llm_instructions=llm_rules
+                llm_instructions=llm_rules,
+                few_shot_examples=top_examples
             )
             
             self.agent_status_label.setText("Agent Ready")
@@ -1074,9 +1115,13 @@ class MainWindow(QMainWindow):
         self.agent_worker = AgentWorker(self.agent_engine, text, self.agent_history)
         self.agent_status_label.setText("Processing...")
         self.agent_worker.status_update.connect(self.update_agent_status)
+        self.agent_worker.chunk_received.connect(self.handle_agent_chunk)
         self.agent_worker.finished.connect(self.handle_agent_response)
         self.agent_worker.error.connect(self.handle_agent_error)
         self.agent_worker.cancelled.connect(self.handle_agent_cancelled)
+        
+        self.current_agent_stream = ""
+        self._render_chat()
         
         # UI state: disable input, enable Stop
         self.agent_input.setEnabled(False)
@@ -1084,23 +1129,75 @@ class MainWindow(QMainWindow):
         self.agent_stop_btn.setEnabled(True)
         self.agent_worker.start()
 
+    def _handle_link_click(self, url):
+        link = url.toString()
+        if link.startswith("rate:"):
+            parts = link.split(":")
+            if len(parts) == 3:
+                action = parts[1]
+                msg_id = int(parts[2])
+                rating = 1 if action == "up" else -1
+                
+                # Update DB
+                self.db.update_message_rating(msg_id, rating)
+                
+                # Append to console log
+                self.append_log(f"Message {msg_id} rated {action} ({rating}).")
+        else:
+            import webbrowser
+            webbrowser.open(link)
+
+    def _render_chat(self):
+        html_parts = []
+        from langchain_core.messages import HumanMessage
+        for msg in self.agent_history:
+            m_html = markdown.markdown(msg.content)
+            role = "User" if isinstance(msg, HumanMessage) else "Agent"
+            html_parts.append(f"<b>{role}:</b> {m_html}<br>")
+            
+        if hasattr(self, 'agent_worker') and self.agent_worker:
+            user_html = markdown.markdown(self.agent_worker.text)
+            html_parts.append(f"<b>User:</b> {user_html}<br>")
+            
+        if hasattr(self, 'current_agent_stream') and self.current_agent_stream:
+            stream_html = markdown.markdown(self.current_agent_stream)
+            html_parts.append(f"<b>Agent:</b> {stream_html}<br>")
+            
+        scrollbar = self.agent_display.verticalScrollBar()
+        was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 15
+
+        self.agent_display.setHtml("".join(html_parts))
+        
+        if was_at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+
     def update_agent_status(self, status):
         self.agent_status_label.setText(status)
 
+    def handle_agent_chunk(self, chunk):
+        self.current_agent_stream += chunk
+        self._render_chat()
+
     def handle_agent_response(self, content):
-        html = markdown.markdown(content)
-        self.agent_display.append(f"<b>Agent:</b> {html}<br>")
-        
+        # Persist Agent Response to get msg_id first
+        msg_id = None
+        if self.current_agent_conversation_id:
+            msg_id = self.db.add_message(self.current_agent_conversation_id, "assistant", content)
+
         # Update history
         if self.agent_worker:
             input_text = self.agent_worker.text
             from langchain_core.messages import HumanMessage, AIMessage
             self.agent_history.append(HumanMessage(content=input_text))
-            self.agent_history.append(AIMessage(content=content))
+            
+            display_content = content
+            if msg_id is not None:
+                display_content += f"\n\n<br><a href='rate:up:{msg_id}'>👍</a> <a href='rate:down:{msg_id}'>👎</a>"
+            
+            self.agent_history.append(AIMessage(content=display_content))
         
-        # Persist Agent Response
-        if self.current_agent_conversation_id:
-            self.db.add_message(self.current_agent_conversation_id, "assistant", content)
+        self.current_agent_stream = ""
+        self._render_chat()
         
         self._reset_agent_ui()
 
@@ -1164,16 +1261,42 @@ class MainWindow(QMainWindow):
 
     def load_history_conversation(self, item):
         conv_id = item.data(Qt.UserRole)
-        self.current_conversation_id = conv_id
         
+        # Check conversation mode
+        conv_info = self.db.get_conversation(conv_id)
+        if not conv_info:
+            return
+            
+        mode = conv_info[4] if len(conv_info) > 4 else "chat"
         messages = self.db.get_messages(conv_id)
         
-        self.chat_display.clear()
-        self.chat_history = []
-        
-        for role, content, _ in messages:
-            self._append_message("AI" if role == "assistant" else "User", content)
-            self.chat_history.append({"role": role, "content": content})
+        if mode == "agent":
+            # Switch to Agent Tab
+            self.tabs.setCurrentIndex(1)
+            self.current_agent_conversation_id = conv_id
+            self.agent_display.clear()
+            self.agent_history = []
+            
+            from langchain_core.messages import HumanMessage, AIMessage
+            
+            for msg_id, role, content, timestamp, rating in messages:
+                if role == "user":
+                    self.agent_history.append(HumanMessage(content=content))
+                elif role == "assistant":
+                    self.agent_history.append(AIMessage(content=content))
+                    
+            self._render_chat()
+            
+        else:
+            # Switch to standard Chat Tab
+            self.tabs.setCurrentIndex(0)
+            self.current_conversation_id = conv_id
+            self.chat_display.clear()
+            self.chat_history = []
+            
+            for msg_id, role, content, timestamp, rating in messages:
+                self._append_message("AI" if role == "assistant" else "User", content)
+                self.chat_history.append({"role": role, "content": content})
 
     def show_history_context_menu(self, position):
         item = self.history_list.itemAt(position)
@@ -1196,6 +1319,8 @@ class MainWindow(QMainWindow):
             self.db.delete_conversation(conv_id)
             if self.current_conversation_id == conv_id:
                 self.start_new_chat()
+            if self.current_agent_conversation_id == conv_id:
+                self.create_thread()
             self.refresh_history()
 
     def clear_history(self):
@@ -1205,6 +1330,7 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.Yes:
             self.db.clear_all_conversations()
             self.start_new_chat()
+            self.create_thread()
             self.refresh_history()
 
     def save_to_file(self):

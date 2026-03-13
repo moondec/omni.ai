@@ -18,13 +18,14 @@ from pcss_llm_app.core.mcp_tools import PlaywrightMCPTools
 class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
                  log_callback=None, custom_instructions: str = None, 
-                 llm_instructions: str = None):
+                 llm_instructions: str = None, few_shot_examples: List[tuple] = None):
         self.api_key = api_key
         self.model_name = model_name
         self.workspace_path = workspace_path
         self.log_callback = log_callback
         self.custom_instructions = custom_instructions or ""
         self.llm_instructions = llm_instructions or ""
+        self.few_shot_examples = few_shot_examples or []
         self.active_scratchpad = "" # Persistence layer for long tasks
         self.consecutive_format_errors = 0
         self._initialize_agent()
@@ -179,7 +180,16 @@ class LangChainAgentEngine:
 
         vision_rule = "- Use `analyze_image` to review UI screenshots, analyze charts, or understand mockups." if "Qwen3" in self.model_name else "- You DO NOT have vision capabilities. DO NOT use `analyze_image`."
 
+        # Build Few-Shot Examples if any
+        few_shot_text = ""
+        if self.few_shot_examples:
+            few_shot_text = "\n### OUTSTANDING EXAMPLES OF PREVIOUS INTERACTIONS TO EMULATE ###\n"
+            for idx, (q, a) in enumerate(self.few_shot_examples, 1):
+                few_shot_text += f"\n--- Example {idx} ---\nQuestion: {q}\nFinal Answer: {a}\n"
+            few_shot_text += "################################################################\n"
+
         system_template = f"""You are an AI assistant with tools. Date: {current_date}
+Current Workspace (Root Directory): {self.workspace_path}
 
 Tools:
 {tool_descriptions}
@@ -228,6 +238,7 @@ Rules:
 {f"User Instructions: " + self.custom_instructions if self.custom_instructions else ""}
 
 {self._load_workspace_context()}
+{few_shot_text}
 Begin!"""
         
         # Build conversation history
@@ -267,8 +278,13 @@ Begin!"""
             
             # Invoke LLM with stop sequence
             self._log("Thinking...")
-            response = self.llm.invoke(prompt, stop=["Observation:"])
-            output = response.content
+            
+            output = ""
+            for chunk in self.llm.stream(prompt, stop=["Observation:"]):
+                if chunk.content:
+                    output += chunk.content
+                    yield chunk.content
+                    
             # print(f"--- Step {i} ---\nLLM Output:\n{output}\n----------------")
             self._log(f"Agent Thought:\n{output}")
             
@@ -711,6 +727,7 @@ Begin!"""
                     observation = f"Error: Tool '{action}' not found. Available tools: {available_tools}. Use only these names!"
                 
                 obs_text = f"\nObservation: {observation}\nThought:"
+                yield obs_text
                 prompt += obs_text
                 self.active_scratchpad += obs_text
             else:
