@@ -45,6 +45,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   **Profiles**: YAML-based agent personas (researcher, coder, writer…) enforcing strict ReAct paradigms.
 -   **Persistent Memory**: Agents utilize `.agent_context.md` auto-briefing upon load/restart, carrying over project knowledge across sessions.
 -   **Workspace Security**: Agent execution (Terminal & Files) is strictly confined to a configured root directory.
+-   **Fine-Adjustment (Few-Shot Tuning)**: The Agent automatically dynamicly fetches high-rated (Thumbs Up) previous interactions from the local database and uses them as **few-shot examples**. This allows the Agent to "learn" your preferred style and tool usage patterns without requiring actual model training.
 
 ### 3. 🔒 Security
 -   **Secure Storage**: API Keys are stored in the system Keyring (macOS Keychain, Windows Credential Locker), never in plain text.
