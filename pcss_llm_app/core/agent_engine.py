@@ -4,6 +4,7 @@ import re
 import json
 import datetime
 import ast
+import difflib
 from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import FileManagementToolkit
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -498,8 +499,8 @@ Begin!"""
                             tool_args = json.loads(fixed_input)
                         except json.JSONDecodeError:
                             # Robust extraction: finding the outer-most JSON object if parsing failed
-                            # This handles cases like: {"key": "val"}?? or text ending with garbage
-                            json_obj_match = re.search(r"(\{.*\})", fixed_input, re.DOTALL)
+                            # Use non-greedy regex + manual trimming for speed on large strings
+                            json_obj_match = re.search(r"\{[\s\S]*\}", fixed_input)
                             if json_obj_match:
                                 try:
                                     tool_args = json.loads(json_obj_match.group(1))
@@ -517,7 +518,8 @@ Begin!"""
                         if fp_match:
                             extracted_path = fp_match.group(1)
                             # Now try to get the text/content field if it exists
-                            text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)"\s*\}?\s*$', tool_args, re.DOTALL)
+                            # Use non-greedy or anchored regex to avoid CAT (Regex Backtracking)
+                            text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)"', tool_args, re.DOTALL)
                             if text_match:
                                 extracted_text = text_match.group(1)
                                 # The greedy match might include the closing "} at the very end, try to strip it
@@ -627,16 +629,16 @@ Begin!"""
                 is_similarity_loop = False
                 if not is_identical_loop and len(action_history) >= 1 and action == action_history[-1][0]:
                     prev_obs = str(observation_history[-1]) if len(observation_history) > 0 else ""
-                    # Do not trigger similarity loop if previous action was an error (agent is likely trying to fix it)
-                    if not prev_obs.startswith("Error"):
-                        prev_input = action_history[-1][1]
-                        if len(action_input) > 200 and len(prev_input) > 200:
-                            # If inputs are long, check if they are 95% similar
-                            from difflib import SequenceMatcher
-                            similarity = SequenceMatcher(None, action_input[:2000], prev_input[:2000]).ratio()
-                            if similarity > 0.95:
-                                is_similarity_loop = True
-                                self._log(f"⚠️ Similarity Loop detected (ratio: {similarity:.2f})")
+                    # Similarity loop detection: check if previous action was similar
+                    # We trigger this even if previous was an error, but with a stricter threshold
+                    # to prevent "hallucinating" a fix by repeating the same failing action.
+                    prev_input = action_history[-1][1]
+                    if len(action_input) > 100 and len(prev_input) > 100:
+                        # Slice strings to 1000 chars to keep SequenceMatcher FAST (O(N^2) complexity)
+                        similarity = difflib.SequenceMatcher(None, action_input[:1000], prev_input[:1000]).ratio()
+                        if similarity > 0.95:
+                            is_similarity_loop = True
+                            self._log(f"⚠️ Similarity Loop detected (ratio: {similarity:.2f})")
 
                 if is_identical_loop or is_similarity_loop:
                     # First time: intervene with an explicit instruction instead of immediately stopping.
