@@ -499,11 +499,12 @@ Begin!"""
                             tool_args = json.loads(fixed_input)
                         except json.JSONDecodeError:
                             # Robust extraction: finding the outer-most JSON object if parsing failed
-                            # Use non-greedy regex + manual trimming for speed on large strings
-                            json_obj_match = re.search(r"\{[\s\S]*\}", fixed_input)
-                            if json_obj_match:
+                            # Using manual string trimming instead of regex for speed on large strings
+                            start_idx = fixed_input.find('{')
+                            end_idx = fixed_input.rfind('}')
+                            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
                                 try:
-                                    tool_args = json.loads(json_obj_match.group(1))
+                                    tool_args = json.loads(fixed_input[start_idx:end_idx+1])
                                 except:
                                     # Final attempt: try to manually extract the fields if it's still broken
                                     tool_args = fixed_input # Fallback to string for regex extractor below
@@ -518,16 +519,13 @@ Begin!"""
                         if fp_match:
                             extracted_path = fp_match.group(1)
                             # Now try to get the text/content field if it exists
-                            # Use non-greedy or anchored regex to avoid CAT (Regex Backtracking)
-                            text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)"', tool_args, re.DOTALL)
+                            # We consume the rest of the string to avoid CAT, then trim manually
+                            text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)', tool_args, re.DOTALL)
                             if text_match:
                                 extracted_text = text_match.group(1)
-                                # The greedy match might include the closing "} at the very end, try to strip it
-                                if extracted_text.endswith('"}'):
-                                    extracted_text = extracted_text[:-2]
-                                elif extracted_text.endswith('"\n}'):
-                                    extracted_text = extracted_text[:-3]
-                                elif extracted_text.endswith('"'):
+                                # Try to strip trailing braces, spaces, and the final quote
+                                extracted_text = extracted_text.rstrip(' \n\r\t}')
+                                if extracted_text.endswith('"'):
                                     extracted_text = extracted_text[:-1]
                                 
                                 tool_args = {"file_path": extracted_path, "text": extracted_text}
