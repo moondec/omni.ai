@@ -944,6 +944,11 @@ class MainWindow(QMainWindow):
     def _append_message(self, role, text):
         html = markdown.markdown(text)
         self.chat_display.append(f"<b>{role}:</b> {html}<br>")
+        
+        # Auto scroll
+        cursor = self.chat_display.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        self.chat_display.setTextCursor(cursor)
 
     # --- Agent Profile Methods ---
     def _load_agent_profiles(self):
@@ -1164,12 +1169,14 @@ class MainWindow(QMainWindow):
             html_parts.append(f"<b>Agent:</b> {stream_html}<br>")
             
         scrollbar = self.agent_display.verticalScrollBar()
-        was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 15
+        was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 20
 
         self.agent_display.setHtml("".join(html_parts))
         
         if was_at_bottom:
-            scrollbar.setValue(scrollbar.maximum())
+            QTimer.singleShot(10, lambda: self.agent_display.verticalScrollBar().setValue(
+                self.agent_display.verticalScrollBar().maximum()
+            ))
 
     def update_agent_status(self, status):
         self.agent_status_label.setText(status)
