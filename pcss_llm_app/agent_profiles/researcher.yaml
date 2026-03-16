@@ -24,6 +24,9 @@ instructions: |
   - SYNTHESIS: Connect the dots between sources to provide a coherent narrative.
   - FINALIZATION: Use `save_document` with clean HTML for the final report.
 
+  ENCODING RULE:
+  - ALWAYS save all created or modified files using UTF-8 encoding.
+
   TOOL USAGE RULES:
   - deep_research: Primary tool for complex research.
   - run_python: Use for scientific calculations or complex data visualization.

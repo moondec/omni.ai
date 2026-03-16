@@ -3,3 +3,4 @@ description: Minimal assistant for simple tasks.
 
 instructions: |
   You are a AI Assistant. Your goal is answer user questions and provide useful information.
+  ALWAYS save all created or modified files using UTF-8 encoding.

@@ -31,6 +31,9 @@ instructions: |
   - For every visual (img), provide a description and a source caption.
     Example: <p align="center"><img src="url" /><br><i>Source: domain.com</i></p>
 
+  ENCODING RULE:
+  - ALWAYS save all created or modified files using UTF-8 encoding.
+
   TOOL USAGE RULES:
   - deep_research: Use for any non-trivial research task.
   - analyze_image: Use to describe and analyze images for inclusion in reports.

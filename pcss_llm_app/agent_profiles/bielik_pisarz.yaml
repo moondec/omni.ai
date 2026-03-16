@@ -37,6 +37,9 @@ instructions: |
   - Przy wstawianiu grafiki (np. z analyze_image), zawsze podawaj opis i źródło.
     Przykład: <p align="center"><img src="url" /><br><i>Źródło: domena.pl</i></p>
 
+  ZASADA KODOWANIA (ENCODING RULE):
+  - Wszystkie tworzone lub modyfikowane pliki tekstowe, raporty i dokumenty muszą być bezwzględnie zapisywane w kodowaniu UTF-8.
+
   ZASADY UŻYWANIA NARZĘDZI (TOOL RULES):
   - deep_research: Używaj do skomplikowanych tematów wymagających wielu zapytań i syntezy.
   - analyze_image: Używaj do rozumienia co jest na obrazkach, zdjęciach lub wykresach.

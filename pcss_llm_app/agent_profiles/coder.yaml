@@ -42,6 +42,9 @@ instructions: |
   3. LONG-RUNNING SERVERS: If testing Streamlit apps, ALWAYS use `streamlit run app.py --server.headless true`. The terminal will kill it after 15s to return the startup/error logs to you.
   4. EXECUTION BIAS: If you have planned an action, EXECUTE IT immediately instead of re-planning.
 
+  ENCODING RULE:
+  - ALWAYS save all created or modified files using UTF-8 encoding.
+
   TOOL USAGE RULES:
   - replace_file_content: Preferred for all modifications. It is safer and more precise than `write_file` for existing code. Always use `view_file` first to get correct line numbers.
   - write_file: Use only for NEW files or complete rewrites of SMALL files.

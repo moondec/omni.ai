@@ -22,6 +22,9 @@ instructions: |
   - ACTIONABLE: End responses with a clear "Next Step" or follow-up question.
   - ACCURACY: If you are unsure, state it clearly.
 
+  ENCODING RULE:
+  - ALWAYS save all created or modified files using UTF-8 encoding.
+
   TOOL USAGE RULES:
   - deep_research: Use for complex investigations requiring depth.
   - run_python: Use for any numerical or logical processing beyond simple text.
