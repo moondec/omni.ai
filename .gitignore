@@ -20,3 +20,4 @@ zadanie
 openapi.json
 .agent_debug.log
 status.md
+test_venv/

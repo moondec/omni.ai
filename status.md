@@ -15,17 +15,18 @@ Data aktualizacji: 2026-03-17
    - Zaimplementowano narzędzie `read_xlsx`.
    - Rozszerzono możliwości wszystkich standardowych profili agentów (m.in. DeepSeek, Qwen, Bielik, GLM-4) poprzez dodanie obsługi czytania dokumentów (narzędzia `read_pdf`, `read_docx`, `read_xlsx`).
 
-3. **Inne poprawki:**
-   - Rozwiązano problem z instalacją `PySide6` na systemie Windows (przeniesienie do `pip`) zapobiegając błędom ładowania bibliotek DLL.
-   - Przeprowadzono audyt importów w kodzie i zsynchronizowano `environment.yml` oraz instalację w `README.md` (dodano brakujące paczki: `numpy`, `pandas`, `pygments`, `pydantic`, zmieniono `ddgs` na `duckduckgo-search` oraz `PyPDF2` na `pypdf`).
-   - Dokonano wydania wersji `0.2.0` (zaktualizowano `__init__.py` i interfejs UI).
-   - Zaktualizowano `CHANGELOG.md` oraz repozytorium Git (commit & push).
+3. **Dokumentacja i środowisko (v0.2.1):**
+   - Przetłumaczono `README.md` w całości na język angielski (techniczne detale, lista funkcji, przykłady).
+   - Rozwiązano błędy `RequestsDependencyWarning` oraz problemy z certyfikatami SSL w środowiskach `venv` (blokada wersji `urllib3<2.3.0`, dodanie `chardet/charset-normalizer`).
+   - Dodano do `README.md` szczegółowy przewodnik instalacji przez `venv` dla macOS, Linux i Windows.
+   - Wdrożono nową sekcję "Updating the Environment" ułatwiającą aktualizację zależności po zmianach w repozytorium.
+   - Zsynchronizowano pliki `requirements.txt` oraz `environment.yml`.
 
 ## Stan obecny
 
-- Pliki konfiguracyjne środowiska idealnie odzwierciedlają aktualny kod aplikacji.
-- Kod w repozytorium jest zsynchronizowany (`git status` na gałęzi `main` wykazuje czyste drzewo robocze przed ostatnimi poprawkami zależności).
-- Wszystkie zadania z najnowszego planu wdrożeniowego (związanego z UI edytora i agentami) zostały zrealizowane.
+- Pliki konfiguracyjne środowiska (`environment.yml`, `requirements.txt`) są w pełni zsynchronizowane i przetestowane pod kątem najczęstszych błędów instalacyjnych Windows/macOS.
+- Dokumentacja `README.md` jest dostępna w języku angielskim, co ułatwia współpracę międzynarodową.
+- Repozytorium zawiera jasne instrukcje aktualizacji środowiska.
 
 ## Następne kroki (do podjęcia w przyszłych sesjach)
 

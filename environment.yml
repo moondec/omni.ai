@@ -36,7 +36,10 @@ dependencies:
   
   # Web scraping
   - beautifulsoup4      # HTML parsing
-  - requests>=2.31.0    # HTTP requests (updated to fix urllib3 warning)
+  - requests>=2.31.0    # HTTP requests
+  - urllib3<2.3.0       # Fix dependency warning
+  - chardet<6.0.0       # Fix dependency warning
+  - duckduckgo-search   # Search engine tool
   
   # Chart generation
   - matplotlib-base     # For generating charts without pulling Qt5/PyQt

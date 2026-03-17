@@ -100,26 +100,35 @@ The application features a powerful Agent capable of performing complex, multi-s
     ```
 
     > [!NOTE]
-    > `readability-lxml` is a `pip`-only package and is **required** for the `visit_page` and `deep_research` tools to extract article content from web pages. It is already included in `environment.yml`.
+    *   `readability-lxml` is a `pip`-only package and is **required** for the `visit_page` and `deep_research` tools to extract article content from web pages. It is already included in `environment.yml`.
 
-### Setup Alternative (venv + pip - Recommended for Windows)
+### Setup Alternative (venv + pip)
 
-If you encounter DLL/PySide6 installation issues via Conda on Windows, it is highly recommended to use the standard Python `venv` with `pip`:
+Recommended if you prefer not to use Conda or encounter installation issues.
 
 1.  **Clone the Repository**
-    ```cmd
+    ```bash
     git clone https://github.com/moondec/PCSS-frontend-LLM.git
     cd Bielik
     ```
 
 2.  **Create and activate the virtual environment**
+
+    **macOS / Linux:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+    **Windows:**
     ```cmd
     python -m venv venv
     venv\Scripts\activate
     ```
 
 3.  **Install requirements**
-    ```cmd
+    ```bash
+    pip install --upgrade pip
     pip install -r requirements.txt
     ```
 
@@ -130,16 +139,14 @@ If you encounter DLL/PySide6 installation issues via Conda on Windows, it is hig
 
 ## ▶️ Usage
 
-If using Conda:
-```bash
-conda activate bielik
-python pcss_llm_app/main.py
-```
+### 1. Activate Environment
+- **Conda**: `conda activate bielik`
+- **venv (macOS/Linux)**: `source venv/bin/activate`
+- **venv (Windows)**: `venv\Scripts\activate`
 
-If using venv on Windows:
-```cmd
-venv\Scripts\activate
-python pcss_llm_app\main.py
+### 2. Run Application
+```bash
+python pcss_llm_app/main.py
 ```
 
 ## ⚠️ Conda update
@@ -152,32 +159,55 @@ conda activate base
 
 conda update -n base conda
 
-## Environment update
+## 🔄 Updating the Environment
 
-First get newest version of the code:
+When dependencies are added or updated (e.g., changes to `requirements.txt` or `environment.yml`), follow these steps:
 
-```bash
-git pull
-```
+1. **Pull latest changes**
+   ```bash
+   git pull
+   ```
 
-Then update environment (Conda):
-
-```bash
-# Update environment based on the YAML file
-conda env update --file environment.yml --prune
-```
-
-Or if using venv:
-```cmd
-pip install -r requirements.txt
-```
+2. **Update dependencies**
+   - **If using Conda**:
+     ```bash
+     conda env update --file environment.yml --prune
+     ```
+   - **If using venv**:
+     ```bash
+     pip install -r requirements.txt
+     ```
 
 ### Tips
 -   **Chat**: `Shift+Enter` for new lines, `Enter` to send.
 -   **Agent**: Go to **Agent Mode** → **Create Assistant** to initialize the engine. Then type requests like:
-    -   *"Przeprowadź deep research na temat AI w Polsce i zapisz raport do raport.md"*
-    -   *"Przeczytaj report.pdf i stwórz podsumowanie summary.txt"*
-    -   *"Napisz skrypt Python i uruchom go, aby sprawdzić dane"*
+    -   *"Perform deep research on AI in Poland and save the report to report.md"*
+    -   *"Read report.pdf and create a summary summary.txt"*
+    -   *"Write a Python script and run it to check the data"*
+
+## 🔍 Troubleshooting
+
+### 1. `ModuleNotFoundError: No module named 'PySide6'`
+If after activating the environment (`conda activate` or `venv\Scripts\activate`) you still get a module not found error, it might be due to a conflict between multiple Python installations (e.g., Anaconda + Homebrew).
+- **Symptom**: `pip list` shows PySide6, but `python main.py` throws an error.
+- **Solution**: Check which Python executable is being used:
+  ```bash
+  which python
+  python --version
+  ```
+  If the path points to a global installation instead of your `venv/bin/` or Conda `envs/` folder, you need to fix the symlinks in the environment (`ln -sf`) or use the full path to the interpreter.
+
+### 2. DLL and SSL Issues on Windows (Conda + PySide6)
+Conda environments on Windows do not always reliably load Qt libraries (DLLs). Additionally, Conda often "leaks" SSL environment variables into other virtual environments.
+- **Solution**: The application includes a built-in mechanism in `main.py` that:
+  - Automatically adds Conda/PySide6 DLL paths to `os.add_dll_directory`.
+  - Clears incorrect `SSL_CERT_FILE` and `CURL_CA_BUNDLE` paths that might prevent connection to LLM models.
+
+### 3. Playwright Issues (Agent Mode)
+Browser tools require Node.js and installed drivers. If the Agent reports a Playwright error, run manually:
+```bash
+npx playwright install chromium
+```
 
 ## 🏗️ Technology Stack
 
