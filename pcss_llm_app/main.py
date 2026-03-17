@@ -23,6 +23,16 @@ if os.name == 'nt':
                 break
     except Exception:
         pass
+
+    # 3. Conda often leaks SSL_CERT_FILE into the global user environment.
+    # If using venv, this path might not exist and will crash httpx/OpenAI.
+    ssl_cert = os.environ.get('SSL_CERT_FILE')
+    if ssl_cert and not os.path.exists(ssl_cert):
+        del os.environ['SSL_CERT_FILE']
+        
+    curl_ca = os.environ.get('CURL_CA_BUNDLE')
+    if curl_ca and not os.path.exists(curl_ca):
+        del os.environ['CURL_CA_BUNDLE']
 # ----------------------------------------------------------------
 
 # Add project root to path if running directly
