@@ -12,6 +12,8 @@ All notable changes to the Bielik (PCSS LLM Client) project will be documented i
 - **Language Detection**: Automatic detection of programming languages with a visual indicator in the editor toolbar.
 - **Workspace Navigation**: Double-click files in the explorer to open them in the editor.
 - **Dynamic Settings**: Workspace root directory can now be changed in Settings, with automatic tree refresh.
+- **Reviewer Agent Profile**: Added a specialized "Recenzent - Reviewer" agent profile (`reviewer.yaml`) for formal reference and structural analysis.
+- **Document Reading Capabilities**: Rolled out `read_pdf`, `read_docx`, and newly added `read_xlsx` tools to the new Reviewer and all standard model profiles.
 
 ### Changed
 
