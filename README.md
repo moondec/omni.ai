@@ -73,7 +73,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   **Node.js / npm** — required for the Playwright MCP server (`npx`).
 -   **Pandoc** >= 3.0 ([Download](https://github.com/jgm/pandoc/releases)) — required for document conversion.
 
-### Setup
+### Setup (Conda - Recommended for macOS/Linux)
 
 1.  **Clone the Repository**
     ```bash
@@ -91,16 +91,37 @@ The application features a powerful Agent capable of performing complex, multi-s
     ```bash
     conda create -n bielik python=3.11 -y
     conda activate bielik
-    pip install pyside6 openai keyring markdown \
+    conda install -c conda-forge pyside6 openai keyring markdown \
         langchain langchain-openai langchain-community \
-        pypdf pdfplumber python-docx openpyxl pypandoc weasyprint \
+        pypdf python-docx openpyxl pypandoc weasyprint \
         duckduckgo-search requests beautifulsoup4 \
-        readability-lxml mcp langchain-mcp-adapters \
-        matplotlib pyyaml pandas numpy pygments pydantic
+        matplotlib-base pyyaml pandas numpy pygments pydantic -y
+    pip install readability-lxml mcp langchain-mcp-adapters pdfplumber
     ```
 
     > [!NOTE]
     > `readability-lxml` is a `pip`-only package and is **required** for the `visit_page` and `deep_research` tools to extract article content from web pages. It is already included in `environment.yml`.
+
+### Setup Alternative (venv + pip - Recommended for Windows)
+
+If you encounter DLL/PySide6 installation issues via Conda on Windows, it is highly recommended to use the standard Python `venv` with `pip`:
+
+1.  **Clone the Repository**
+    ```cmd
+    git clone https://github.com/moondec/PCSS-frontend-LLM.git
+    cd Bielik
+    ```
+
+2.  **Create and activate the virtual environment**
+    ```cmd
+    python -m venv venv
+    venv\Scripts\activate
+    ```
+
+3.  **Install requirements**
+    ```cmd
+    pip install -r requirements.txt
+    ```
 
 ## ⚙️ Configuration
 
@@ -109,9 +130,16 @@ The application features a powerful Agent capable of performing complex, multi-s
 
 ## ▶️ Usage
 
+If using Conda:
 ```bash
 conda activate bielik
 python pcss_llm_app/main.py
+```
+
+If using venv on Windows:
+```cmd
+venv\Scripts\activate
+python pcss_llm_app\main.py
 ```
 
 ## ⚠️ Conda update
@@ -128,15 +156,20 @@ conda update -n base conda
 
 First get newest version of the code:
 
-```
+```bash
 git pull
 ```
 
-Then update environment:
+Then update environment (Conda):
 
-```
+```bash
 # Update environment based on the YAML file
 conda env update --file environment.yml --prune
+```
+
+Or if using venv:
+```cmd
+pip install -r requirements.txt
 ```
 
 ### Tips

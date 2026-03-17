@@ -1,0 +1,36 @@
+# Core & GUI
+pyside6
+markdown
+keyring
+pyyaml
+pydantic
+
+# LLM / AI
+openai
+langchain
+langchain-openai
+langchain-community
+mcp
+langchain-mcp-adapters
+
+# Document Processing
+pypdf
+pdfplumber
+python-docx
+openpyxl
+pypandoc
+weasyprint
+
+# Web Scraping & Search
+beautifulsoup4
+requests>=2.31.0
+readability-lxml
+duckduckgo-search
+
+# Data & Visualization
+matplotlib
+numpy
+pandas
+
+# Utilities
+pygments
