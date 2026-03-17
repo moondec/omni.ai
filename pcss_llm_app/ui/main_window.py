@@ -2,13 +2,14 @@ import sys
 import os
 import glob
 import yaml
-from PySide6.QtCore import Qt, QSize, QTimer, QThread, Signal, QObject, QEvent
+from PySide6.QtCore import Qt, QSize, QTimer, QThread, Signal, QObject, QEvent, QDir, QFileInfo
 from PySide6.QtGui import QAction, QIcon, QTextCursor, QPixmap
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QTextEdit, QTextBrowser, QLineEdit, QPushButton, QLabel, 
     QComboBox, QSplitter, QFrame, QScrollArea, QSizePolicy,
-    QApplication, QTabWidget, QFileDialog, QMessageBox, QDialog, QFormLayout, QListWidget, QMenu
+    QApplication, QTabWidget, QFileDialog, QMessageBox, QDialog, QFormLayout,
+    QListWidget, QMenu, QTreeView, QPlainTextEdit, QFileSystemModel
 )
 import datetime
 import markdown
@@ -20,6 +21,8 @@ from pcss_llm_app.core.database import DatabaseManager
 
 from pcss_llm_app.core.file_manager import FileManager
 from pcss_llm_app.core.agent_engine import LangChainAgentEngine
+from pcss_llm_app.ui.syntax_highlighter import PygmentsSyntaxHighlighter
+from pcss_llm_app import __version__
 
 class AgentLogSignal(QObject):
     log_message = Signal(str)
@@ -201,7 +204,7 @@ class AgentWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PCSS LLM Client")
+        self.setWindowTitle(f"PCSS LLM Client v{__version__}")
         self.setGeometry(100, 100, 1200, 800)
         
         # Set App Icon
@@ -346,9 +349,23 @@ class MainWindow(QMainWindow):
     def _init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
-        
-        # Sidebar (History)
+        # Outermost layout: [File Browser] | [Sidebar + Main Content]
+        outer_layout = QHBoxLayout(central_widget)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        # --- Outer horizontal splitter ---
+        self.outer_splitter = QSplitter(Qt.Horizontal)
+
+        # === LEFT PANEL: File Browser ===
+        self._init_file_browser()
+        self.outer_splitter.addWidget(self.file_browser_widget)
+
+        # === RIGHT PANEL: Sidebar + Main Content ===
+        right_panel = QWidget()
+        main_layout = QHBoxLayout(right_panel)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # ---- Sidebar (History) ----
         sidebar = QWidget()
         sidebar.setFixedWidth(200)
         sidebar_layout = QVBoxLayout(sidebar)
@@ -377,7 +394,6 @@ class MainWindow(QMainWindow):
         self.refresh_btn = QPushButton("Refresh")
         self.refresh_btn.setToolTip("Refresh list of available models")
         self.refresh_btn.clicked.connect(self._refresh_models)
-        # Removed fixed width to let it fit the text
         model_header.addWidget(self.refresh_btn)
         
         model_group_layout.addLayout(model_header)
@@ -413,7 +429,7 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(sidebar)
 
-        # Main Content Area (Splitter for Tabs + Console)
+        # ---- Main Content Area (Splitter for Tabs + Console) ----
         self.main_content_splitter = QSplitter(Qt.Vertical)
         
         # Tab Widget
@@ -422,12 +438,17 @@ class MainWindow(QMainWindow):
         # Chat Tab
         self.chat_tab = QWidget()
         self._init_chat_tab()
-        self.tabs.addTab(self.chat_tab, "Chat")
+        self.tabs.addTab(self.chat_tab, "💬 Chat")
         
         # Agent Tab
         self.agent_tab = QWidget()
         self._init_agent_tab()
-        self.tabs.addTab(self.agent_tab, "Agent Mode")
+        self.tabs.addTab(self.agent_tab, "🤖 Agent Mode")
+
+        # Editor Tab
+        self.editor_tab = QWidget()
+        self._init_editor_tab()
+        self.tabs.addTab(self.editor_tab, "📝 Editor")
         
         self.main_content_splitter.addWidget(self.tabs)
         
@@ -441,8 +462,199 @@ class MainWindow(QMainWindow):
         self.main_content_splitter.setSizes([600, 150])
 
         main_layout.addWidget(self.main_content_splitter)
+
+        self.outer_splitter.addWidget(right_panel)
+        self.outer_splitter.setSizes([220, 980])
+        outer_layout.addWidget(self.outer_splitter)
         
         self.refresh_history()
+
+    # ------------------------------------------------------------------
+    #  File Browser
+    # ------------------------------------------------------------------
+    def _init_file_browser(self):
+        """Create the file browser panel with a QTreeView."""
+        self.file_browser_widget = QWidget()
+        fb_layout = QVBoxLayout(self.file_browser_widget)
+        fb_layout.setContentsMargins(2, 2, 2, 2)
+        fb_layout.setSpacing(2)
+
+        # Header with label and Open Folder button
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(QLabel("📁 Files"))
+        open_folder_btn = QPushButton("Open...")
+        open_folder_btn.setFixedHeight(24)
+        open_folder_btn.setToolTip("Choose a folder to browse")
+        open_folder_btn.clicked.connect(self._choose_browser_root)
+        header_layout.addWidget(open_folder_btn)
+        fb_layout.addLayout(header_layout)
+
+        # File system model
+        self.fs_model = QFileSystemModel()
+        self.fs_model.setReadOnly(True)
+        workspace = self.config.get_workspace_path() if hasattr(self, 'config') else os.getcwd()
+        if not workspace or not os.path.isdir(workspace):
+            workspace = os.getcwd()
+        root_index = self.fs_model.setRootPath(workspace)
+
+        # Tree view
+        self.file_tree = QTreeView()
+        self.file_tree.setModel(self.fs_model)
+        self.file_tree.setRootIndex(root_index)
+        self.file_tree.setAnimated(False)
+        self.file_tree.setIndentation(14)
+        self.file_tree.setSortingEnabled(True)
+        self.file_tree.sortByColumn(0, Qt.AscendingOrder)
+        # Hide Size, Type, Date columns – keep only Name
+        self.file_tree.hideColumn(1)
+        self.file_tree.hideColumn(2)
+        self.file_tree.hideColumn(3)
+        self.file_tree.header().hide()
+        self.file_tree.doubleClicked.connect(self.on_file_double_clicked)
+        fb_layout.addWidget(self.file_tree)
+
+    def _choose_browser_root(self):
+        """Let user pick a folder and update the file browser root."""
+        dir_path = QFileDialog.getExistingDirectory(self, "Select Folder to Browse")
+        if dir_path:
+            self._update_file_browser_root(dir_path)
+
+    def _update_file_browser_root(self, path: str):
+        """Update the file tree root to the given directory path."""
+        if os.path.isdir(path):
+            new_root = self.fs_model.setRootPath(path)
+            self.file_tree.setRootIndex(new_root)
+
+    def on_file_double_clicked(self, index):
+        """Open the double-clicked file in the Editor tab."""
+        file_path = self.fs_model.filePath(index)
+        if not os.path.isfile(file_path):
+            return  # Ignore directory double-click (expand/collapse)
+
+        # Only open text-based files
+        TEXT_EXTENSIONS = {
+            '.py', '.txt', '.md', '.yaml', '.yml', '.json', '.toml',
+            '.cfg', '.ini', '.sh', '.bat', '.csv', '.html', '.css',
+            '.js', '.ts', '.xml', '.rst', '.env', '.log',
+        }
+        _, ext = os.path.splitext(file_path)
+        if ext.lower() not in TEXT_EXTENSIONS:
+            QMessageBox.information(
+                self, "Cannot Open",
+                f"File type '{ext}' is not supported in the editor.\n"
+                "Only text-based files can be opened."
+            )
+            return
+
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+        except Exception as e:
+            QMessageBox.critical(self, "Error Opening File", str(e))
+            return
+
+        self._current_editor_file = file_path
+        self.editor_file_label.setText(file_path)
+        self.editor_edit.setPlainText(content)
+
+        # Update syntax highlighter for the new file type
+        if self._editor_highlighter is not None:
+            self._editor_highlighter.set_filename(file_path)
+            # Update language indicator in toolbar
+            from pygments.lexers import get_lexer_for_filename
+            from pygments.util import ClassNotFound
+            try:
+                lexer = get_lexer_for_filename(file_path)
+                self.editor_lang_label.setText(f"\u2b22 {lexer.name}")
+            except (ClassNotFound, Exception):
+                self.editor_lang_label.setText("")
+
+        # Switch to Editor tab (index 2)
+        self.tabs.setCurrentIndex(2)
+        self.append_log(f"Opened file: {file_path}")
+
+    # ------------------------------------------------------------------
+    #  Editor Tab
+    # ------------------------------------------------------------------
+    def _init_editor_tab(self):
+        """Create the text editor tab with syntax highlighting."""
+        self._current_editor_file = None
+        self._editor_highlighter = None
+        layout = QVBoxLayout(self.editor_tab)
+
+        # Toolbar row
+        toolbar = QHBoxLayout()
+        save_btn = QPushButton("\U0001f4be Save")
+        save_btn.setFixedHeight(28)
+        save_btn.setToolTip("Save file")
+        save_btn.clicked.connect(self.save_current_file)
+        toolbar.addWidget(save_btn)
+
+        save_as_btn = QPushButton("Save As...")
+        save_as_btn.setFixedHeight(28)
+        save_as_btn.clicked.connect(self.save_current_file_as)
+        toolbar.addWidget(save_as_btn)
+
+        toolbar.addStretch()
+
+        # Language indicator label
+        self.editor_lang_label = QLabel("")
+        self.editor_lang_label.setStyleSheet("color: #a6e22e; font-size: 10px; padding-right: 6px;")
+        toolbar.addWidget(self.editor_lang_label)
+
+        layout.addLayout(toolbar)
+
+        # Current file path label
+        self.editor_file_label = QLabel("No file open")
+        self.editor_file_label.setStyleSheet("color: #75715e; font-size: 10px;")
+        layout.addWidget(self.editor_file_label)
+
+        # Text editor — dark background, monospace font
+        self.editor_edit = QPlainTextEdit()
+        self.editor_edit.setPlaceholderText(
+            "Double-click a file in the browser on the left to open it here..."
+        )
+        self.editor_edit.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.editor_edit.setStyleSheet(
+            "QPlainTextEdit {"
+            "  background-color: #1e1e1e;"
+            "  color: #f8f8f2;"
+            "  selection-background-color: #49483e;"
+            "}"
+        )
+        from PySide6.QtGui import QFont
+        mono = QFont("Courier New", 10)
+        mono.setStyleHint(QFont.Monospace)
+        self.editor_edit.setFont(mono)
+
+        # Attach highlighter (starts with no file → no-op)
+        self._editor_highlighter = PygmentsSyntaxHighlighter(
+            self.editor_edit.document(), filename=""
+        )
+        layout.addWidget(self.editor_edit)
+
+    def save_current_file(self):
+        """Save editor content to the currently open file."""
+        if not self._current_editor_file:
+            self.save_current_file_as()
+            return
+        try:
+            with open(self._current_editor_file, 'w', encoding='utf-8') as f:
+                f.write(self.editor_edit.toPlainText())
+            self.statusBar().showMessage(
+                f"Saved: {self._current_editor_file}", 3000
+            )
+            self.append_log(f"File saved: {self._current_editor_file}")
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", str(e))
+
+    def save_current_file_as(self):
+        """Save editor content to a new file chosen by the user."""
+        path, _ = QFileDialog.getSaveFileName(self, "Save File As", "", "All Files (*)")
+        if path:
+            self._current_editor_file = path
+            self.editor_file_label.setText(path)
+            self.save_current_file()
 
     def _init_chat_tab(self):
         layout = QVBoxLayout(self.chat_tab)
@@ -719,6 +931,9 @@ class MainWindow(QMainWindow):
             if old_workspace != new_workspace:
                 self.append_log(f"Workspace changed: {old_workspace} -> {new_workspace}. Re-initializing Assistant...")
                 self.create_assistant()
+                # Update file browser root to new workspace
+                if hasattr(self, 'file_tree'):
+                    self._update_file_browser_root(new_workspace)
             
             # Log the current selected model for user confirmation
             current_model = self.model_combo.currentText()
