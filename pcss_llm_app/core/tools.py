@@ -15,7 +15,7 @@ except ImportError:
     from langchain.tools import tool, StructuredTool
 from pydantic import BaseModel, Field
 from docx import Document
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from openai import OpenAI
 import base64
 import mimetypes
@@ -382,7 +382,7 @@ class DocumentTools(_WorkspaceMixin):
                 for page_num in range(start_idx, end_idx):
                     pypdf_page = reader.pages[page_num]
                     output_parts.append(f"\n── Page {page_num + 1} ──")
-                    # Images via PyPDF2 (name only, no dimensions)
+                    # Images via pypdf (name only, no dimensions)
                     try:
                         for img in pypdf_page.images:
                             output_parts.append(f"[IMAGE: '{img.name}']")

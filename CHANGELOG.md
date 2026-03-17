@@ -23,6 +23,8 @@ All notable changes to the Bielik (PCSS LLM Client) project will be documented i
 ### Fixed
 
 - Fixed layout issues when resizing the main window with the new splitter-based sidebar.
+- Fixed PySide6 Windows DLL loading issue by enforcing pip installation in `environment.yml`.
+- Synchronized missing dependencies in `environment.yml` and `README.md` (`numpy`, `pandas`, `pygments`, `pydantic`, `duckduckgo-search`, `pypdf`).
 
 ## [0.1.0] - 2026-03-16
 

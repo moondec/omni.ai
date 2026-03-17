@@ -89,14 +89,14 @@ The application features a powerful Agent capable of performing complex, multi-s
 
     *Or manually (includes all new dependencies):*
     ```bash
-    conda create -n bielik python=3.10 -y
+    conda create -n bielik python=3.11 -y
     conda activate bielik
     pip install pyside6 openai keyring markdown \
         langchain langchain-openai langchain-community \
-        pypdf python-docx pypandoc weasyprint \
-        ddgs requests beautifulsoup4 \
+        pypdf pdfplumber python-docx openpyxl pypandoc weasyprint \
+        duckduckgo-search requests beautifulsoup4 \
         readability-lxml mcp langchain-mcp-adapters \
-        matplotlib pyyaml
+        matplotlib pyyaml pandas numpy pygments pydantic
     ```
 
     > [!NOTE]
@@ -112,6 +112,31 @@ The application features a powerful Agent capable of performing complex, multi-s
 ```bash
 conda activate bielik
 python pcss_llm_app/main.py
+```
+
+## ⚠️ Conda update
+
+# Switch to base environment
+
+conda activate base
+
+# Update conda to the latest version
+
+conda update -n base conda
+
+## Environment update
+
+First get newest version of the code:
+
+```
+git pull
+```
+
+Then update environment:
+
+```
+# Update environment based on the YAML file
+conda env update --file environment.yml --prune
 ```
 
 ### Tips

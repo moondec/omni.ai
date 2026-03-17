@@ -4,11 +4,10 @@ channels:
   - defaults
 dependencies:
   # Core
-  - python=3.10
+  - python=3.11
   - pip
   
   # GUI Framework
-  - pyside6
   - markdown
   
   # Security
@@ -23,13 +22,11 @@ dependencies:
   # Document Processing
   - pypdf              # PDF reading
   - python-docx        # DOCX reading/writing
+  - openpyxl           # XLSX reading
   - pypandoc           # Document conversion (requires external pandoc)
   - weasyprint         # HTML to PDF conversion (pure Python)
   - pango              # Required by weasyprint
   - glib               # Required by weasyprint
-  
-  # Internet Search
-  - ddgs                 # DuckDuckGo search (formerly duckduckgo-search)
   
   # Note: External tools required (install separately):
   # - pandoc >= 3.0 (https://pandoc.org/installing.html)
@@ -44,7 +41,18 @@ dependencies:
   # Chart generation
   - matplotlib          # For generating charts and visualizations
   
+  # Additional Utilities
+  - numpy               # Numeric operations
+  - pandas              # Data manipulation
+  - pygments            # Syntax highlighting in code editor
+  - pydantic            # Data validation using Python type hints
+
+  
   - pip:
+    - pyside6           # GUI Framework (pip recommended for Windows DLLs)
     - readability-lxml  # Article content extraction
     - mcp               # Model Context Protocol support
     - langchain-mcp-adapters # MCP integration for LangChain
+  # Internet Search
+    - duckduckgo-search # DuckDuckGo search
+    - pdfplumber        # Rich PDF extraction
