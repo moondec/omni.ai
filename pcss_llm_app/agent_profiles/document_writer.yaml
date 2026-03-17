@@ -48,4 +48,7 @@ instructions: |
   - run_python / generate_chart: Visualization.
   - analyze_image: Understanding visual sources.
   - save_document / convert_document: Exporting professional outputs.
+  - read_pdf: Extracting text from PDF documents.
+  - read_docx: Extracting text from Word documents.
+  - read_xlsx: Reading Excel spreadsheets into Markdown tables.
   - update_context: Saving progress notes.

@@ -97,4 +97,7 @@ instructions: |
   - view_file: Read locally provided manuscripts.
   - run_python: Parse text for citation patterns using regex, or perform data analysis.
   - save_document: Save interim and final HTML reports.
+  - read_pdf: Extract text from PDF documents.
+  - read_docx: Extract text from Word documents.
+  - read_xlsx: Read Excel spreadsheets into Markdown tables.
   - update_context: Save progress state (use for `progress_review.md`).

@@ -15,7 +15,7 @@ except ImportError:
     from langchain.tools import tool, StructuredTool
 from pydantic import BaseModel, Field
 from docx import Document
-from pypdf import PdfReader
+from PyPDF2 import PdfReader
 from openai import OpenAI
 import base64
 import mimetypes
@@ -163,48 +163,350 @@ class DocumentTools(_WorkspaceMixin):
             return f"Error writing DOCX file: {str(e)}"
 
     # @tool("read_docx")
-    def read_docx(self, file_path: str) -> str:
+    def read_docx(self, file_path: str, para_start: int = 1, para_end: int = None) -> str:
         """
-        Reads text content from a Word document (.docx).
+        Reads a Word document (.docx) preserving structure: headings, tables, images.
         Args:
             file_path: The name of the file to read.
+            para_start: First block to read (1-indexed, counts paragraphs+tables+images).
+            para_end: Last block to read inclusive (default: last block).
+                      Read in chunks of 100-150 blocks for large documents.
+        Output format:
+            - Headings  → ## Heading text  (# H1, ## H2, etc.)
+            - Tables    → Markdown pipe tables
+            - Images    → [IMAGE: inline image, ~WxH px] placeholder
+            - Paragraphs → plain text
         """
         try:
+            from docx.oxml.ns import qn
             full_path = self._get_full_path(file_path)
             if not os.path.exists(full_path):
                 return f"Error: File {file_path} not found."
-            
+
             doc = Document(full_path)
-            full_text = []
-            for para in doc.paragraphs:
-                full_text.append(para.text)
-            return '\n'.join(full_text)
+            body = doc.element.body
+
+            # ── Walk body in document order ──────────────────────────────
+            # Each child is a paragraph (w:p), table (w:tbl), or section (w:sectPr).
+            blocks = []  # list of rendered strings
+
+            for child in body:
+                local = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+
+                # ── Paragraph ────────────────────────────────────────────
+                if local == 'p':
+                    from docx.text.paragraph import Paragraph as DocxParagraph
+                    para = DocxParagraph(child, doc)
+                    style_name = para.style.name if para.style else ""
+
+                    # Detect heading level
+                    heading_level = 0
+                    if style_name.startswith("Heading"):
+                        try:
+                            heading_level = int(style_name.split()[-1])
+                        except ValueError:
+                            heading_level = 1
+
+                    text = para.text.strip()
+
+                    # Detect inline images in this paragraph
+                    has_image = child.find('.//' + qn('a:blip')) is not None or \
+                                child.find('.//' + qn('v:imagedata')) is not None
+                    if has_image:
+                        # Try to get EMU dimensions
+                        ext_elem = child.find('.//' + qn('wp:extent'))
+                        if ext_elem is not None:
+                            cx = int(ext_elem.get('cx', 0))
+                            cy = int(ext_elem.get('cy', 0))
+                            # 1 EMU = 1/914400 inch, 96dpi
+                            w_px = round(cx / 914400 * 96)
+                            h_px = round(cy / 914400 * 96)
+                            img_info = f"[IMAGE: inline image, ~{w_px}×{h_px} px]"
+                        else:
+                            img_info = "[IMAGE: inline image]"
+                        blocks.append(img_info + (f"\n{text}" if text else ""))
+                        continue
+
+                    if not text:
+                        continue  # skip blank paragraphs
+
+                    if heading_level:
+                        prefix = "#" * min(heading_level, 6)
+                        blocks.append(f"{prefix} {text}")
+                    else:
+                        blocks.append(text)
+
+                # ── Table ────────────────────────────────────────────────
+                elif local == 'tbl':
+                    from docx.table import Table as DocxTable
+                    tbl = DocxTable(child, doc)
+                    rows = tbl.rows
+                    if not rows:
+                        continue
+                    md_rows = []
+                    for r_idx, row in enumerate(rows):
+                        cells = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
+                        md_rows.append("| " + " | ".join(cells) + " |")
+                        if r_idx == 0:
+                            md_rows.append("| " + " | ".join(["---"] * len(cells)) + " |")
+                    blocks.append("\n".join(md_rows))
+
+                # ── Section properties (skip) ─────────────────────────────
+                # else: ignore w:sectPr etc.
+
+            total_blocks = len(blocks)
+
+            # ── Paginate ─────────────────────────────────────────────────
+            start_idx = max(0, (para_start or 1) - 1)
+            end_idx   = min(total_blocks, para_end or total_blocks)
+
+            if start_idx >= total_blocks:
+                return f"Error: para_start={para_start} exceeds total blocks ({total_blocks})."
+
+            chunk = blocks[start_idx:end_idx]
+            header = (
+                f"[DOCX: {file_path} | Blocks {start_idx+1}–{end_idx} of {total_blocks}]\n"
+                f"(Blocks = paragraphs + tables + images, in document order)\n"
+            )
+            return header + "\n\n".join(chunk)
+
         except PermissionError:
             raise
         except Exception as e:
             return f"Error reading DOCX file: {str(e)}"
 
+
     # @tool("read_pdf")
-    def read_pdf(self, file_path: str) -> str:
+    def read_pdf(self, file_path: str, page_start: int = 1, page_end: int = None) -> str:
         """
-        Reads text content from a PDF file (.pdf).
+        Reads a PDF file with structure: text, tables (Markdown), and image placeholders.
         Args:
             file_path: The name of the file to read.
+            page_start: First page to read (1-indexed, default: 1).
+            page_end: Last page to read inclusive (1-indexed, default: last page).
+                      For large PDFs, read in chunks of 5-10 pages to avoid context overflow.
+        Output format per page:
+            - Text paragraphs as plain text
+            - Tables as Markdown pipe tables
+            - Images as [IMAGE: ~WxH px] placeholders
         """
         try:
             full_path = self._get_full_path(file_path)
             if not os.path.exists(full_path):
                 return f"Error: File {file_path} not found."
-            
+
             reader = PdfReader(full_path)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-            return text
+            total_pages = len(reader.pages)
+
+            start_idx = max(0, (page_start or 1) - 1)
+            end_idx   = min(total_pages, (page_end or total_pages))
+
+            if start_idx >= total_pages:
+                return f"Error: page_start={page_start} exceeds total pages ({total_pages})."
+
+            # ── Try pdfplumber for rich extraction ───────────────────────
+            try:
+                import pdfplumber
+
+                output_parts = [
+                    f"[PDF: {file_path} | Pages {start_idx+1}–{end_idx} of {total_pages}]"
+                ]
+
+                with pdfplumber.open(full_path) as pdf:
+                    for page_num in range(start_idx, end_idx):
+                        page = pdf.pages[page_num]
+                        output_parts.append(f"\n── Page {page_num + 1} ──")
+
+                        # ── Images: use pdfplumber .images (has x0/y0/x1/y1 bbox) ──
+                        images_on_page = []
+                        try:
+                            for img in page.images:  # pdfplumber image objects
+                                w = round(abs(img.get('x1', 0) - img.get('x0', 0)))
+                                h = round(abs(img.get('y1', 0) - img.get('y0', 0)))
+                                name = img.get('name', 'image')
+                                images_on_page.append(f"[IMAGE: '{name}', ~{w}×{h} pt]")
+                        except Exception:
+                            pass
+                        for img_ph in images_on_page:
+                            output_parts.append(img_ph)
+
+                        # ── Tables: extract and render as Markdown ──────────
+                        tables = page.extract_tables()
+                        table_regions = []
+                        for tbl in tables:
+                            if not tbl:
+                                continue
+                            md_rows = []
+                            for r_idx, row in enumerate(tbl):
+                                cells = [str(c).strip() if c else "" for c in row]
+                                md_rows.append("| " + " | ".join(cells) + " |")
+                                if r_idx == 0:
+                                    md_rows.append("| " + " | ".join(["---"] * len(cells)) + " |")
+                            table_md = "\n".join(md_rows)
+                            table_regions.append(table_md)
+
+                        # ── Text: extract without table bounding boxes ──────
+                        # Remove table regions so text outside tables is clean
+                        if tables:
+                            page_no_tables = page
+                            try:
+                                table_bboxes = [tbl.bbox for tbl in page.find_tables()]
+                                page_no_tables = page.filter(
+                                    lambda obj: not any(
+                                        obj.get("x0", 0) >= bbox[0] - 2
+                                        and obj.get("x1", 0) <= bbox[2] + 2
+                                        and obj.get("top", 0) >= bbox[1] - 2
+                                        and obj.get("bottom", 0) <= bbox[3] + 2
+                                        for bbox in table_bboxes
+                                    )
+                                )
+                                page_text = page_no_tables.extract_text() or ""
+                            except Exception:
+                                page_text = page.extract_text() or ""
+                        else:
+                            page_text = page.extract_text() or ""
+
+                        if page_text.strip():
+                            output_parts.append(page_text.strip())
+
+                        for tbl_md in table_regions:
+                            output_parts.append("\n" + tbl_md)
+
+                return "\n".join(output_parts)
+
+            # ── Fallback: plain pypdf extraction ─────────────────────────
+            except ImportError:
+                output_parts = [
+                    f"[PDF: {file_path} | Pages {start_idx+1}–{end_idx} of {total_pages}]"
+                ]
+                for page_num in range(start_idx, end_idx):
+                    pypdf_page = reader.pages[page_num]
+                    output_parts.append(f"\n── Page {page_num + 1} ──")
+                    # Images via PyPDF2 (name only, no dimensions)
+                    try:
+                        for img in pypdf_page.images:
+                            output_parts.append(f"[IMAGE: '{img.name}']")
+                    except Exception:
+                        pass
+                    text = pypdf_page.extract_text() or ""
+                    if text.strip():
+                        output_parts.append(text.strip())
+                return "\n".join(output_parts)
+
         except PermissionError:
             raise
         except Exception as e:
             return f"Error reading PDF file: {str(e)}"
+
+
+    # @tool("read_xlsx")
+    def read_xlsx(
+        self,
+        file_path: str,
+        sheet: str = None,
+        row_start: int = 1,
+        row_end: int = None,
+    ) -> str:
+        """
+        Reads an Excel file (.xlsx) and renders a sheet as a Markdown table.
+        Args:
+            file_path: The name of the .xlsx file to read.
+            sheet: Sheet name to read (default: first sheet). Use list_sheets=True
+                   call (sheet='?') to get all sheet names first.
+            row_start: First data row to read, counting from 1 incl. header (default: 1).
+            row_end: Last row to read inclusive (default: row_start + 49, i.e. 50 rows).
+                     For large sheets read in chunks of 50-100 rows.
+        Output:
+            - Lists available sheet names in the header
+            - Renders rows as a Markdown pipe table
+            - Row 1 is used as the column header
+        """
+        try:
+            import openpyxl
+            from openpyxl.utils import get_column_letter
+
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return f"Error: File {file_path} not found."
+
+            wb = openpyxl.load_workbook(full_path, read_only=True, data_only=True)
+            sheet_names = wb.sheetnames
+
+            # Special call: sheet='?' → just list sheets
+            if sheet == '?':
+                return (
+                    f"[XLSX: {file_path}]\n"
+                    f"Available sheets ({len(sheet_names)}): "
+                    + ", ".join(f"'{s}'" for s in sheet_names)
+                )
+
+            # Resolve sheet
+            if sheet is None:
+                ws = wb.active
+                sheet_name = ws.title
+            elif sheet in sheet_names:
+                ws = wb[sheet]
+                sheet_name = sheet
+            else:
+                return (
+                    f"Error: Sheet '{sheet}' not found. "
+                    f"Available: {sheet_names}"
+                )
+
+            # Read all rows into memory (read_only streams, so collect first)
+            all_rows = list(ws.iter_rows(values_only=True))
+            total_rows = len(all_rows)
+
+            if total_rows == 0:
+                return f"[XLSX: {file_path} | Sheet: '{sheet_name}'] Sheet is empty."
+
+            # Resolve row range (1-indexed)
+            r_start = max(1, row_start or 1)
+            r_end   = min(total_rows, row_end or (r_start + 49))  # default 50 rows
+
+            chunk = all_rows[r_start - 1 : r_end]  # 0-indexed slice
+
+            # Build Markdown table
+            def cell_str(v):
+                if v is None:
+                    return ""
+                import datetime
+                if isinstance(v, datetime.datetime):
+                    return v.strftime("%Y-%m-%d %H:%M")
+                if isinstance(v, datetime.date):
+                    return v.strftime("%Y-%m-%d")
+                return str(v).strip().replace("|", "\\|").replace("\n", " ")
+
+            rows_md = []
+            for r_idx, row in enumerate(chunk):
+                cells = [cell_str(c) for c in row]
+                rows_md.append("| " + " | ".join(cells) + " |")
+                # Header separator after first row
+                if r_idx == 0:
+                    rows_md.append("| " + " | ".join(["---"] * len(cells)) + " |")
+
+            remaining = total_rows - r_end
+            footer = ""
+            if remaining > 0:
+                next_end = min(total_rows, r_end + (r_end - r_start + 1))
+                footer = (
+                    f"\n[{remaining} more rows. Call with "
+                    f"row_start={r_end + 1}, row_end={next_end} to continue.]"
+                )
+
+            header = (
+                f"[XLSX: {file_path} | Sheet: '{sheet_name}' "
+                f"({len(sheet_names)} sheets total) | "
+                f"Rows {r_start}–{r_end} of {total_rows}]\n"
+                f"All sheets: {', '.join(sheet_names)}\n"
+            )
+            wb.close()
+            return header + "\n".join(rows_md) + footer
+
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error reading XLSX file: {str(e)}"
 
     def save_document(self, file_path: str, content: str, title: str = "Document") -> str:
         """
@@ -449,12 +751,36 @@ class DocumentTools(_WorkspaceMixin):
             StructuredTool.from_function(
                 func=self.read_docx,
                 name="read_docx",
-                description="Reads text content from a Word document (.docx)."
+                description=(
+                    "Reads text from a Word document (.docx) paragraph by paragraph. "
+                    "Args: file_path (str), para_start (int, default 1), para_end (int, default last). "
+                    "IMPORTANT: Large DOCX files MUST be read in chunks of 100-200 paragraphs. "
+                    "Example: {\"file_path\": \"doc.docx\", \"para_start\": 1, \"para_end\": 150}. "
+                    "The response includes total paragraph count so you know how many chunks remain."
+                )
             ),
             StructuredTool.from_function(
                 func=self.read_pdf,
                 name="read_pdf",
-                description="Reads text content from a PDF file (.pdf)."
+                description=(
+                    "Reads text from a PDF file page by page. "
+                    "Args: file_path (str), page_start (int, default 1), page_end (int, default last page). "
+                    "IMPORTANT: Large PDFs MUST be read in chunks of 5-10 pages to avoid context overflow. "
+                    "Example: {\"file_path\": \"paper.pdf\", \"page_start\": 1, \"page_end\": 10}. "
+                    "The response includes total page count so you know how many chunks remain."
+                )
+            ),
+            StructuredTool.from_function(
+                func=self.read_xlsx,
+                name="read_xlsx",
+                description=(
+                    "Reads an Excel spreadsheet (.xlsx) and renders it as a Markdown table. "
+                    "Args: file_path (str), sheet (str, default: first sheet — pass '?' to list all sheets), "
+                    "row_start (int, default 1), row_end (int, default row_start+49). "
+                    "IMPORTANT: Read in chunks of 50-100 rows for large sheets. "
+                    "First call sheet='?' to discover sheet names. "
+                    "Example: {\"file_path\": \"data.xlsx\", \"sheet\": \"Results\", \"row_start\": 1, \"row_end\": 50}."
+                )
             ),
         ]
 

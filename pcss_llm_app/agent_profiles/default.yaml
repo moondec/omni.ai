@@ -38,3 +38,6 @@ instructions: |
   - run_python: Sandboxed execution for logic/data.
   - analyze_image: Multi-modal vision.
   - save_document: Export to PDF/DOCX.
+  - read_pdf: Extract text from PDF documents.
+  - read_docx: Extract text from Word documents.
+  - read_xlsx: Read Excel spreadsheets into Markdown tables.

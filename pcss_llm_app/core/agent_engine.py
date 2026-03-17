@@ -261,6 +261,7 @@ Begin!"""
 
         max_steps = 100
         self._consecutive_format_errors = 0  # Reset format error counter
+        self._empty_response_count = 0       # Reset empty-response counter
         action_history = []
         thought_history = []
         observation_history = []
@@ -277,6 +278,47 @@ Begin!"""
             
             self._log(f"--- Step {i+1} ---")
             
+            # ── Prompt Overflow Guard (sliding window) ──────────────────────
+            # If the accumulated prompt exceeds MAX_PROMPT_CHARS we trim the
+            # OLDEST Observation blocks from the scratchpad while keeping:
+            #   1. The immutable header  (system prompt + "Question: …\nThought:")
+            #   2. The most-recent steps (everything after the oldest trimmed block)
+            # A notice is injected so the model knows history was compressed.
+            MAX_PROMPT_CHARS = 200_000
+            if len(prompt) > MAX_PROMPT_CHARS:
+                # Split at the first "\nThought:" that follows the Question line
+                # Everything before (and including) that marker is the immutable header.
+                header_marker = "\nThought:"
+                header_end = prompt.find(header_marker)
+                if header_end != -1:
+                    header   = prompt[: header_end + len(header_marker)]
+                    body     = prompt[header_end + len(header_marker):]
+                    
+                    # The body is a sequence of "…\nObservation: …\nThought:" blocks.
+                    # Split on every "\nObservation:" boundary so we can drop blocks
+                    # from the front until we fit within the limit.
+                    obs_blocks = body.split("\nObservation:")
+                    # obs_blocks[0]  = first Thought text (before first Observation)
+                    # obs_blocks[1:] = each "obs_text\nThought:…" chunk
+                    
+                    trim_notice = (
+                        "\n[SYSTEM: Earlier steps were trimmed to protect the context window. "
+                        "The task and your most recent steps are shown below. Continue normally.]\n"
+                    )
+                    
+                    # Drop blocks from the front (oldest first) until we fit
+                    while len(obs_blocks) > 2 and \
+                          len(header + trim_notice + "\nObservation:".join(obs_blocks)) > MAX_PROMPT_CHARS:
+                        obs_blocks.pop(1)  # remove oldest Observation block (index 1)
+                    
+                    trimmed_body = "\nObservation:".join(obs_blocks)
+                    prompt = header + trim_notice + trimmed_body
+                    self._log(
+                        f"⚠️ Prompt overflow: trimmed to {len(prompt):,} chars "
+                        f"(original > {MAX_PROMPT_CHARS:,})."
+                    )
+            # ────────────────────────────────────────────────────────────────
+
             # Invoke LLM with stop sequence
             self._log("Thinking...")
             
@@ -726,7 +768,22 @@ Begin!"""
                     available_tools = ", ".join(self.tool_map.keys())
                     observation = f"Error: Tool '{action}' not found. Available tools: {available_tools}. Use only these names!"
                 
-                obs_text = f"\nObservation: {observation}\nThought:"
+                # --- Observation Size Guard ---
+                # Prevent context-window saturation from large tool outputs (e.g. read_pdf).
+                # If an observation exceeds MAX_OBS_CHARS, truncate it and warn the model.
+                MAX_OBS_CHARS = 15_000
+                observation_str = str(observation)
+                if len(observation_str) > MAX_OBS_CHARS:
+                    truncated = observation_str[:MAX_OBS_CHARS]
+                    chars_omitted = len(observation_str) - MAX_OBS_CHARS
+                    observation_str = (
+                        truncated +
+                        f"\n\n[SYSTEM NOTICE: Output truncated. {chars_omitted} characters omitted to protect context window. "
+                        "If you need more of the content, call the tool again with a smaller range or write it to a file first.]"
+                    )
+                    self._log(f"⚠️ Observation truncated: {chars_omitted} chars removed (limit: {MAX_OBS_CHARS}).")
+                
+                obs_text = f"\nObservation: {observation_str}\nThought:"
                 yield obs_text
                 prompt += obs_text
                 self.active_scratchpad += obs_text
@@ -739,7 +796,25 @@ Begin!"""
                      continue
                 
                 if not output.strip():
-                    return "Error: Agent produced empty response."
+                    # First empty response: inject a recovery hint instead of failing immediately.
+                    # This often happens right after a very large observation saturates the context.
+                    if not getattr(self, '_empty_response_count', 0):
+                        self._empty_response_count = 0
+                    self._empty_response_count += 1
+                    
+                    if self._empty_response_count == 1:
+                        self._log("⚠️ Empty response detected. Injecting recovery prompt (1/1 tries).")
+                        recovery_msg = (
+                            "\nObservation: [SYSTEM RECOVERY] Your last response was completely empty. "
+                            "This can happen after processing very large content. "
+                            "Please continue with the next logical step: output a Thought, then an Action/Action Input or Final Answer.\nThought:"
+                        )
+                        prompt += recovery_msg
+                        self.active_scratchpad += recovery_msg
+                        continue
+                    else:
+                        self._empty_response_count = 0
+                        return "Error: Agent produced empty response."
 
                 # ----------------------------------------------------------------
                 # Format correction: the model produced a natural-language response

@@ -61,3 +61,6 @@ instructions: |
   - generate_chart: Tworzenie wykresów.
   - save_document / convert_document: Eksport do PDF/DOCX.
   - search_web / visit_page: Standardowy research web.
+  - read_pdf: Ekstrakcja tekstu z dokumentów PDF.
+  - read_docx: Ekstrakcja tekstu z dokumentów Word.
+  - read_xlsx: Odczyt arkuszy Excel jako tabele Markdown.
