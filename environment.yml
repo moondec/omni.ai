@@ -36,10 +36,10 @@ dependencies:
   
   # Web scraping
   - beautifulsoup4      # HTML parsing
-  - requests            # HTTP requests
+  - requests>=2.31.0    # HTTP requests (updated to fix urllib3 warning)
   
   # Chart generation
-  - matplotlib          # For generating charts and visualizations
+  - matplotlib-base     # For generating charts without pulling Qt5/PyQt
   
   # Additional Utilities
   - numpy               # Numeric operations
