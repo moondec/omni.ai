@@ -1346,7 +1346,7 @@ class WebSearchTools:
                     continue
                 
                 summary = self._summarize_content(content)
-                research_report.append(f"## [{i+1}] {title}")
+                research_report.append(f"## [{processed_count + 1}] {title}")
                 research_report.append(f"**Źródło:** {url}")
                 research_report.append(f"**Kluczowe ustalenia:**\n{summary}\n")
                 processed_count += 1
@@ -1635,6 +1635,46 @@ class ViewFileTool(_WorkspaceMixin):
             )
         ]
 
+class CountPatternSchema(BaseModel):
+    file_path: str = Field(description="The path to the file to search.")
+    pattern: str = Field(description="The regex pattern to count (e.g., r'\\d+')")
+    case_sensitive: bool = Field(default=True, description="Whether the search should be case-sensitive.")
+
+class CountPatternTool(_WorkspaceMixin):
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+
+    def count_pattern_in_file(self, file_path: str, pattern: str, case_sensitive: bool = True) -> str:
+        """
+        Counts occurrences of a regex pattern in a file without loading the entire file into memory.
+        """
+        try:
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return f"Error: File {file_path} not found."
+
+            flags = 0 if case_sensitive else re.IGNORECASE
+            regex = re.compile(pattern, flags)
+            
+            count = 0
+            # Read in chunks for safety with very large files
+            with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    count += len(regex.findall(line))
+            
+            return f"Found {count} occurrences of pattern '{pattern}' in {file_path}."
+        except Exception as e:
+            return f"Error counting pattern: {str(e)}"
+
+    def get_tools(self):
+        return [
+            StructuredTool.from_function(
+                func=self.count_pattern_in_file,
+                name="count_pattern_in_file",
+                description="Counts occurrences of a regex pattern in a file. Use this for counting citations or specific terms in large manuscripts.",
+                args_schema=CountPatternSchema
+            )
+        ]
 
 class ReplaceFileContentSchema(BaseModel):
     file_path: str = Field(description="The target file to modify.")

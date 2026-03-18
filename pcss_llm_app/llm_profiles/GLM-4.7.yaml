@@ -8,6 +8,7 @@ system_prompt_additions: |
   4. OUTPUT ONLY ONE ACTION PER TURN. Do not output multiple `Action:` blocks in a single response! Wait for the Observation after each action.
   5. DO NOT hallucinate that you have completed a task if you haven't actually run the tool. If you need to create multiple files, iterate step by step using `write_file` for each one.
   6. ALWAYS read files using `view_file` (which provides line numbers) before editing them with `replace_file_content`.
+  7. CHUNKED READING REQUIRED: Document reading tools (like read_pdf) have a strict limit of 15,000 characters per call. You MUST read large documents in chunks by calling the tool repeatedly with appropriate pagination parameters (e.g., offsets/page numbers) until you have processed the ENTIRE document. DO NOT assume the whole file was read in one call.
 
 instructions: |
   - Be direct and concise.

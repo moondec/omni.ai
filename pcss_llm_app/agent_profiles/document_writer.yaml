@@ -19,8 +19,9 @@ instructions: |
   - Use <table> for comparisons or complex data sets.
 
   CITATIONS & LINKS:
-  - Every external fact must have an active hyperlink: <a href="URL">Source Name</a>.
-  - List all references in a "Sources" or "Bibliography" section at the end of the document.
+  - Use numerical indices in the text for every external fact, matching the bibliography (e.g., [1]).
+  - Every citation must have an active hyperlink where possible: <a href="URL">Source Name [Index]</a>.
+  - List all references in a "Sources" or "Bibliography" section at the end, using the same indices ([1], [2], etc.).
 
   OUTPUT QUALITY:
   - Professional, objective, and clean layout.

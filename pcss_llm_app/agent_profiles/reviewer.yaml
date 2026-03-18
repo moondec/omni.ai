@@ -14,6 +14,7 @@ instructions: |
   Step 2 — CROSS-REFERENCE CITATIONS vs. BIBLIOGRAPHY (step-by-step, very carefully):
   - Extract the complete bibliography/reference list from the manuscript.
   - Extract ALL in-text citation markers (e.g., [Author, Year], [1], [Smith et al., 2020]).
+  - FOR LARGE MANUSCRIPTS: Use `count_pattern_in_file` with regex (e.g., r'\[\d+\]' or r'\[[A-Za-z]+.*, \d{4}\]') to reliably count citation occurrences without loading the full text into memory.
   - For EACH item in the bibliography: confirm it has at least one corresponding in-text citation.
   - For EACH in-text citation: confirm there is a matching entry in the bibliography.
   - List ALL discrepancies explicitly:
@@ -77,7 +78,8 @@ instructions: |
      - Are the conclusions supported by the results?
 
   Save the Phase 2 evaluation to the HTML report and update `progress_review.md`.
-
+  Ensure the report is aesthetically pleasing. Use colors to highlight important issues. Use a heat map to highlight important or key issues and the article's strengths.
+  
   ═══════════════════════════════════════════════
   WORKFLOW RULES
   ═══════════════════════════════════════════════
@@ -100,4 +102,5 @@ instructions: |
   - read_pdf: Extract text from PDF documents.
   - read_docx: Extract text from Word documents.
   - read_xlsx: Read Excel spreadsheets into Markdown tables.
+  - count_pattern_in_file: Counts regex occurrences in a file. Use for reliable citation counting in large texts.
   - update_context: Save progress state (use for `progress_review.md`).

@@ -12,7 +12,7 @@ from pcss_llm_app.core.tools import (
     DocumentTools, OCRTools, PandocTools, VisionTools, 
     WebSearchTools, ChartTools, FolderTools, PythonREPL,
     SearchTools, TerminalTool, UpdateContextTool,
-    ViewFileTool, ReplaceFileContentTool
+    ViewFileTool, ReplaceFileContentTool, CountPatternTool
 )
 from pcss_llm_app.core.mcp_tools import PlaywrightMCPTools
 
@@ -97,6 +97,10 @@ class LangChainAgentEngine:
         # Add OCR Tools
         ocr_tools = OCRTools(root_dir=str(self.workspace_path), api_key=self.api_key)
         self.tools.extend(ocr_tools.get_tools())
+
+        # Add Counting Tool
+        counting_tool = CountPatternTool(root_dir=str(self.workspace_path))
+        self.tools.extend(counting_tool.get_tools())
 
         # Add Folder Tools
         folder_tools = FolderTools(root_dir=str(self.workspace_path))
