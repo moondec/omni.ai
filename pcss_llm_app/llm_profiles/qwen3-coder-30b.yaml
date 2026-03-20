@@ -38,3 +38,6 @@ instructions: |
   - analyze_image: Visual UI/UX review.
   - search_web / deep_research: Technical research.
   - save_document / convert_document: Export reports.
+
+temperature: 0.1
+max_tokens: 8192

@@ -13,3 +13,6 @@ instructions: |
   # GENERAL LLM OPERATIONAL RULES
   - Pay close attention to the ReAct format. Always use Action and Action Input when executing tools.
   - When returning a JSON object in Action Input, ensure all properties and strings are properly escaped.
+
+temperature: 0.1
+max_tokens: 4096

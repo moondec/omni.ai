@@ -1739,14 +1739,19 @@ class SearchTools(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
 
-    def search_files(self, query: str, pattern: str = "*", recursive: bool = True) -> str:
+    def search_files(self, query: str = "", pattern: str = "*", recursive: bool = True, path: str = "") -> str:
         """
         Searches for a string (query) inside files matching the pattern.
         Args:
-            query: The text to search for.
+            query: The text to search for. Also accepts 'path' as an alias.
             pattern: Glob pattern for files (e.g., '*.py').
             recursive: Whether to search subdirectories.
         """
+        # Accept 'path' as alias for 'query' (some models use this name)
+        if not query and path:
+            query = path
+        if not query:
+            return "Error: provide a search query (query parameter)."
         try:
             results = []
             import fnmatch

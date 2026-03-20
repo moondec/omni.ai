@@ -5,6 +5,7 @@ import json
 import datetime
 import ast
 import difflib
+import logging
 from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import FileManagementToolkit
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -71,6 +72,20 @@ class LangChainAgentEngine:
     def _log(self, message: str):
         if self.log_callback:
             self.log_callback(message)
+        # --- Persistent file logger ---
+        # Writes every message to agent_debug.log in the workspace directory.
+        # Useful for post-session diagnosis when log_callback is not available.
+        try:
+            log_path = os.path.join(self.workspace_path, "agent_debug.log")
+            # Auto-rotate: if file exceeds 5 MB, truncate it.
+            if os.path.exists(log_path) and os.path.getsize(log_path) > 5 * 1024 * 1024:
+                with open(log_path, "w", encoding="utf-8") as f:
+                    f.write(f"[LOG ROTATED at {datetime.datetime.now().isoformat()}]\n")
+            ts = datetime.datetime.now().strftime("%H:%M:%S")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{ts}][{self.model_name}] {message}\n")
+        except Exception:
+            pass  # Never let logger crash the agent
 
     def _initialize_agent(self):
         # 1. Initialize LLM with performance optimizations
@@ -327,11 +342,43 @@ Begin!"""
             self._log("Thinking...")
             
             output = ""
+            # Stop at "Observation:" — the intended ReAct stop marker.
+            # Active stream-break: once we accumulate a complete Action + Action Input
+            # pair in the buffer we break immediately, preventing models (e.g. MiniMax)
+            # that ignore stop sequences from streaming indefinitely.
+            _action_input_done_re = re.compile(
+                # Matches a COMPLETE Action Input value. This regex is used to
+                # break the LLM stream early once the model has finished writing
+                # an action. It must NOT match incomplete JSON like `{` or `{"` —
+                # those would cut the model off before it can write the filename.
+                #
+                # Alternatives (in order of priority):
+                # 1. Complete JSON object with AT LEAST one key-value pair:
+                #    {"key"  (we only require the key started, not the full pair,
+                #    because the model might use a stop sequence before closing}
+                # 2. Complete flat JSON:  {"key": value}  or  {}  (empty)
+                # 3. Quoted string value: "some value"
+                # 4. Plain unquoted value (not starting with { or "): ./path, tool_name
+                r'Action Input:\s*('
+                r'\{[^{}]*"[^"]+"[^{}]*\}'   # complete JSON with >=1 key: {"k": v}
+                r'|\{\}'                        # empty JSON: {}
+                r'|"[^"]+"'                     # quoted string: "value"
+                r'|[^\n{"\s][^\n]+'             # plain unquoted value
+                r')'
+            )
+            _stream_break_reason = "stop_sequence_or_eos"
             for chunk in self.llm.stream(prompt, stop=["Observation:"]):
                 if chunk.content:
                     output += chunk.content
                     yield chunk.content
-                    
+                    # Break as soon as we have a parseable Action + Input pair
+                    if "Action:" in output and "Action Input:" in output:
+                        if _action_input_done_re.search(output):
+                            _stream_break_reason = "active_break_complete_action"
+                            break
+
+            self._log(f"[STREAM] Ended. Reason: {_stream_break_reason}. Output length: {len(output)} chars.")
+
             # print(f"--- Step {i} ---\nLLM Output:\n{output}\n----------------")
             self._log(f"Agent Thought:\n{output}")
             
@@ -352,7 +399,60 @@ Begin!"""
                  self.active_scratchpad += warning_msg
             
             thought_history.append(current_thought)
-            
+
+            # ── Early output truncation ──────────────────────────────────────
+            # Some models (e.g. MiniMax) keep streaming after "Action Input:"
+            # MiniMax hallucination guard: the model sometimes emits multiple
+            # Action blocks in a single stream. Truncate to the FIRST complete
+            # Action+Input pair so the context never gets poisoned.
+            #
+            # IMPORTANT: Only activate when there are ≥2 "Action:" markers.
+            # For a single Action (e.g. run_python with long code), do NOT truncate —
+            # the old regex was matching the first } inside a JSON code string and
+            # cutting the rest, producing "unterminated string literal" errors.
+            action_block_count = output.count("Action:")
+            if action_block_count >= 2 and "Action Input:" in output:
+                # Find where the FIRST Action Input value ends.
+                # Use a brace-depth counter to find the matching closing }
+                # for JSON objects, so we don't cut inside nested strings.
+                first_input_match = re.search(r'Action Input:\s*', output)
+                if first_input_match:
+                    pos = first_input_match.end()
+                    if pos < len(output) and output[pos] == '{':
+                        # Walk forward counting brace depth
+                        depth = 0
+                        in_str = False
+                        esc = False
+                        end_pos = pos
+                        for k in range(pos, len(output)):
+                            ch = output[k]
+                            if esc:
+                                esc = False
+                            elif ch == '\\' and in_str:
+                                esc = True
+                            elif ch == '"' and not esc:
+                                in_str = not in_str
+                            elif not in_str:
+                                if ch == '{':
+                                    depth += 1
+                                elif ch == '}':
+                                    depth -= 1
+                                    if depth == 0:
+                                        end_pos = k + 1
+                                        break
+                        tail = output[end_pos:].strip()
+                    else:
+                        # Plain-text action input: take until end of line
+                        eol = output.find('\n', pos)
+                        end_pos = eol if eol != -1 else len(output)
+                        tail = output[end_pos:].strip()
+                    if len(tail) > 20:
+                        self._log(
+                            f"⚙️ MiniMax stream truncation: removed {len(tail):,} trailing chars "
+                            f"({tail[:80]!r}...)"
+                        )
+                        output = output[:end_pos].strip()
+
             prompt += output
             self.active_scratchpad += output # Mirror to scratchpad
             
@@ -490,6 +590,33 @@ Begin!"""
                     match = True
                     self._log(f"⚙️ Using ultra-greedy fallback parser for: {action}")
 
+            # Fallback 5: MiniMax XML-style tool call format
+            # MiniMax emits: <minimax:tool_call><invoke name="tool_name"><parameter name="arg">value</parameter></invoke></minimax:tool_call>
+            if not match:
+                minimax_invoke = re.search(
+                    r'<(?:minimax:)?tool_call[^>]*>\s*<invoke\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*>([\s\S]*?)</invoke>',
+                    output
+                )
+                if minimax_invoke:
+                    action = minimax_invoke.group(1).strip()
+                    params_block = minimax_invoke.group(2)
+                    # Extract all <parameter name="key">value</parameter> pairs
+                    param_pairs = re.findall(
+                        r'<parameter\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*>([\s\S]*?)</parameter>',
+                        params_block
+                    )
+                    args_dict = {}
+                    for pname, pvalue in param_pairs:
+                        pvalue = pvalue.strip()
+                        # Try to parse as JSON (for numbers/booleans/nested objects)
+                        try:
+                            args_dict[pname] = json.loads(pvalue)
+                        except (json.JSONDecodeError, ValueError):
+                            args_dict[pname] = pvalue
+                    action_input = json.dumps(args_dict, ensure_ascii=False)
+                    match = True
+                    self._log(f"⚙️ Using MiniMax XML tool-call parser for: {action}")
+
             if match:
                 if hasattr(match, 'group'):
                     action = match.group(1).strip()
@@ -518,44 +645,56 @@ Begin!"""
                     tool_args = json.loads(action_input)
                 except json.JSONDecodeError:
                     # JSON Repair Block: attempt to close unclosed JSON (common for truncated outputs)
+                    # e.g. GLM-4 emits only `{` or `{"` when stop=Observation: interrupts mid-JSON.
                     try:
+                        stripped = action_input.strip()
                         # Case 1: Missing closing brace
-                        if action_input.count('{') > action_input.count('}'):
-                            tool_args = json.loads(action_input + '}')
+                        if stripped.count('{') > stripped.count('}'):
+                            # Sub-case 1a: bare `{` — close it to produce `{}`
+                            if stripped == '{':
+                                tool_args = {}
+                            # Sub-case 1b: `{"` — close immediately to produce `{}`
+                            elif stripped == '{"':
+                                tool_args = {}
+                            else:
+                                tool_args = json.loads(stripped + '}')
                         # Case 2: Missing closing quote and brace (especially in 'text' blocks)
-                        elif action_input.strip().endswith('"') == False:
-                             tool_args = json.loads(action_input + '"}')
+                        elif not stripped.endswith('"') and stripped.startswith('{'):
+                             tool_args = json.loads(stripped + '"}')
                         else:
                             raise json.JSONDecodeError("Manual trigger for fallback", action_input, 0)
                     except:
                         pass
-                    try:
-                        # Sometimes LLMs output Python dicts instead of JSON
-                        tool_args = ast.literal_eval(action_input)
-                    except (SyntaxError, ValueError):
-                        fixed_input = action_input.replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
-                        # VERY common issue: LLMs output unescaped double quotes inside JSON strings
-                        # We try to escape quotes that are followed by characters other than , or } or ] or end of string
-                        # This is a bit risky but often helpful. Better yet: try to find the text block and escape it.
-                        if '"text": "' in fixed_input or '"replacement_content": "' in fixed_input:
-                             # Regex to find the content between the start of a key and the end of the JSON object
-                             pass # We use a more robust fallback below
-                        
+                    # Only run further fallbacks if the repair above did NOT produce a valid dict/list.
+                    # Without this guard, the ast / manual fallback would overwrite a correctly repaired {}.
+                    if not isinstance(tool_args, (dict, list)):
                         try:
-                            tool_args = json.loads(fixed_input)
-                        except json.JSONDecodeError:
-                            # Robust extraction: finding the outer-most JSON object if parsing failed
-                            # Using manual string trimming instead of regex for speed on large strings
-                            start_idx = fixed_input.find('{')
-                            end_idx = fixed_input.rfind('}')
-                            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                                try:
-                                    tool_args = json.loads(fixed_input[start_idx:end_idx+1])
-                                except:
-                                    # Final attempt: try to manually extract the fields if it's still broken
-                                    tool_args = fixed_input # Fallback to string for regex extractor below
-                            else:
-                                 tool_args = action_input
+                            # Sometimes LLMs output Python dicts instead of JSON
+                            tool_args = ast.literal_eval(action_input)
+                        except (SyntaxError, ValueError):
+                            fixed_input = action_input.replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
+                            # VERY common issue: LLMs output unescaped double quotes inside JSON strings
+                            # We try to escape quotes that are followed by characters other than , or } or ] or end of string
+                            # This is a bit risky but often helpful. Better yet: try to find the text block and escape it.
+                            if '"text": "' in fixed_input or '"replacement_content": "' in fixed_input:
+                                 # Regex to find the content between the start of a key and the end of the JSON object
+                                 pass # We use a more robust fallback below
+                            
+                            try:
+                                tool_args = json.loads(fixed_input)
+                            except json.JSONDecodeError:
+                                # Robust extraction: finding the outer-most JSON object if parsing failed
+                                # Using manual string trimming instead of regex for speed on large strings
+                                start_idx = fixed_input.find('{')
+                                end_idx = fixed_input.rfind('}')
+                                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                                    try:
+                                        tool_args = json.loads(fixed_input[start_idx:end_idx+1])
+                                    except:
+                                        # Final attempt: try to manually extract the fields if it's still broken
+                                        tool_args = fixed_input # Fallback to string for regex extractor below
+                                else:
+                                     tool_args = action_input
 
                 # Heuristic Fallback for broken JSON (especially write_file with unescaped newlines/quotes)
                 if isinstance(tool_args, str) and ("{" in tool_args or ":" in tool_args):
@@ -734,6 +873,21 @@ Begin!"""
                                     self.active_scratchpad += obs_text
                                     continue
 
+                            if action in ("read_pdf", "read_docx", "read_xlsx"):
+                                if "file_path" not in tool_args or not tool_args.get("file_path"):
+                                    observation = (
+                                        f"Error: {action} requires 'file_path'. "
+                                        "Your Action Input was incomplete (the JSON was cut off). "
+                                        "Provide a complete Action Input, e.g.: "
+                                        f'{{"file_path": "AGRFORMET-D-24-01426_reviewer.pdf"}}'
+                                    )
+                                    self._log(f"Preflight: {action} called with empty file_path. Correcting.")
+                                    observation_history.append(observation)
+                                    obs_text = f"\nObservation: {observation}\nThought:"
+                                    prompt += obs_text
+                                    self.active_scratchpad += obs_text
+                                    continue
+
                             if action == "replace_file_content":
                                 missing = [
                                     k for k in ("file_path", "start_line", "end_line", "replacement_content")
@@ -849,7 +1003,16 @@ Begin!"""
                 
                 self._log(f"⚠️ Format error ({self._consecutive_format_errors}/4). Prompting for correction.")
                 self._log(f"--- RAW OUTPUT CAUSING ERROR ---\n{output}\n--------------------------------")
-                fmt_error = "\nObservation: You did not use a valid format. You MUST Output exactly ONE 'Action:' line followed by ONE 'Action Input:' line. Or if you are finished, use 'Final Answer:'. Do not just 'think'.\nThought:"
+                fmt_error = (
+                    "\nObservation: SYSTEM: You did not produce an Action. You MUST follow the exact format below — "
+                    "do NOT just write a 'Thought:'. You MUST immediately follow it with 'Action:' and 'Action Input:'.\n\n"
+                    "CORRECT FORMAT EXAMPLE:\n"
+                    "Thought: I need to list the directory to see the files.\n"
+                    "Action: list_directory\n"
+                    "Action Input: {\"path\": \".\"}\n\n"
+                    "Now continue — write Thought, then Action, then Action Input:\n"
+                    "Thought:"
+                )
                 prompt += fmt_error
                 self.active_scratchpad += fmt_error
 
