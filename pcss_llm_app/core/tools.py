@@ -210,8 +210,13 @@ class DocumentTools(_WorkspaceMixin):
                     text = para.text.strip()
 
                     # Detect inline images in this paragraph
-                    has_image = child.find('.//' + qn('a:blip')) is not None or \
-                                child.find('.//' + qn('v:imagedata')) is not None
+                    has_image = child.find('.//' + qn('a:blip')) is not None
+                    if not has_image:
+                        try:
+                            has_image = child.find('.//' + qn('v:imagedata')) is not None
+                        except KeyError:
+                            # VML namespace 'v' not registered in python-docx
+                            pass
                     if has_image:
                         # Try to get EMU dimensions
                         ext_elem = child.find('.//' + qn('wp:extent'))
@@ -1523,6 +1528,19 @@ class PythonREPL:
         except ImportError:
             plt_mod = None
 
+        try:
+            import docx as docx_mod
+        except ImportError:
+            docx_mod = None
+        try:
+            import openpyxl as openpyxl_mod
+        except ImportError:
+            openpyxl_mod = None
+        try:
+            import pypdf as pypdf_mod
+        except ImportError:
+            pypdf_mod = None
+
         sandbox_globals = {
             '__builtins__': safe_builtins,
             'open': _safe_open,
@@ -1536,6 +1554,9 @@ class PythonREPL:
             'pd': pd_mod,
             'plt': plt_mod,
             'matplotlib': plt_mod,
+            'docx': docx_mod,
+            'openpyxl': openpyxl_mod,
+            'pypdf': pypdf_mod,
         }
 
         stdout = io.StringIO()

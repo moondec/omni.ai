@@ -73,10 +73,11 @@ class LangChainAgentEngine:
         if self.log_callback:
             self.log_callback(message)
         # --- Persistent file logger ---
-        # Writes every message to agent_debug.log in the workspace directory.
-        # Useful for post-session diagnosis when log_callback is not available.
+        # Writes every message to agent_debug.log in the APPLICATION directory
+        # (next to pcss_llm_app/), NOT in the user's workspace.
         try:
-            log_path = os.path.join(self.workspace_path, "agent_debug.log")
+            app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            log_path = os.path.join(app_dir, "agent_debug.log")
             # Auto-rotate: if file exceeds 5 MB, truncate it.
             if os.path.exists(log_path) and os.path.getsize(log_path) > 5 * 1024 * 1024:
                 with open(log_path, "w", encoding="utf-8") as f:
@@ -86,6 +87,26 @@ class LangChainAgentEngine:
                 f.write(f"[{ts}][{self.model_name}] {message}\n")
         except Exception:
             pass  # Never let logger crash the agent
+
+    def _write_status_file(self, status: str, details: str = ""):
+        """Writes a CLAUDE.md status file to the workspace directory.
+        
+        This provides the user (and external tools) with a quick overview
+        of the agent's current task state.
+        """
+        try:
+            status_path = os.path.join(self.workspace_path, "CLAUDE.md")
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            content = f"# Agent Status\n\n"
+            content += f"- **Status:** {status}\n"
+            content += f"- **Model:** {self.model_name}\n"
+            content += f"- **Updated:** {ts}\n"
+            if details:
+                content += f"\n## Details\n\n{details}\n"
+            with open(status_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception:
+            pass  # Never let status writer crash the agent
 
     def _initialize_agent(self):
         # 1. Initialize LLM with performance optimizations
@@ -276,6 +297,7 @@ Begin!"""
         # We intentionally DO NOT resume from active_scratchpad across runs to avoid
         # replaying old tool trajectories as answers to new instructions.
         self.active_scratchpad = ""  # Ensure clean start for each run
+        self._write_status_file("🔄 Working", f"Processing: {input_text[:200]}")
         prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
 
         max_steps = 100
@@ -539,6 +561,7 @@ Begin!"""
                     self._log("Task Completed. Clearing Context.")
                     self.active_scratchpad = "" # Task finished, clear scratchpad
                 
+                self._write_status_file("✅ Completed", f"{final_ans[:300]}")
                 return final_ans
             
             # Fallback 1: Single-line format "Action: tool_name {args}"
@@ -826,9 +849,9 @@ Begin!"""
                 if is_identical_loop or is_similarity_loop:
                     # First time: intervene with an explicit instruction instead of immediately stopping.
                     # This helps weaker models recover from accidental repeats of idempotent actions.
-                    if action_loop_warnings < 1:
+                    if action_loop_warnings < 3:
                         action_loop_warnings += 1
-                        self._log("⚠️ Action Loop detected! Injecting intervention (warning 1/1).")
+                        self._log(f"⚠️ Action Loop detected! Injecting intervention (warning {action_loop_warnings}/3).")
                         observation = (
                             "SYSTEM INTERVENTION: You are repeating the same (or highly similar) tool action. "
                             "STOP repeating it. Do NOT call the same tool with similar input again. "
@@ -1017,4 +1040,6 @@ Begin!"""
                 self.active_scratchpad += fmt_error
 
 
-        return f"Agent reached safety limit of {max_steps} steps without finishing. To prevent excessive API usage, I have stopped here. You can ask me to 'continue' if you believe more progress can be made."
+        safety_msg = f"Agent reached safety limit of {max_steps} steps without finishing. To prevent excessive API usage, I have stopped here. You can ask me to 'continue' if you believe more progress can be made."
+        self._write_status_file("⚠️ Stopped", f"Safety limit of {max_steps} steps reached.")
+        return safety_msg

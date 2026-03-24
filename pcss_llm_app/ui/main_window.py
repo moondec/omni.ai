@@ -1082,9 +1082,10 @@ class MainWindow(QMainWindow):
         cursor.movePosition(QTextCursor.End)
         self.console_display.setTextCursor(cursor)
         
-        # Log to file for Antigravity AI hook
+        # Log to file in the APPLICATION directory (not workspace)
         try:
-            log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".agent_debug.log"))
+            app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            log_path = os.path.join(app_dir, "agent_debug.log")
             with open(log_path, "a", encoding="utf-8") as f:
                 ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 f.write(f"[{ts}] {message}\n")
