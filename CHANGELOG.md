@@ -2,6 +2,14 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.2.1] - 2026-03-25
+
+### Fixed
+
+- **Infinite Loop Prevention**: Added mechanisms to detect loop behavior (e.g., repeating the same tool context endlessly) and force a final answer format when consecutive errors exceed limits.
+- **DOCX Extraction Improvement**: Enhanced `read_docx` to correctly extract formulas and `<m:oMath>` tags that were previously ignored by `python-docx`'s default `.text` property, preventing the agent from infinitely searching for missing equations.
+- **MiniMax Parser Support**: Fixed parsing failures specific to the MiniMax model, capturing hybridized `Action Input:` injections inside native XML tags.
+
 ## [0.2.0] - 2026-03-17
 
 ### Added

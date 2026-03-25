@@ -186,6 +186,18 @@ class DocumentTools(_WorkspaceMixin):
             doc = Document(full_path)
             body = doc.element.body
 
+            def _extract_all_text(element):
+                texts = []
+                for node in element.iter():
+                    if node.tag.endswith('}t'):
+                        if node.text:
+                            texts.append(node.text)
+                    elif node.tag.endswith('}tab'):
+                        texts.append('\t')
+                    elif node.tag.endswith('}cr') or node.tag.endswith('}br'):
+                        texts.append('\n')
+                return ''.join(texts).strip()
+
             # ── Walk body in document order ──────────────────────────────
             # Each child is a paragraph (w:p), table (w:tbl), or section (w:sectPr).
             blocks = []  # list of rendered strings
@@ -207,7 +219,7 @@ class DocumentTools(_WorkspaceMixin):
                         except ValueError:
                             heading_level = 1
 
-                    text = para.text.strip()
+                    text = _extract_all_text(child)
 
                     # Detect inline images in this paragraph
                     has_image = child.find('.//' + qn('a:blip')) is not None
@@ -250,7 +262,7 @@ class DocumentTools(_WorkspaceMixin):
                         continue
                     md_rows = []
                     for r_idx, row in enumerate(rows):
-                        cells = [cell.text.strip().replace('\n', ' ') for cell in row.cells]
+                        cells = [_extract_all_text(cell._element).replace('\n', ' ') for cell in row.cells]
                         md_rows.append("| " + " | ".join(cells) + " |")
                         if r_idx == 0:
                             md_rows.append("| " + " | ".join(["---"] * len(cells)) + " |")

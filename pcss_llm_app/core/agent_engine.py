@@ -394,12 +394,29 @@ Begin!"""
                     output += chunk.content
                     yield chunk.content
                     # Break as soon as we have a parseable Action + Input pair
-                    if "Action:" in output and "Action Input:" in output:
-                        if _action_input_done_re.search(output):
+                    has_react = "Action:" in output and "Action Input:" in output
+                    has_xml = "<invoke" in output
+                    
+                    if has_react or has_xml:
+                        if has_xml and "</invoke>" in output:
+                            _stream_break_reason = "active_break_xml_invoke"
+                            break
+                        elif has_react and _action_input_done_re.search(output):
                             _stream_break_reason = "active_break_complete_action"
                             break
 
             self._log(f"[STREAM] Ended. Reason: {_stream_break_reason}. Output length: {len(output)} chars.")
+
+            # ── Strip <think> reasoning tags (GLM-4, Qwen3, DeepSeek, etc.) ──
+            # CoT models emit <think>...</think> blocks that leak into the
+            # raw output and confuse the ReAct format parser. Remove them
+            # before any parsing happens.
+            if '</think>' in output:
+                # 1. Full <think>content</think> blocks
+                output = re.sub(r'<think>.*?</think>\s*', '', output, flags=re.DOTALL)
+                # 2. Orphaned closing tag at start (e.g. "wi.</think>...")
+                output = re.sub(r'^[^<]*</think>\s*', '', output)
+                output = output.strip()
 
             # print(f"--- Step {i} ---\nLLM Output:\n{output}\n----------------")
             self._log(f"Agent Thought:\n{output}")
@@ -433,47 +450,60 @@ Begin!"""
             # the old regex was matching the first } inside a JSON code string and
             # cutting the rest, producing "unterminated string literal" errors.
             action_block_count = output.count("Action:")
-            if action_block_count >= 2 and "Action Input:" in output:
-                # Find where the FIRST Action Input value ends.
-                # Use a brace-depth counter to find the matching closing }
-                # for JSON objects, so we don't cut inside nested strings.
-                first_input_match = re.search(r'Action Input:\s*', output)
-                if first_input_match:
-                    pos = first_input_match.end()
-                    if pos < len(output) and output[pos] == '{':
-                        # Walk forward counting brace depth
-                        depth = 0
-                        in_str = False
-                        esc = False
-                        end_pos = pos
-                        for k in range(pos, len(output)):
-                            ch = output[k]
-                            if esc:
-                                esc = False
-                            elif ch == '\\' and in_str:
-                                esc = True
-                            elif ch == '"' and not esc:
-                                in_str = not in_str
-                            elif not in_str:
-                                if ch == '{':
-                                    depth += 1
-                                elif ch == '}':
-                                    depth -= 1
-                                    if depth == 0:
-                                        end_pos = k + 1
-                                        break
+            invoke_block_count = output.count("<invoke")
+            if (action_block_count >= 2 and "Action Input:" in output) or (invoke_block_count >= 2):
+                if action_block_count >= 2 and "Action Input:" in output:
+                    # Find where the FIRST Action Input value ends.
+                    # Use a brace-depth counter to find the matching closing }
+                    # for JSON objects, so we don't cut inside nested strings.
+                    first_input_match = re.search(r'Action Input:\s*', output)
+                    if first_input_match:
+                        pos = first_input_match.end()
+                        if pos < len(output) and output[pos] == '{':
+                            # Walk forward counting brace depth
+                            depth = 0
+                            in_str = False
+                            esc = False
+                            end_pos = pos
+                            for k in range(pos, len(output)):
+                                ch = output[k]
+                                if esc:
+                                    esc = False
+                                elif ch == '\\' and in_str:
+                                    esc = True
+                                elif ch == '"' and not esc:
+                                    in_str = not in_str
+                                elif not in_str:
+                                    if ch == '{':
+                                        depth += 1
+                                    elif ch == '}':
+                                        depth -= 1
+                                        if depth == 0:
+                                            end_pos = k + 1
+                                            break
+                            tail = output[end_pos:].strip()
+                        else:
+                            # Plain-text action input: take until end of line
+                            eol = output.find('\n', pos)
+                            end_pos = eol if eol != -1 else len(output)
+                            tail = output[end_pos:].strip()
+                        if len(tail) > 20:
+                            self._log(
+                                f"⚙️ stream truncation: removed {len(tail):,} trailing chars "
+                                f"({tail[:80]!r}...)"
+                            )
+                            output = output[:end_pos].strip()
+                elif invoke_block_count >= 2:
+                    first_invoke_end = output.find("</invoke>")
+                    if first_invoke_end != -1:
+                        end_pos = first_invoke_end + len("</invoke>")
                         tail = output[end_pos:].strip()
-                    else:
-                        # Plain-text action input: take until end of line
-                        eol = output.find('\n', pos)
-                        end_pos = eol if eol != -1 else len(output)
-                        tail = output[end_pos:].strip()
-                    if len(tail) > 20:
-                        self._log(
-                            f"⚙️ MiniMax stream truncation: removed {len(tail):,} trailing chars "
-                            f"({tail[:80]!r}...)"
-                        )
-                        output = output[:end_pos].strip()
+                        if len(tail) > 20:
+                            self._log(
+                                f"⚙️ XML stream truncation: removed {len(tail):,} trailing chars "
+                                f"({tail[:80]!r}...)"
+                            )
+                            output = output[:end_pos].strip()
 
             prompt += output
             self.active_scratchpad += output # Mirror to scratchpad
@@ -483,8 +513,9 @@ Begin!"""
             # If multiple "Action:" markers appear in one LLM turn, salvage progress by
             # executing ONLY the first action, and attach a warning to the Observation.
             action_markers = output.count("Action:")
-            if action_markers > 1 and "Final Answer:" not in output:
-                self._log(f"⚠️ Format error: detected {action_markers} Action blocks in a single step. Salvaging by executing ONLY the first action.")
+            invoke_markers = output.count("<invoke")
+            if (action_markers > 1 or invoke_markers > 1) and "Final Answer:" not in output:
+                self._log(f"⚠️ Format error: detected multiple action blocks in a single step. Salvaging by executing ONLY the first action.")
                 pending_observation_prefix = (
                     "SYSTEM WARNING: You produced multiple 'Action:' blocks in a single step. "
                     "I will execute ONLY the FIRST action and ignore the rest. "
@@ -614,31 +645,54 @@ Begin!"""
                     self._log(f"⚙️ Using ultra-greedy fallback parser for: {action}")
 
             # Fallback 5: MiniMax XML-style tool call format
+            # Fallback 5: MiniMax XML-style tool call format
             # MiniMax emits: <minimax:tool_call><invoke name="tool_name"><parameter name="arg">value</parameter></invoke></minimax:tool_call>
             if not match:
                 minimax_invoke = re.search(
-                    r'<(?:minimax:)?tool_call[^>]*>\s*<invoke\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*>([\s\S]*?)</invoke>',
+                    r'<(?:minimax:)?tool_call[^>]*>\s*<invoke\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*?>?([\s\S]*?)</invoke>',
                     output
                 )
                 if minimax_invoke:
                     action = minimax_invoke.group(1).strip()
                     params_block = minimax_invoke.group(2)
-                    # Extract all <parameter name="key">value</parameter> pairs
-                    param_pairs = re.findall(
-                        r'<parameter\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*>([\s\S]*?)</parameter>',
-                        params_block
-                    )
-                    args_dict = {}
-                    for pname, pvalue in param_pairs:
-                        pvalue = pvalue.strip()
-                        # Try to parse as JSON (for numbers/booleans/nested objects)
-                        try:
-                            args_dict[pname] = json.loads(pvalue)
-                        except (json.JSONDecodeError, ValueError):
-                            args_dict[pname] = pvalue
-                    action_input = json.dumps(args_dict, ensure_ascii=False)
+                    
+                    # Handle case where MiniMax mixed ReAct inside the token:
+                    # <invoke name="list_directory [newline] Action Input: {"dir": "..."} </invoke>
+                    action_input_match = re.search(r'Action Input:\s*({.*})', params_block, re.DOTALL)
+                    
+                    if action_input_match:
+                        action_input = action_input_match.group(1).strip()
+                        match = True
+                        self._log(f"⚙️ Using MiniMax Hybrid XML/ReAct parser for: {action}")
+                    else:
+                        # Standard <parameter> extraction
+                        param_pairs = re.findall(
+                            r'<parameter\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*>([\s\S]*?)</parameter>',
+                            params_block
+                        )
+                        args_dict = {}
+                        for pname, pvalue in param_pairs:
+                            pvalue = pvalue.strip()
+                            try:
+                                args_dict[pname] = json.loads(pvalue)
+                            except (json.JSONDecodeError, ValueError):
+                                args_dict[pname] = pvalue
+                        action_input = json.dumps(args_dict, ensure_ascii=False)
+                        match = True
+                        self._log(f"⚙️ Using MiniMax XML tool-call parser for: {action}")
+
+            # Fallback 6: Broken MiniMax XML-style hybrid without closing tags
+            # e.g. <invoke name="read_docx">\nAction Input: {"file_path": "..."}
+            if not match:
+                broken_invoke = re.search(
+                    r'<invoke\s+name=["\']?([a-zA-Z0-9_]+)["\']?[^>]*>\s*Action Input:\s*({[\s\S]*?})(?:\s*```)?',
+                    output
+                )
+                if broken_invoke:
+                    action = broken_invoke.group(1).strip()
+                    action_input = broken_invoke.group(2).strip()
                     match = True
-                    self._log(f"⚙️ Using MiniMax XML tool-call parser for: {action}")
+                    self._log(f"⚙️ Using broken MiniMax XML parser for: {action}")
 
             if match:
                 if hasattr(match, 'group'):
@@ -803,19 +857,24 @@ Begin!"""
                     "proszę o decyzję", "pytanie:", "decyzja:"
                 ]
                 
-                # Combine Thought, Action Input, and potential File Content into one check string
+                # ── FIX: Only check Thought + Action Input for question patterns ──
+                # Do NOT scan file content (save_document, write_file, write_docx)
+                # because long scientific/literary texts frequently contain Polish
+                # words like "czy" in a non-question context, causing false positives
+                # that trigger an interception loop → prompt overflow → empty response.
                 check_text = (str(action_input) + " " + output.replace("Thought:", "")).lower()
                 
-                # Explicitly check content if writing a file
-                if action in ["write_file", "save_document", "write_docx"] and isinstance(tool_args, dict):
-                    content = tool_args.get("text", "") or tool_args.get("content", "")
-                    check_text += " " + str(content).lower()
-
-                is_question = any(p in check_text for p in question_patterns)
-                
-                # Special check for Question Headers in artifacts
-                if "<h2>pytanie" in check_text or "<h1>pytanie" in check_text or "### pytanie" in check_text:
-                    is_question = True
+                # ── FIX: Length guard ──
+                # If check_text is longer than 500 chars it is almost certainly
+                # a document body (action_input with full HTML/text), not a short
+                # question directed at the user.  Skip question detection entirely.
+                is_question = False
+                if len(check_text) <= 500:
+                    is_question = any(p in check_text for p in question_patterns)
+                    
+                    # Special check for Question Headers in artifacts
+                    if "<h2>pytanie" in check_text or "<h1>pytanie" in check_text or "### pytanie" in check_text:
+                        is_question = True
                 
                 # If it looks like a question, but NOT a Final Answer, intercept it.
                 if is_question and "Final Answer" not in output:

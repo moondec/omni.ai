@@ -20,9 +20,9 @@ The codebase is cleanly separated into two primary layers:
 - On Windows using Conda, there is a known SSL/DLL loading quirk for PySide6 which is handled at the top of `main.py`. Do not remove these checks.
 
 ## Current Project Status
-- **Environment**: Fully stable. Fixes implemented for macOS/Windows `RequestsDependencyWarning` and SSL cert resolution in `venv`.
+- **Environment**: Fully stable. Fixes implemented for macOS/Windows `RequestsDependencyWarning` and SSL cert resolution in `venv`. Resolved loop bugs related to prompt limits and MiniMax fallback parsing.
 - **UI Enhancements**: Added an integrated code editor with syntax highlighting and direct file manipulation access.
-- **Capabilities**: Document reading capabilities expanded across all standard models. Specialized QA/Reviewer profiles implemented. 
+- **Capabilities**: Document reading capabilities expanded across all standard models. Specialized QA/Reviewer profiles implemented. `read_docx` completely extracts OMath equation text (`m:t`).
 - **Next Steps**: Awaiting new feature iterations (e.g., further API integrations, expanded workspace capabilities for agents, or more UI enhancements).
 
 *Note: This file serves as the primary system brief. If you are an AI assistant placed into this repository, refer to this context to understand the app's structure and current trajectory.*
