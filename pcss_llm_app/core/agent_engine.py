@@ -322,10 +322,11 @@ Begin!"""
             # ── Prompt Overflow Guard (sliding window) ──────────────────────
             # If the accumulated prompt exceeds MAX_PROMPT_CHARS we trim the
             # OLDEST Observation blocks from the scratchpad while keeping:
-            #   1. The immutable header  (system prompt + "Question: …\nThought:")
-            #   2. The most-recent steps (everything after the oldest trimmed block)
+            # 1. The immutable header  (system prompt + "Question: …\nThought:")
+            # 2. The most-recent steps (everything after the oldest trimmed block)
             # A notice is injected so the model knows history was compressed.
             MAX_PROMPT_CHARS = 200_000
+            self._log(f"Current prompt size: {len(prompt)} chars")
             if len(prompt) > MAX_PROMPT_CHARS:
                 # Split at the first "\nThought:" that follows the Question line
                 # Everything before (and including) that marker is the immutable header.
@@ -562,7 +563,7 @@ Begin!"""
                 final_ans = output.split("Final Answer:")[-1].strip()
 
                 # Anti-hallucination gate: do not accept "done" claims without any verification tool usage.
-                verification_tools = {"list_directory", "view_file", "run_terminal", "run_python", "search_files"}
+                verification_tools = {"list_directory", "view_file", "run_terminal", "run_python", "search_files", "update_context"}
                 claim_markers = [
                     "utworzy", "stworzy", "zakończ", "zrobion", "gotow",
                     "wszystkie wymagania", "spełnia", "zaimplementowan", "completed", "done"
@@ -712,6 +713,8 @@ Begin!"""
                              action_input = re.sub(r"^```(?:json)?", "", action_input)
                              action_input = re.sub(r"```$", "", action_input).strip()
 
+                self._consecutive_format_errors = 0
+                
                 # Remove surrounding quotes only if they wrap the whole thing
                 if (action_input.startswith('"') and action_input.endswith('"')) or \
                    (action_input.startswith("'") and action_input.endswith("'")):
@@ -785,12 +788,18 @@ Begin!"""
                             text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)', tool_args, re.DOTALL)
                             if text_match:
                                 extracted_text = text_match.group(1)
+                                is_truncated_fallback = False
                                 # Try to strip trailing braces, spaces, and the final quote
-                                extracted_text = extracted_text.rstrip(' \n\r\t}')
-                                if extracted_text.endswith('"'):
-                                    extracted_text = extracted_text[:-1]
+                                rstripped = extracted_text.rstrip(' \n\r\t}')
+                                if rstripped.endswith('"'):
+                                    extracted_text = rstripped[:-1]
+                                else:
+                                    is_truncated_fallback = True
+                                    extracted_text = rstripped
                                 
                                 tool_args = {"file_path": extracted_path, "text": extracted_text}
+                                if is_truncated_fallback:
+                                    tool_args["_is_truncated"] = True
                             else:
                                 # Maybe it only had a path (like read_file, create_directory)
                                 tool_args = {"file_path": extracted_path}
@@ -815,8 +824,10 @@ Begin!"""
                                     nested = json.loads(fixed_val)
                                     if isinstance(nested, dict):
                                         tool_args = nested
-                                except: pass
-                            except: pass
+                                except Exception as e:
+                                    self._log(f"Error parsing nested JSON: {e}")
+                            except Exception as e:
+                                self._log(f"Error in nested JSON logic: {e}")
 
                     # Tool-specific Alias Mapping
                     if action in ["list_directory", "create_directory"]:
@@ -841,6 +852,20 @@ Begin!"""
                              if old_key in tool_args:
                                  tool_args["text"] = tool_args.pop(old_key)
                                  break
+
+                    # deep_research: LLMs often send "query" instead of "topic"
+                    if action == "deep_research":
+                        if "query" in tool_args and "topic" not in tool_args:
+                            tool_args["topic"] = tool_args.pop("query")
+                        elif "question" in tool_args and "topic" not in tool_args:
+                            tool_args["topic"] = tool_args.pop("question")
+
+                    # save_document: LLMs occasionally send "text" or "body" instead of "content"
+                    if action == "save_document" and "content" not in tool_args:
+                        for old_key in ["text", "body", "html", "html_content", "data", "file_text"]:
+                            if old_key in tool_args:
+                                tool_args["content"] = tool_args.pop(old_key)
+                                break
                          
                     if action == "replace_file_content":
                         # Map common hallucinated arguments
@@ -989,6 +1014,65 @@ Begin!"""
                                     self.active_scratchpad += obs_text
                                     continue
 
+                        # ── Preflight: save_document content recovery ──────────
+                        # When the LLM writes massive HTML with inner quotes,
+                        # the JSON parser often truncates the content field.
+                        # Detect the situation (file_path present, content missing)
+                        # and attempt to recover content from the raw action_input.
+                        if action == "save_document" and isinstance(tool_args, dict):
+                            if "content" not in tool_args or not tool_args.get("content"):
+                                # Try to extract content from the raw action_input string
+                                content_match = re.search(
+                                    r'"content"\s*:\s*"(.*)',
+                                    str(action_input),
+                                    re.DOTALL
+                                )
+                                if content_match:
+                                    recovered = content_match.group(1)
+                                    is_truncated_fallback = False
+                                    # Strip trailing JSON artifacts
+                                    rstripped = recovered.rstrip(' \n\r\t}')
+                                    if rstripped.endswith('"'):
+                                        recovered = rstripped[:-1]
+                                    else:
+                                        is_truncated_fallback = True
+                                        recovered = rstripped
+                                        
+                                    if len(recovered) > 50:
+                                        tool_args["content"] = recovered
+                                        self._log(f"⚙️ Recovered 'content' field for save_document ({len(recovered)} chars).")
+                                        if is_truncated_fallback:
+                                            tool_args["_is_truncated"] = True
+                                # If still missing, fall back to write_file
+                                if "content" not in tool_args or not tool_args.get("content"):
+                                    observation = (
+                                        "Error: save_document requires 'content' field but it was missing or empty. "
+                                        "This usually happens when the HTML content is very large and breaks JSON parsing. "
+                                        "Use write_file instead: Action: write_file, Action Input: {\"file_path\": \"file.html\", \"text\": \"<your content>\"}"
+                                    )
+                                    self._log(f"Preflight: save_document missing content. Advising write_file fallback.")
+                                    observation_history.append(observation)
+                                    obs_text = f"\nObservation: {observation}\nThought:"
+                                    prompt += obs_text
+                                    self.active_scratchpad += obs_text
+                                    continue
+
+                        # ── Preflight: Truncation Guard for massive content ────────
+                        if isinstance(tool_args, dict) and tool_args.pop("_is_truncated", False):
+                            if action in ["write_file", "save_document"]:
+                                observation = (
+                                    "Error: Your output was truncated because it exceeded the maximum token limit. "
+                                    "The file was NOT saved because the text is incomplete. "
+                                    "You MUST write this file in smaller chunks. "
+                                    "Either use 'replace_file_content' to write it block by block, or write a Python script to generate it."
+                                )
+                                self._log("Preflight: Blocked tool creation due to truncated content limit hit.")
+                                observation_history.append(observation)
+                                obs_text = f"\nObservation: {observation}\nThought:"
+                                prompt += obs_text
+                                self.active_scratchpad += obs_text
+                                continue
+
                         observation = tool.run(tool_args) if hasattr(tool, "run") else tool(tool_args)
                         last_executed_tool = action
                         if pending_observation_prefix:
@@ -1000,10 +1084,8 @@ Begin!"""
                              observation += "\n\n[SYSTEM WARNING: You just received the EXACT SAME observation as your last step. You are stuck in a loop. YOU MUST USE A DIFFERENT TOOL OR DIFFERENT ARGUMENTS NOW. Do not repeat the same action.]"
                         
                         observation_history.append(observation)
-                        self._log(f"Observation: {observation}")
                     except Exception as e:
                         observation = f"Error executing {action}: {e}"
-                        self._log(f"Error: {observation}")
                 else:
                     available_tools = ", ".join(self.tool_map.keys())
                     observation = f"Error: Tool '{action}' not found. Available tools: {available_tools}. Use only these names!"
@@ -1023,6 +1105,8 @@ Begin!"""
                     )
                     self._log(f"⚠️ Observation truncated: {chars_omitted} chars removed (limit: {MAX_OBS_CHARS}).")
                 
+                self._log(f"Observation: {observation_str}")
+                
                 obs_text = f"\nObservation: {observation_str}\nThought:"
                 yield obs_text
                 prompt += obs_text
@@ -1038,7 +1122,7 @@ Begin!"""
                 if not output.strip():
                     # First empty response: inject a recovery hint instead of failing immediately.
                     # This often happens right after a very large observation saturates the context.
-                    if not getattr(self, '_empty_response_count', 0):
+                    if not hasattr(self, '_empty_response_count'):
                         self._empty_response_count = 0
                     self._empty_response_count += 1
                     
@@ -1058,41 +1142,82 @@ Begin!"""
 
                 # ----------------------------------------------------------------
                 # Format correction: the model produced a natural-language response
-                # without the ReAct format markers. Force a format correction instead of
-                # blindly assuming it's a final answer.
+                # without the ReAct format markers.
+                # SMART DETECTION: If the output looks like a completed task summary
+                # or a question to the user, auto-promote it to Final Answer
+                # immediately instead of wasting 3+ LLM calls on format correction.
                 # ----------------------------------------------------------------
                 clean_output = output.replace("Thought:", "").strip()
                 
-                # If it's very short and not a final answer, give the model a chance to correct
                 if not hasattr(self, '_consecutive_format_errors'):
                     self._consecutive_format_errors = 0
+                
+                # --- Smart Completion Detection ---
+                # Detect outputs that are clearly final answers missing the prefix.
+                # These are characterized by: completion markers, structured summaries,
+                # questions to the user, or substantial length with summary patterns.
+                completion_markers = [
+                    "✅", "wykonane", "gotowy", "gotowe", "gotowa", "przygotował",
+                    "kompletne", "zakończon", "zrobion", "completed", "done",
+                    "all tasks", "summary", "podsumowanie",
+                    "jak uruchomić", "instrukcja", "skopiuj",
+                ]
+                question_markers = ["czy", "pytanie", "question", "should i", "decide",
+                                    "czy chcesz", "czy mam", "chciałbyś", "wolisz"]
+                
+                output_lower = clean_output.lower()
+                has_completion_markers = sum(1 for m in completion_markers if m in output_lower) >= 2
+                is_question_end = clean_output.rstrip().endswith("?")
+                has_question_markers = any(m in output_lower for m in question_markers)
+                is_substantial = len(clean_output) > 200
+                has_list_structure = clean_output.count("- ") >= 3 or clean_output.count("✅") >= 2
+                
+                looks_like_final_answer = (
+                    (has_completion_markers and is_substantial) or
+                    (has_completion_markers and has_list_structure) or
+                    (is_question_end and has_question_markers and is_substantial) or
+                    (is_question_end and has_completion_markers)
+                )
+                
+                if looks_like_final_answer:
+                    self._log(f"🎯 Auto-promoting to Final Answer (completion detected: "
+                              f"markers={has_completion_markers}, question={is_question_end}, "
+                              f"len={len(clean_output)}). Saved ~3 LLM calls.")
+                    self._consecutive_format_errors = 0
+                    
+                    # Context preservation: keep scratchpad if it's a question
+                    if is_question_end or has_question_markers:
+                        self._log("Context Preserved: Output ends with question to user.")
+                    else:
+                        self.active_scratchpad = ""
+                    
+                    self._write_status_file("✅ Completed", f"{clean_output[:300]}")
+                    return clean_output
+                
+                # --- Standard format error path (for genuinely incomplete outputs) ---
                 self._consecutive_format_errors += 1
                 
-                if self._consecutive_format_errors >= 4:
+                if self._consecutive_format_errors >= 3:
                     self._log("⚠️ Model ignored format rules repeatedly. Forwarding its raw thought to the user as a Final Answer.")
                     self._consecutive_format_errors = 0
                     
-                    # Preservation check identical to Final Answer
-                    is_question_end = clean_output.endswith("?")
-                    question_markers = ["czy", "pytanie", "question", "should i", "decide"]
-                    is_question_content = any(m in clean_output.lower() for m in question_markers)
-                    
-                    if is_question_end or is_question_content:
+                    if is_question_end or has_question_markers:
                         self._log("Context Preserved: Raw output implies a question.")
                     else:
                         self.active_scratchpad = ""
                     return clean_output
                 
-                self._log(f"⚠️ Format error ({self._consecutive_format_errors}/4). Prompting for correction.")
+                self._log(f"⚠️ Format error ({self._consecutive_format_errors}/3). Prompting for correction.")
                 self._log(f"--- RAW OUTPUT CAUSING ERROR ---\n{output}\n--------------------------------")
                 fmt_error = (
-                    "\nObservation: SYSTEM: You did not produce an Action. You MUST follow the exact format below — "
-                    "do NOT just write a 'Thought:'. You MUST immediately follow it with 'Action:' and 'Action Input:'.\n\n"
-                    "CORRECT FORMAT EXAMPLE:\n"
-                    "Thought: I need to list the directory to see the files.\n"
-                    "Action: list_directory\n"
-                    "Action Input: {\"path\": \".\"}\n\n"
-                    "Now continue — write Thought, then Action, then Action Input:\n"
+                    "\nObservation: SYSTEM: You did not produce an Action or Final Answer. You MUST use one of these formats:\n\n"
+                    "FORMAT A (to use a tool):\n"
+                    "Thought: I need to do X.\n"
+                    "Action: tool_name\n"
+                    "Action Input: {\"key\": \"value\"}\n\n"
+                    "FORMAT B (to respond to the user):\n"
+                    "Final Answer: [your complete response]\n\n"
+                    "If your task is DONE, use Format B now. Otherwise use Format A:\n"
                     "Thought:"
                 )
                 prompt += fmt_error

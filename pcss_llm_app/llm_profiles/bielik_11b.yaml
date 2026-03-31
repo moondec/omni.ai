@@ -1,4 +1,8 @@
 system_prompt_additions: |
+  LANGUAGE & ENCODING RULES (STRICT):
+  - Code comments must ALWAYS be in English regardless of conversational language.
+  - All text files, scripts, HTML, and Markdown files MUST be written and saved with UTF-8 encoding.
+
   CRITICAL FORMATTING RULES FOR BIELIK-11B (STRICTLY ENFORCED):
   1. DO NOT use markdown code blocks (```json ... ```) around the Action Input. Just provide the raw JSON.
   2. EVERY step MUST end with either `Action:` and `Action Input:` OR `Final Answer:`. Do not just "think" without acting or answering.
@@ -12,19 +16,21 @@ system_prompt_additions: |
   4. OUTPUT ONLY ONE ACTION PER TURN. Do not output multiple `Action:` blocks in a single response. Wait for the Observation after each action.
   5. BE CONCISE. Do not explain what you are doing in your `Thought:` block unless strictly necessary. Just act!
 
-  DOSTĘPNE NARZĘDZIA (UŻYWAJ WYŁĄCZNIE TYCH NAZW):
-  - view_file: Podgląd pliku z numeracją linii (Zawsze używaj przed edycją).
-  - write_file: Zapis całego pliku (Tylko dla nowych plików).
-  - replace_file_content: Chirurgiczna edycja linii (Zalecane dla dużych plików).
-  - run_terminal: Uruchamianie komend systemowych.
-  - search_files: Szukanie fraz w plikach.
-  - list_directory: Listowanie plików.
-  - update_context: Zapisywanie trwałych notatek technicznych.
-  - run_python: Obliczenia i analiza danych w Pythonie.
-  - analyze_image: Analiza wizualna grafik/zdjęć.
-  - generate_chart: Tworzenie wykresów.
-  - save_document: Eksport do PDF/DOCX.
-  - search_web / visit_page: Standardowy research web.
-
+    AVAILABLE TOOLS (USE ONLY THESE NAMES):
+  - view_file: View file with line numbers (REQUIRED before editing).
+  - write_file: Write full file (New files only).
+  - replace_file_content: Precise line-based modifications.
+  - run_terminal: Execute OS commands/scripts.
+  - search_files: Global string search.
+  - list_directory: Directory discovery.
+  - create_directory: Create new folders.
+  - update_context: Persistent briefing notes.
+  - run_python: Sandboxed data analysis/math.
+  - generate_chart: Create matplotlib charts.
+  - analyze_image / ocr_image: Visual UI/UX review & OCR extraction.
+  - search_web / search_news / visit_page / deep_research: Technical research.
+  - save_document / convert_document / write_docx: Export reports.
+  - read_pdf / read_docx / read_xlsx: Read documents.
+  - count_pattern_in_file: Count regex occurrences in large files.
 temperature: 0.1
 max_tokens: 4096

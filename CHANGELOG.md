@@ -2,6 +2,31 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.2.3] - 2026-03-30
+
+### Fixed
+
+- **`deep_research` Pydantic validation error**: LLMs (especially GLM-4) send `{"query": "..."}` instead of `{"topic": "..."}`. Added automatic argument alias mapping (`query` → `topic`, `question` → `topic`) in the preflight section of `agent_engine.py`.
+- **`save_document` Pydantic validation error**: Large HTML content with unescaped inner quotes breaks JSON parsing, causing only `file_path` to survive. Added three-layer defense:
+  1. **Alias mapping**: Maps `text`/`body`/`html` → `content` before validation.
+  2. **Content recovery**: Attempts to extract content from the raw `action_input` string when JSON parsing truncates it.
+  3. **Graceful fallback**: If recovery fails, advises the agent to use `write_file` instead, preventing infinite retry loops.
+- **Wasteful format correction loops**: Agent produced complete task summaries (with ✅ markers, structured lists, questions) but without the `Final Answer:` prefix. The old logic would trigger "Format error (1/4)" through "(4/4)" — wasting 3–5 extra LLM calls per task. Added **smart completion detection** that auto-promotes completion-like outputs to Final Answer immediately, based on:
+  - Completion markers (✅, `gotowy`, `wykonane`, `completed`, etc.)
+  - Structural signals (list items, substantial length >200 chars)
+  - Question patterns (`Czy chcesz...?`)
+- Also improved the format correction prompt to mention `Final Answer:` as an option (previously only showed `Action:` format), and reduced max retries from 4 to 3.
+
+## [0.2.2] - 2026-03-29
+
+### Added
+
+- **Tool Action Approvals**: Introduced a GUI interception mechanism (`QMessageBox`) that requires user permission before the autonomous agent executes sensitive sandbox tools, like creating or editing files.
+
+### Fixed
+
+- **Context Starvation loops**: Restored `MAX_PROMPT_CHARS` to 200,000 in `agent_engine.py`. This resolves a severe regression where the agent would aggressively trim its own memory after generating large files, leading to "amnesia" and infinite similarity loops (repeating identical actions).
+
 ## [0.2.1] - 2026-03-25
 
 ### Fixed

@@ -20,8 +20,8 @@ The codebase is cleanly separated into two primary layers:
 - On Windows using Conda, there is a known SSL/DLL loading quirk for PySide6 which is handled at the top of `main.py`. Do not remove these checks.
 
 ## Current Project Status
-- **Environment**: Fully stable. Fixes implemented for macOS/Windows `RequestsDependencyWarning` and SSL cert resolution in `venv`. Resolved loop bugs related to prompt limits and MiniMax fallback parsing.
-- **UI Enhancements**: Added an integrated code editor with syntax highlighting and direct file manipulation access.
+- **Environment**: Fully stable. Fixes implemented for macOS/Windows `RequestsDependencyWarning` and SSL cert resolution in `venv`. Resolved context starvation loop bugs by restoring the 200,000 character prompt limit.
+- **UI Enhancements**: Added an integrated code editor with syntax highlighting and direct file manipulation access. Tool and file modification actions now prompt the user for graphical GUI approval (`QMessageBox`).
 - **Capabilities**: Document reading capabilities expanded across all standard models. Specialized QA/Reviewer profiles implemented. `read_docx` completely extracts OMath equation text (`m:t`).
 - **Next Steps**: Awaiting new feature iterations (e.g., further API integrations, expanded workspace capabilities for agents, or more UI enhancements).
 

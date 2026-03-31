@@ -148,6 +148,7 @@ class AgentWorker(QThread):
     error = Signal(str)
     cancelled = Signal()  # Signal when cancelled
     chunk_received = Signal(str)
+    tool_action_requested = Signal(object)
 
     def __init__(self, agent_engine, text, chat_history=None):
         super().__init__()
@@ -182,7 +183,11 @@ class AgentWorker(QThread):
                             self.cancelled.emit()
                             return
                         if chunk:
-                            self.chunk_received.emit(chunk)
+                            if type(chunk).__name__ == "AgentToolAction":
+                                self.tool_action_requested.emit(chunk)
+                                chunk.event.wait()
+                            else:
+                                self.chunk_received.emit(chunk)
                     except StopIteration as e:
                         if e.value is not None:
                             final_response = e.value
@@ -1337,6 +1342,7 @@ class MainWindow(QMainWindow):
         self.agent_status_label.setText("Processing...")
         self.agent_worker.status_update.connect(self.update_agent_status)
         self.agent_worker.chunk_received.connect(self.handle_agent_chunk)
+        self.agent_worker.tool_action_requested.connect(self.prompt_tool_action)
         self.agent_worker.finished.connect(self.handle_agent_response)
         self.agent_worker.error.connect(self.handle_agent_error)
         self.agent_worker.cancelled.connect(self.handle_agent_cancelled)
@@ -1400,6 +1406,25 @@ class MainWindow(QMainWindow):
     def handle_agent_chunk(self, chunk):
         self.current_agent_stream += chunk
         self._render_chat()
+
+    def prompt_tool_action(self, action_obj):
+        args = action_obj.args
+        if action_obj.action == "create_file":
+            msg = f"Agent wants to CREATE a file:\n\n{args.get('file_path')}\n\nAllow this action?"
+        elif action_obj.action == "edit_file":
+            msg = f"Agent wants to EDIT a file:\n\n{args.get('file_path')}\n\nAllow this action?"
+        else:
+            msg = f"Agent wants to perform action '{action_obj.action}'\n\nAllow this action?"
+            
+        reply = QMessageBox.question(self, "Tool Action Permission", msg,
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                                     
+        if reply == QMessageBox.Yes:
+            action_obj.approved = True
+        else:
+            action_obj.approved = False
+            
+        action_obj.event.set()
 
     def handle_agent_response(self, content):
         # Persist Agent Response to get msg_id first

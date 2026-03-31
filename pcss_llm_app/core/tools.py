@@ -873,8 +873,8 @@ class FolderTools(_WorkspaceMixin):
                     else:
                         size_str = f"{size_bytes/(1024*1024):.1f} MB"
                     output.append(f"[FILE] {f} ({size_str})")
-                except:
-                    output.append(f"[FILE] {f}")
+                except Exception as e:
+                    output.append(f"[FILE] {f} (Error: {e})")
             
             return "\n".join(output)
         except PermissionError:
@@ -1556,7 +1556,6 @@ class PythonREPL:
         sandbox_globals = {
             '__builtins__': safe_builtins,
             'open': _safe_open,
-            'os': os,
             'math': math,
             'json': json,
             'datetime': dt,
@@ -1743,11 +1742,15 @@ class ReplaceFileContentTool(_WorkspaceMixin):
             end_idx = min(end_line, total_lines)
             
             # Prepare replacement block (ensure it ends with a newline if the file does)
-            if replacement_content and not replacement_content.endswith("\n"):
-                 replacement_content += "\n"
+            if replacement_content:
+                lines_to_insert = replacement_content.splitlines(True)
+                if not lines_to_insert[-1].endswith("\n"):
+                    lines_to_insert[-1] += "\n"
+            else:
+                lines_to_insert = []
 
             # Construct new content
-            new_lines = lines[:start_idx] + [replacement_content] + lines[end_idx:]
+            new_lines = lines[:start_idx] + lines_to_insert + lines[end_idx:]
             
             with open(full_path, "w", encoding="utf-8") as f:
                 f.writelines(new_lines)
@@ -1807,7 +1810,7 @@ class SearchTools(_WorkspaceMixin):
                                     results.append(f"{rel_path}:{i}: {line.strip()}")
                                     if len(results) > 50:
                                         return "Too many results (truncated):\n" + "\n".join(results[:50])
-                    except:
+                    except Exception:
                         continue
             
             if not results:
@@ -1905,21 +1908,25 @@ class TerminalTool(_WorkspaceMixin):
         ]
 
 class UpdateContextSchema(BaseModel):
-    summary: str = Field(description="A concise summary of current project state, key changes, and next steps.")
+    summary: str = Field(default="", description="A concise summary of current project state, key changes, and next steps.")
+    content: str = Field(default="", description="Alias for summary. Use this if summary is omitted.")
 
 class UpdateContextTool(_WorkspaceMixin):
     def __init__(self, root_dir: str):
         self.root_dir = os.path.abspath(root_dir)
 
-    def update_context(self, summary: str) -> str:
+    def update_context(self, summary: str = "", content: str = "") -> str:
         """
         Updates the .agent_context.md file in the workspace to maintain persistence across sessions.
         Includes a simple de-duplication filter to prevent runaway repetitive AI output.
         """
+        actual_summary = summary if summary else content
+        if not actual_summary:
+            return "Error: You must provide either 'summary' or 'content' string."
         try:
             # De-duplication filter: split by double newlines or lines
             # and keep only unique paragraphs/lines while preserving order.
-            lines = summary.split('\n')
+            lines = actual_summary.split('\n')
             unique_lines = []
             seen = set()
             for line in lines:
