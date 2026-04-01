@@ -20,14 +20,17 @@ from pcss_llm_app.core.mcp_tools import PlaywrightMCPTools
 class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
                  log_callback=None, custom_instructions: str = None, 
-                 llm_instructions: str = None, few_shot_examples: List[tuple] = None):
+                 llm_instructions: str = None, few_shot_examples: List[tuple] = None,
+                 max_tokens: int = 4096, system_prompt_additions: str = None):
         self.api_key = api_key
         self.model_name = model_name
         self.workspace_path = workspace_path
         self.log_callback = log_callback
         self.custom_instructions = custom_instructions or ""
         self.llm_instructions = llm_instructions or ""
+        self.system_prompt_additions = system_prompt_additions or ""
         self.few_shot_examples = few_shot_examples or []
+        self.max_tokens = max_tokens
         self.active_scratchpad = "" # Persistence layer for long tasks
         self.consecutive_format_errors = 0
         self._initialize_agent()
@@ -115,7 +118,7 @@ class LangChainAgentEngine:
             base_url="https://llm.hpc.pcss.pl/v1",
             model=self.model_name,
             temperature=0.2,  # Small randomness to prevent deterministic loops
-            max_tokens=4096,  # Limit response length for faster generation, increased to prevent cutoff
+            max_tokens=self.max_tokens,  # Dynamic token limit based on LLM profile
             request_timeout=120  # 2 minute timeout
         )
 
@@ -232,6 +235,8 @@ class LangChainAgentEngine:
         system_template = f"""You are an AI assistant with tools. Date: {current_date}
 Current Workspace (Root Directory): {self.workspace_path}
 
+{self.system_prompt_additions}
+
 Tools:
 {tool_descriptions}
 
@@ -325,7 +330,7 @@ Begin!"""
             # 1. The immutable header  (system prompt + "Question: …\nThought:")
             # 2. The most-recent steps (everything after the oldest trimmed block)
             # A notice is injected so the model knows history was compressed.
-            MAX_PROMPT_CHARS = 200_000
+            MAX_PROMPT_CHARS = 300_000
             self._log(f"Current prompt size: {len(prompt)} chars")
             if len(prompt) > MAX_PROMPT_CHARS:
                 # Split at the first "\nThought:" that follows the Question line

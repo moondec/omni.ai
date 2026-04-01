@@ -2,6 +2,22 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.3.0] - 2026-04-01
+
+### Added
+
+- **Qwen3-VL-235B Profile**: New specialized YAML profile for vision-language tasks with autonomous image analysis rules.
+
+### Changed
+
+- **LLM Profile Engine (Bug-fix)**:
+  - Fixed `_get_llm_profile_data` in `ui/main_window.py` to correctly load `system_prompt_additions`.
+  - Updated `LangChainAgentEngine` in `core/agent_engine.py` to inject these additions at the start of the system prompt.
+- **LLM Token Optimization**:
+  - Increased `max_tokens` for `llama3.3-70b` (8192) and `MiniMax-M2.5` (12288) to prevent output truncation.
+  - Added mandatory **Incremental Writing** instructions to heavyweight models (Qwen3.5, MiniMax) to avoid tool-call truncation.
+- **Profile Synchronization**: Renamed `qwen2.5.yaml` to `Qwen2.5-72b.yaml` to match API model naming.
+
 ## [0.2.3] - 2026-03-30
 
 ### Fixed

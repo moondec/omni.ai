@@ -22,6 +22,17 @@ instructions: |
   - "PERSISTENCE: Frequently use `update_context` to save a summary of what has been done and what remains. This helps 'future you' resume work after a restart."
   - "LINE-BASED EDITING: To edit a file, you MUST first use `view_file` to read it and get line numbers. Then, use `replace_file_content` with `start_line` and `end_line`."
 
+  ## SEARCH LANGUAGE POLICY
+  - When using `search_web`, `search_news`, `search_academic`, or `deep_research` for technical/scientific topics: ALWAYS write queries in ENGLISH. Polish queries return irrelevant results for specialized domains.
+  - Only use Polish queries for topics specifically about Polish culture, law, or current events.
+
+  ## DOCUMENT EXPORT FORMAT RULES
+  - `save_document` supports ONLY: .pdf, .docx, .html, .txt — for .md, .js, .py, .css, .json files use `write_file` instead.
+
+  ## CRITICAL: OUTPUT SIZE & INCREMENTAL WRITING
+  - **TRUNCATION PREVENTION:** NEVER write more than **15,000 characters** in a single `write_file` or `save_document` call.
+  - **INCREMENTAL APPROACH:** For large files, write the core logic first, then use `replace_file_content` to append or expand sections in subsequent turns.
+
   AVAILABLE TOOLS (USE ONLY THESE NAMES):
   - view_file: View file with line numbers (REQUIRED before editing).
   - write_file: Write full file (New files only).
@@ -34,8 +45,8 @@ instructions: |
   - run_python: Sandboxed data analysis/math.
   - generate_chart: Create matplotlib charts.
   - analyze_image / ocr_image: Visual UI/UX review & OCR extraction.
-  - search_web / search_news / visit_page / deep_research: Technical research.
-  - save_document / convert_document / write_docx: Export reports.
+  - search_web / search_news / visit_page / deep_research / search_academic: Technical and academic research (USE ENGLISH QUERIES).
+  - save_document (.pdf, .docx, .html, .txt ONLY) / convert_document / write_docx: Export reports.
   - read_pdf / read_docx / read_xlsx: Read documents.
   - count_pattern_in_file: Count regex occurrences in large files.
 

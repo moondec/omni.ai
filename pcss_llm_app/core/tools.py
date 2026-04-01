@@ -1278,6 +1278,40 @@ class WebSearchTools:
         except Exception as e:
             return f"Search error: {str(e)}"
 
+    def search_academic(self, query: str, max_results: int = 5) -> str:
+        """
+        Search academic papers and scientific literature using CrossRef API.
+        Best for finding scientific papers, research domains, citations, and scholarly data.
+        Args:
+            query: The academic search query.
+            max_results: Maximum number of papers (default 5).
+        """
+        try:
+            import requests
+            import re
+            url = "https://api.crossref.org/works"
+            params = {"query": query, "select": "title,author,abstract,published,URL,DOI", "rows": max_results}
+            headers = {"User-Agent": "PCSS_LLM_App/1.0 (mailto:marekurbaniak@hpc.pcss.pl)"}
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get("message", {}).get("items", [])
+                results = []
+                for i, item in enumerate(items, 1):
+                    title = item.get("title", ["No title"])[0]
+                    doi = item.get("DOI", "No DOI")
+                    abstract = item.get("abstract", "No abstract available.")
+                    abstract = re.sub(r'<[^>]+>', '', abstract)
+                    link = item.get("URL", "")
+                    results.append(f"[{i}] {title}\n    DOI: {doi}\n    URL: {link}\n    Abstract: {abstract[:400]}...")
+                if not results:
+                    return "No academic results found. Try broader search terms."
+                return "ACADEMIC SEARCH RESULTS:\n\n" + "\n\n".join(results)
+            else:
+                return f"Academic search HTTP error: {response.status_code}"
+        except Exception as e:
+            return f"Academic search error: {str(e)}"
+
     def search_news(self, query: str, max_results: int = 8) -> str:
         """
         Searches for recent NEWS articles using DuckDuckGo News.
@@ -1461,6 +1495,11 @@ class WebSearchTools:
                 func=self.search_web,
                 name="search_web",
                 description="Wyszukuje informacje w internecie. Zwraca linki i krótkie fragmenty. Użyj visit_page aby przeczytać pełną treść."
+            ),
+            StructuredTool.from_function(
+                func=self.search_academic,
+                name="search_academic",
+                description="Wyszukuje publikacje naukowe i artykuły z DOI w bazie CrossRef. Używaj ZAMIAST search_web TYLKO wtedy, gdy ton prompta jest naukowy/akademicki, prosi o literaturę fachu, wskaźniki specjalistyczne (np. medyczne/inżynieryjne) lub eksploruje głębokie koncepty."
             ),
             StructuredTool.from_function(
                 func=self.search_news,

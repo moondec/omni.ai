@@ -244,6 +244,13 @@ class MainWindow(QMainWindow):
         # Theme state
         self.current_theme = "Cobalt"
 
+        # UI Throttling
+        self.log_buffer = []
+        self.chat_needs_render = False
+        self.ui_update_timer = QTimer(self)
+        self.ui_update_timer.timeout.connect(self._throttled_ui_update)
+        self.ui_update_timer.start(100) # 10 FPS
+
         self._init_ui()
         
         # Check API Key
@@ -1081,11 +1088,7 @@ class MainWindow(QMainWindow):
         self.model_combo.setEnabled(True)
 
     def append_log(self, message: str):
-        self.console_display.append(message)
-        # Auto scroll
-        cursor = self.console_display.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        self.console_display.setTextCursor(cursor)
+        self.log_buffer.append(message)
         
         # Log to file in the APPLICATION directory (not workspace)
         try:
@@ -1227,11 +1230,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", f"Profiles directory not found: {profiles_dir}")
 
     # --- Agent Mode Methods ---
-    def _get_llm_instructions(self, model_name):
-        """Loads specific operational instructions based on the selected LLM."""
+    def _get_llm_profile_data(self, model_name):
+        """Loads specific operational instructions and limits based on the selected LLM.
+        
+        Returns:
+            tuple: (instructions, max_tokens, system_prompt_additions)
+        """
         llm_profiles_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "llm_profiles"))
         if not os.path.exists(llm_profiles_dir):
-            return ""
+            return "", 4096, ""
 
         # Try to find exact model match
         # Sanitize filename for Windows compatibility (replace : with -)
@@ -1245,11 +1252,15 @@ class MainWindow(QMainWindow):
             try:
                 with open(target_file, 'r', encoding='utf-8') as f:
                     profile = yaml.safe_load(f)
-                    if profile and 'instructions' in profile:
-                        return profile['instructions']
+                    if profile:
+                        return (
+                            profile.get('instructions', ""),
+                            profile.get('max_tokens', 4096),
+                            profile.get('system_prompt_additions', "")
+                        )
             except Exception as e:
                 self.append_log(f"Warning: Failed to load LLM profile {target_file}: {e}")
-        return ""
+        return "", 4096, ""
 
     def create_assistant(self):
         name = self.agent_name_input.text() or "Assistant"
@@ -1266,21 +1277,23 @@ class MainWindow(QMainWindow):
         workspace = self.config.get_workspace_path()
         model = self.model_combo.currentText()
         
-        # Determine LLM-specific operational rules
-        llm_rules = self._get_llm_instructions(model)
+        # Determine LLM-specific operational rules and limits
+        llm_rules, max_tokens, system_prompt_additions = self._get_llm_profile_data(model)
         
         try:
             self.agent_status_label.setText("Initializing Agent...")
             # Fetch top-rated examples for this model
             top_examples = self.db.get_top_rated_interactions(model, limit=3)
             
-            # Initialize engine with both task instructions and LLM-specific rules
+            # Initialize engine with both task instructions, rules, and token limits
             self.agent_engine = LangChainAgentEngine(
                 api_key, model, workspace, 
                 log_callback=self.agent_logger.log_message.emit,
                 custom_instructions=instructions,
                 llm_instructions=llm_rules,
-                few_shot_examples=top_examples
+                few_shot_examples=top_examples,
+                max_tokens=max_tokens,
+                system_prompt_additions=system_prompt_additions
             )
             
             self.agent_status_label.setText("Agent Ready")
@@ -1375,37 +1388,77 @@ class MainWindow(QMainWindow):
             webbrowser.open(link)
 
     def _render_chat(self):
-        html_parts = []
-        from langchain_core.messages import HumanMessage
-        for msg in self.agent_history:
-            m_html = markdown.markdown(msg.content)
-            role = "User" if isinstance(msg, HumanMessage) else "Agent"
-            html_parts.append(f"<b>{role}:</b> {m_html}<br>")
+        # Cache historical messages parsing to save CPU during streaming
+        if not hasattr(self, '_cached_history_html') or getattr(self, '_cached_history_len', -1) != len(self.agent_history):
+            html_parts = []
+            from langchain_core.messages import HumanMessage
+            for msg in self.agent_history:
+                m_html = markdown.markdown(msg.content)
+                role = "User" if isinstance(msg, HumanMessage) else "Agent"
+                html_parts.append(f"<b>{role}:</b> {m_html}<br>")
+            self._cached_history_html = html_parts
+            self._cached_history_len = len(self.agent_history)
+            
+        html_parts = list(self._cached_history_html)
             
         if hasattr(self, 'agent_worker') and self.agent_worker:
-            user_html = markdown.markdown(self.agent_worker.text)
-            html_parts.append(f"<b>User:</b> {user_html}<br>")
+            # Cache the current user's prompt as well
+            if not hasattr(self, '_cached_user_prompt_html') or getattr(self, '_cached_user_prompt_text', "") != self.agent_worker.text:
+                self._cached_user_prompt_html = markdown.markdown(self.agent_worker.text)
+                self._cached_user_prompt_text = self.agent_worker.text
+            html_parts.append(f"<b>User:</b> {self._cached_user_prompt_html}<br>")
             
+        is_streaming = False
         if hasattr(self, 'current_agent_stream') and self.current_agent_stream:
+            # Only parse the currently streaming chunk
             stream_html = markdown.markdown(self.current_agent_stream)
             html_parts.append(f"<b>Agent:</b> {stream_html}<br>")
+            is_streaming = True
             
         scrollbar = self.agent_display.verticalScrollBar()
         was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 20
+        saved_value = scrollbar.value()
 
+        # Disable repainting to prevent the visual "strobe/jump" to the top
+        self.agent_display.setUpdatesEnabled(False)
+        
         self.agent_display.setHtml("".join(html_parts))
         
-        if was_at_bottom:
-            QTimer.singleShot(10, lambda: self.agent_display.verticalScrollBar().setValue(
-                self.agent_display.verticalScrollBar().maximum()
-            ))
+        # Force the document layout to recalculate its height immediately
+        self.agent_display.document().adjustSize()
+        
+        # Re-apply scroll position
+        if is_streaming or was_at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            scrollbar.setValue(saved_value)
+            
+        # Re-enable repainting
+        self.agent_display.setUpdatesEnabled(True)
 
     def update_agent_status(self, status):
         self.agent_status_label.setText(status)
 
     def handle_agent_chunk(self, chunk):
         self.current_agent_stream += chunk
-        self._render_chat()
+        self.chat_needs_render = True
+
+    def _throttled_ui_update(self):
+        # Update logs
+        if self.log_buffer:
+            messages = "\n".join(self.log_buffer)
+            self.log_buffer.clear()
+            self.console_display.append(messages)
+            
+            # Auto scroll
+            cursor = self.console_display.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            self.console_display.setTextCursor(cursor)
+            
+        # Update chat
+        if self.chat_needs_render:
+            self.chat_needs_render = False
+            self._render_chat()
 
     def prompt_tool_action(self, action_obj):
         args = action_obj.args
