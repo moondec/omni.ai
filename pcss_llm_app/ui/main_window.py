@@ -1234,11 +1234,11 @@ class MainWindow(QMainWindow):
         """Loads specific operational instructions and limits based on the selected LLM.
         
         Returns:
-            tuple: (instructions, max_tokens, system_prompt_additions)
+            tuple: (instructions, max_tokens, system_prompt_additions, context_window)
         """
         llm_profiles_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "llm_profiles"))
         if not os.path.exists(llm_profiles_dir):
-            return "", 4096, ""
+            return "", 4096, "", 0
 
         # Try to find exact model match
         # Sanitize filename for Windows compatibility (replace : with -)
@@ -1256,11 +1256,12 @@ class MainWindow(QMainWindow):
                         return (
                             profile.get('instructions', ""),
                             profile.get('max_tokens', 4096),
-                            profile.get('system_prompt_additions', "")
+                            profile.get('system_prompt_additions', ""),
+                            profile.get('context_window', 0)
                         )
             except Exception as e:
                 self.append_log(f"Warning: Failed to load LLM profile {target_file}: {e}")
-        return "", 4096, ""
+        return "", 4096, "", 0
 
     def create_assistant(self):
         name = self.agent_name_input.text() or "Assistant"
@@ -1278,7 +1279,7 @@ class MainWindow(QMainWindow):
         model = self.model_combo.currentText()
         
         # Determine LLM-specific operational rules and limits
-        llm_rules, max_tokens, system_prompt_additions = self._get_llm_profile_data(model)
+        llm_rules, max_tokens, system_prompt_additions, context_window = self._get_llm_profile_data(model)
         
         try:
             self.agent_status_label.setText("Initializing Agent...")
@@ -1293,7 +1294,8 @@ class MainWindow(QMainWindow):
                 llm_instructions=llm_rules,
                 few_shot_examples=top_examples,
                 max_tokens=max_tokens,
-                system_prompt_additions=system_prompt_additions
+                system_prompt_additions=system_prompt_additions,
+                context_window=context_window
             )
             
             self.agent_status_label.setText("Agent Ready")

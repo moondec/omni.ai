@@ -21,7 +21,8 @@ class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
                  log_callback=None, custom_instructions: str = None, 
                  llm_instructions: str = None, few_shot_examples: List[tuple] = None,
-                 max_tokens: int = 4096, system_prompt_additions: str = None):
+                 max_tokens: int = 4096, system_prompt_additions: str = None,
+                 context_window: int = 0):
         self.api_key = api_key
         self.model_name = model_name
         self.workspace_path = workspace_path
@@ -31,6 +32,7 @@ class LangChainAgentEngine:
         self.system_prompt_additions = system_prompt_additions or ""
         self.few_shot_examples = few_shot_examples or []
         self.max_tokens = max_tokens
+        self.context_window = context_window
         self.active_scratchpad = "" # Persistence layer for long tasks
         self.consecutive_format_errors = 0
         self._initialize_agent()
@@ -330,7 +332,15 @@ Begin!"""
             # 1. The immutable header  (system prompt + "Question: …\nThought:")
             # 2. The most-recent steps (everything after the oldest trimmed block)
             # A notice is injected so the model knows history was compressed.
-            MAX_PROMPT_CHARS = 300_000
+            #
+            # Dynamic limit: if context_window is set in the profile, compute
+            # a character budget that leaves room for max_tokens output.
+            # We use ~3.5 chars per token as a safe average.
+            if self.context_window > 0:
+                available_input_tokens = self.context_window - self.max_tokens
+                MAX_PROMPT_CHARS = max(10_000, int(available_input_tokens * 3.5))
+            else:
+                MAX_PROMPT_CHARS = 300_000
             self._log(f"Current prompt size: {len(prompt)} chars")
             if len(prompt) > MAX_PROMPT_CHARS:
                 # Split at the first "\nThought:" that follows the Question line
