@@ -125,7 +125,10 @@ class RealAgentBenchmarkRunner:
             )
             
             # Run the task through the actual ReAct loop
-            final_answer = engine.run(task.prompt)
+            final_answer_chunks = []
+            for chunk in engine.run(task.prompt):
+                final_answer_chunks.append(chunk)
+            final_answer = "".join(final_answer_chunks)
             duration_ms = (time.time() - start_time) * 1000
             
             # Since we can't easily parse tool calls from the raw engine output without deep hooking,
@@ -255,7 +258,7 @@ def run_agent_benchmark(models: List[str], mode: str = "mock"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Agent Benchmark")
-    parser.add_argument("--models", type=str, help="Comma separated list of models to test", default="bielik_11b")
+    parser.add_argument("--models", nargs="+", help="Space or comma separated list of models to test", default=["bielik_11b"])
     parser.add_argument("--mode", type=str, choices=["mock", "real"], default="mock", help="Execution mode")
     parser.add_argument("--list-models", action="store_true", help="List all available chat models from PCSS and exit")
     args = parser.parse_args()
@@ -266,5 +269,12 @@ if __name__ == "__main__":
         print("Dostępne modele:", ", ".join(client.list_models()))
         sys.exit(0)
     
-    models_to_test = [m.strip() for m in args.models.split(",") if m.strip()]
+    models_to_test = []
+    if isinstance(args.models, str):
+        args.models = [args.models]
+    for m in args.models:
+        for sub_m in m.split(","):
+            if sub_m.strip():
+                models_to_test.append(sub_m.strip())
+                
     run_agent_benchmark(models_to_test, mode=args.mode)
