@@ -67,6 +67,20 @@ The application features a powerful Agent capable of performing complex, multi-s
 > [!IMPORTANT]
 > If you want the model to **search the web**, **read files**, or **run code**, you MUST use the **Agent Mode** tab.
 
+### 5. 🏋️ Benchmarking Suite
+The repository includes a comprehensive, modular benchmark suite designed to evaluate the PCSS model's chat fluency and autonomous capabilities. The agent benchmarks extract the exact tool schema dynamically from the application (e.g. `pcss_llm_app.core.tools`), ensuring test accuracy.
+
+**Available Commands (run from root directory):**
+- **Chat Benchmark**: `python -m pcss_llm_app.benchmarks.run_chat --models bielik_11b,Qwen3.5-397B-A17B-GPTQ-Int4`
+- **Agent Benchmark (Mock)**: `python -m pcss_llm_app.benchmarks.run_agent --models bielik_11b --mode mock`
+  - *(Evaluates schema understanding using fast OpenAI native function-calling).*
+- **Agent Benchmark (Real)**: `python -m pcss_llm_app.benchmarks.run_agent --models bielik_11b --mode real`
+  - *(Spawns the real `LangChainAgentEngine` inside an isolated temporary proxy directory to verify format syntax and sequential thought cycles).*
+
+**Viewing Results:**
+Every benchmark execution generates an aggregated markdown summary located in the root file: **[`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md)**.
+Detailed historic log dumps (.md format) for each specific trace are safely archived in `pcss_llm_app/benchmarks/results/`.
+
 ## 🛠️ Installation
 
 ### Prerequisites
