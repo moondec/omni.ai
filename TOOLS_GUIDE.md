@@ -17,6 +17,8 @@ Basic and advanced operations within the workspace.
     *   *Advantage:* Extremely safe for large files; bypasses the string-matching escaping bugs inherent to weak LLMs.
 *   **search_files** ⭐ (New):
     *   *Function:* Searches for a string across all files in the workspace (or matching a pattern like `*.py`).
+*   **count_pattern_in_file** ⭐ (New):
+    *   *Function:* Efficiently counts occurrences of a regex pattern in a specific file. Great for analyzing large log files without loading them into memory.
 *   **copy_file / move_file / delete_file**: Standard file operations.
 
 ## 🐍 Code & Data
@@ -31,7 +33,7 @@ Basic and advanced operations within the workspace.
     *   *Function:* Creates bar, line, pie, or scatter charts from data and saves them as PNG/JPG.
 
 ## 📄 Document Processing
-*   **read_docx / read_pdf**: Extracts text from DOCX and PDF files.
+*   **read_docx / read_pdf / read_xlsx**: Extracts text/data from DOCX, PDF, and Excel spreadsheet files.
 *   **save_document** ⭐ (Recommended):
     *   *Function:* Creates formatted PDF, DOCX, HTML, or TXT from HTML-formatted content.
     *   *Features:* Automatically downloads and embeds remote images into the final document.
@@ -40,6 +42,8 @@ Basic and advanced operations within the workspace.
 ## 🌐 Internet & Research
 *   **search_web**: General DuckDuckGo search for links/snippets.
 *   **search_news**: Specialized search for the latest news articles.
+*   **search_academic** ⭐ (New):
+    *   *Function:* Searches PubMed/ArXiv/etc for peer-reviewed academic papers.
 *   **visit_page**: 
     *   *Function:* Fetches full text from a URL. 
     *   *Limit:* Supports up to **15,000 characters** per page.
@@ -57,11 +61,14 @@ Powered by the **Model Context Protocol** and Playwright.
     *   *Function:* Navigates to a website and takes visual snapshots of the rendered page.
 *   **playwright_click / playwright_fill / playwright_evaluate**:
     *   *Function:* Interacted with web elements (buttons, forms) and executes custom JavaScript.
+*   **playwright_select_option / playwright_get_interactive_elements**:
+    *   *Function:* Selects elements in dropdowns and retrieves all clickable bounding boxes on the page.
+*   **playwright_get_visible_text / playwright_get_visible_html**:
+    *   *Function:* Retrieves clean textual or HTML representation of the currently visible screen area.
 *   **Limitations & Requirements:**
     *   **Headless:** The browser runs entirely in the background. No window will appear.
-    *   **Isolated Execution:** To prevent system crashes (Qt/macOS), each tool call runs in a separate, isolated process. 
     *   **Installation:** Requires `npx playwright install chromium` to be executed once on the machine.
-    *   **No Persistent Session:** Because of the process isolation, each tool call starts a fresh browser session. The agent cannot "stay logged in" or maintain state between separate turns unless a persistent profile is configured.
+    *   **Persistent Session ⭐ (New)**: Upgraded architecture now uses a dedicated background worker. The browser context **remains alive** across multiple tool calls, allowing the agent to log in, navigate, and perform complex multi-step interactions seamlessly.
 
 ## 👁️ OCR & Vision
 *   **ocr_image**: Extracts text from photos and scans using **Nanonets-OCR-s**.

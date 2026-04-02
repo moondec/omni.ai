@@ -10,7 +10,7 @@ A Python desktop application (GUI) for interacting with the PCSS LLM Service, bu
 
 ### 1. 💬 Chat Mode
 -   **Conversation History**: All chats are saved locally to an SQLite database (`conversations.db`).
--   **Model Selection**: Dynamically fetches models from PCSS (e.g., `bielik_11b`, `DeepSeek-V3.1-vLLM-2`).
+-   **Model Selection**: Dynamically fetches models from PCSS (e.g., `bielik_11b`, `DeepSeek-V3.1-vLLM`).
 -   **Import/Export**: Save and load specific conversations to JSON files.
 -   **Markdown Support**: Full rendering of headings, code blocks, and lists.
 
@@ -22,6 +22,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   `view_file` — read file content with **1-indexed line numbers** (auto-truncates to protect context limits).
 -   `replace_file_content` — **precision line-based editing**: surgically targets specific code blocks via start/end line integers instead of brittle string matching.
 -   `search_files` — cross-file pattern/string search across the workspace
+-   `count_pattern_in_file` — count regex occurrences inside large logs efficiently
 
 **Code & Data Execution**
 -   `run_terminal` — sandboxed shell execution (e.g., `python app.py`) with strict workspace constraints and robust timeout / SIGKILL logic.
@@ -30,6 +31,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 **Internet & Research**
 -   `search_web` — DuckDuckGo general search
 -   `search_news` — DuckDuckGo latest news
+-   `search_academic` — search PubMed/ArXiv/Semantic Scholar for academic papers
 -   `visit_page` — fetch and extract full article text from a URL (up to 15,000 chars)
 -   `deep_research` — **automated research pipeline**: runs multiple searches, visits top sources, summarizes each with AI, and returns a structured report
 
@@ -37,7 +39,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   `playwright_*` — 33+ tools for headless browser control (navigate, click, type, screenshot) using **Model Context Protocol**
 
 **Document Processing**
--   `read_pdf`, `read_docx`, `save_document`, `convert_document` — read and generate PDF/DOCX files
+-   `read_pdf`, `read_docx`, `read_xlsx`, `save_document`, `convert_document` — read and generate files
 -   `ocr_image` — extract text from images/scans (Nanonets OCR)
 -   `generate_chart` — generate charts and visualizations from data
 

@@ -2,6 +2,15 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.4.0] - 2026-04-02
+
+### Added
+
+- **Benchmark Integration**: Integrated `benchmark_pcss.py` and `benchmark_agents_pcss.py` from `test_tmp/` into the main `pcss_llm_app/benchmarks/` module.
+  - **Mock & Real Modes**: Agent benchmark now supports testing via fast OpenAI native function calling (mock mode) or full `LangChainAgentEngine` execution in a temporary sandboxed workspace (real mode).
+  - **Tool Schema Reflection**: Benchmark tasks use the exact OpenAI function schemas generated recursively from the active `pcss_llm_app.core.tools` library.
+- **Reporting System**: Standalone `BENCHMARK_RESULTS.md` table added, and detailed historical runs are archived as Markdown files in `pcss_llm_app/benchmarks/results/`.
+
 ## [0.3.0] - 2026-04-01
 
 ### Added

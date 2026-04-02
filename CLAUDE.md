@@ -27,9 +27,8 @@ The codebase is cleanly separated into two primary layers:
 
 ## Current Project Status
 
-- **Version 0.3.0**: Major update to the Agent Engine and Model Profiles.
-- **Engine Logic**: Fixed profile loading bug where `system_prompt_additions` were ignored. Rules are now injected before tools.
-- **Optimized Profiles**: All model profiles updated with matched names, higher `max_tokens` (llama3.3, MiniMax), and **Incremental Writing** guidelines to prevent truncation. Added `Qwen3-VL-235B` vision-specific profile.
-- **Environment**: Stable on macOS/Windows. Workspace cleanup performed, model logs added to `.gitignore`.
+- **Version 0.4.0**: Fully integrated LLM benchmarking suite.
+- **Benchmarks**: Replaced outdated `test_tmp/` mock scripts with fully modular benchmarking in `pcss_llm_app/benchmarks/`. The suite supports real-tool schema reflection for accurate evaluation, offering both fast mock mode and full isolated real UI testing via `LangChainAgentEngine`.
+- **Reporting**: Moved benchmark results to a standalone `BENCHMARK_RESULTS.md` with preserved historical runs safely archived in `pcss_llm_app/benchmarks/results/`.
 
 *Note: This file serves as the primary system brief. If you are an AI assistant placed into this repository, refer to this context to understand the app's structure and current trajectory.*

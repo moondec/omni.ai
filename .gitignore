@@ -24,3 +24,4 @@ CLAUDE.md
 status.md
 test_venv/
 agent_debug_*.log
+pcss_llm_app/benchmarks/results/*.json
