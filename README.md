@@ -71,6 +71,8 @@ The application features a powerful Agent capable of performing complex, multi-s
 The repository includes a comprehensive, modular benchmark suite designed to evaluate the PCSS model's chat fluency and autonomous capabilities. The agent benchmarks extract the exact tool schema dynamically from the application (e.g. `pcss_llm_app.core.tools`), ensuring test accuracy.
 
 **Available Commands (run from root directory):**
+- **List Models**: `python -m pcss_llm_app.benchmarks.run_chat --list-models`
+  - *(Dynamically fetches the current list of available PCSS models without running benchmarks).*
 - **Chat Benchmark**: `python -m pcss_llm_app.benchmarks.run_chat --models bielik_11b,Qwen3.5-397B-A17B-GPTQ-Int4`
 - **Agent Benchmark (Mock)**: `python -m pcss_llm_app.benchmarks.run_agent --models bielik_11b --mode mock`
   - *(Evaluates schema understanding using fast OpenAI native function-calling).*

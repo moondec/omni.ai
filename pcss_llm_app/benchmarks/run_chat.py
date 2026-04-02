@@ -119,7 +119,14 @@ def run_chat_benchmark(models: List[str]):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Chat Benchmark")
     parser.add_argument("--models", type=str, help="Comma separated list of models to test", default="bielik_11b,Qwen3.5-397B-A17B-GPTQ-Int4")
+    parser.add_argument("--list-models", action="store_true", help="List all available chat models from PCSS and exit")
     args = parser.parse_args()
+    
+    if args.list_models:
+        config = ConfigManager()
+        client = PcssApiClient(config)
+        print("Dostępne modele:", ", ".join(client.list_models()))
+        sys.exit(0)
     
     models_to_test = [m.strip() for m in args.models.split(",") if m.strip()]
     run_chat_benchmark(models_to_test)
