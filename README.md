@@ -81,6 +81,7 @@ The repository includes a comprehensive, modular benchmark suite designed to eva
 
 **Viewing Results:**
 Every benchmark execution generates an aggregated markdown summary located in the root file: **[`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md)**.
+Detailed descriptions of each test case can be found in **[`BENCHMARK_TASKS.md`](BENCHMARK_TASKS.md)**.
 Detailed historic log dumps (.md format) for each specific trace are safely archived in `pcss_llm_app/benchmarks/results/`.
 
 ## 🛠️ Installation

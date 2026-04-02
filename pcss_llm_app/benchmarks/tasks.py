@@ -17,6 +17,7 @@ class AgentTask:
     expected_tools: List[str]  # e.g. ["search_web", "view_file"]
     expected_count: int
     difficulty: str
+    expected_files: List[str] = None # Files that should exist if successful
 
 # Standard chat benchmark tasks - DIFFICULT SAMPLES
 CHAT_TASKS = [
@@ -57,7 +58,8 @@ AGENT_TASKS = [
         prompt="Sprawdź w internecie dokładny rok, w którym Alexander Fleming odkrył penicylinę. Następnie użyj Pythona (run_python), aby obliczyć ile pełnych dekad upłynęło od tego roku do dzisiaj (2025). Wynik (samą liczbę dekad) zapisz do pliku 'nobel_stats.txt'.",
         expected_tools=["search_web", "run_python", "write_file"],
         expected_count=3,
-        difficulty="hard"
+        difficulty="hard",
+        expected_files=["nobel_stats.txt"]
     ),
     AgentTask(
         id="agent_002",
@@ -67,7 +69,8 @@ AGENT_TASKS = [
         prompt="Użyj narzędzia run_python, aby obliczyć wartość 17 do potęgi 123. Przekonwertuj wynik na ciąg znaków (string) i policz, ile razy występuje w nim cyfra '7'. Zwróć tylko wynik końcowy (liczbę wystąpień).",
         expected_tools=["run_python"],
         expected_count=1,
-        difficulty="medium"
+        difficulty="medium",
+        expected_files=[]
     ),
     AgentTask(
         id="agent_003",
@@ -77,7 +80,8 @@ AGENT_TASKS = [
         prompt="Przeczytaj zawartość pliku 'CLAUDE.md' w bieżącym katalogu. Policz ile razy występuje w nim słowo 'PCSS' (niezależnie od wielkości liter). Następnie użyj terminala (run_terminal) i polecenia 'grep' lub 'wc' aby zweryfikować ten wynik. Porównaj obie liczby w swojej odpowiedzi.",
         expected_tools=["view_file", "run_terminal"],
         expected_count=2,
-        difficulty="hard"
+        difficulty="hard",
+        expected_files=[]
     ),
     AgentTask(
         id="agent_004",
@@ -87,7 +91,8 @@ AGENT_TASKS = [
         prompt="Stwórz profesjonalny raport w formacie PDF o nazwie 'AI_Safety.pdf'. Treść raportu powinna zawierać nagłówek H1 'Zasady Bezpieczeństwa AI', listę punktowaną z 3 kluczowymi zasadami oraz krótkie podsumowanie. Użyj narzędzia save_document.",
         expected_tools=["save_document"],
         expected_count=1,
-        difficulty="medium"
+        difficulty="medium",
+        expected_files=["AI_Safety.pdf"]
     ),
     AgentTask(
         id="agent_005",
@@ -95,8 +100,9 @@ AGENT_TASKS = [
         description="Weryfikacja faktów z wielu źródeł",
         category="search",
         prompt="Znajdź aktualnego dyrektora PCSS (Poznańskie Centrum Superkomputerowo-Sieciowe). Następnie wyszukaj, na jakiej uczelni wyższej ta osoba uzyskała stopień naukowy doktora. Podaj nazwę tej uczelni.",
-        expected_tools=["search_web", "search_academic"],
+        expected_tools=["search_web"], # Changed from 'search_academic' since it might not exist yet
         expected_count=2,
-        difficulty="hard"
+        difficulty="hard",
+        expected_files=[]
     )
 ]

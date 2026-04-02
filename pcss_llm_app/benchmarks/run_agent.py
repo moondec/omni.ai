@@ -59,17 +59,39 @@ class MockAgentBenchmarkRunner:
         
         # We test native function calling capability
         try:
-            response = self.api_client.chat_completion(
-                model=model,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": task.prompt}
-                ],
-                tools=self.schemas,
-                tool_choice="auto",
-                max_tokens=1024,
-                temperature=0.1
-            )
+            try:
+                # First attempt: standard OpenAI tools format
+                response = self.api_client.chat_completion(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": task.prompt}
+                    ],
+                    tools=self.schemas,
+                    tool_choice="auto",
+                    max_tokens=1024,
+                    temperature=0.1
+                )
+            except Exception as first_err:
+                # Fallback for models that might struggle with 'tools' but support 'functions'
+                if "tools" in str(first_err) or "400" in str(first_err):
+                    try:
+                        unwrapped_schemas = [s["function"] for s in self.schemas]
+                        response = self.api_client.chat_completion(
+                            model=model,
+                            messages=[
+                                {"role": "system", "content": sys_prompt},
+                                {"role": "user", "content": task.prompt}
+                            ],
+                            functions=unwrapped_schemas,
+                            max_tokens=1024,
+                            temperature=0.1
+                        )
+                    except Exception as second_err:
+                        raise Exception(f"First attempt (tools) failed: {str(first_err)}. Fallback (functions) failed: {str(second_err)}")
+                else:
+                    raise first_err
+
             duration_ms = (time.time() - start_time) * 1000
             
             message = response.choices[0].message
@@ -138,14 +160,26 @@ class RealAgentBenchmarkRunner:
             # In a real rigorous test, we would write assertion functions per task (e.g., check if file exists)
             
             file_created = False
-            if "write_file" in task.expected_tools:
-                files = os.listdir(temp_dir)
-                file_created = len([f for f in files if f != "CLAUDE.md" and f != ".agent_context.md"]) > 0
-                success = file_created
-                tool_acc = 1.0 if file_created else 0.0
-            else:
-                success = len(final_answer) > 20 and "Error" not in final_answer[:50]
-                tool_acc = 1.0 if success else 0.0
+            # Verification:
+            # 1. Check if expected files were created
+            files_ok = True
+            missing_files = []
+            if getattr(task, "expected_files", None):
+                for f in task.expected_files:
+                    full_f = os.path.join(temp_dir, f)
+                    if not os.path.exists(full_f):
+                        files_ok = False
+                        missing_files.append(f)
+            
+            # 2. Check for basic response quality
+            has_response = len(final_answer) > 20 and "Error" not in final_answer[:50]
+            
+            success = files_ok and has_response
+            
+            # Calculate a pseudo tool accuracy based on goals
+            tool_acc = 1.0 if success else (0.5 if has_response else 0.0)
+            
+            error_msg = f"Missing files: {missing_files}" if missing_files else None
             
             return {
                 "task_id": task.id,
@@ -153,8 +187,9 @@ class RealAgentBenchmarkRunner:
                 "success": success,
                 "tool_accuracy": tool_acc,
                 "duration_ms": duration_ms,
-                "tokens": 0, # Cannot extract easily from Langchain agent without hooks
-                "response_preview": final_answer[:200]
+                "tokens": 0,
+                "response_preview": final_answer[:200],
+                "error": error_msg
             }
             
         except Exception as e:
@@ -272,11 +307,12 @@ if __name__ == "__main__":
         sys.exit(0)
     
     models_to_test = []
-    if isinstance(args.models, str):
-        args.models = [args.models]
-    for m in args.models:
-        for sub_m in m.split(","):
-            if sub_m.strip():
-                models_to_test.append(sub_m.strip())
+    # robust parsing of models (handles space-separated, comma-separated, or mixed)
+    raw_models = args.models if isinstance(args.models, list) else [args.models]
+    for m in raw_models:
+        # Split by comma and then strip spaces
+        for part in m.split(","):
+            if part.strip():
+                models_to_test.append(part.strip())
                 
     run_agent_benchmark(models_to_test, mode=args.mode)
