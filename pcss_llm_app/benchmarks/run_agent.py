@@ -35,7 +35,7 @@ class MockAgentBenchmarkRunner:
         self.schemas = self._generate_real_tool_schemas()
         
     def _generate_real_tool_schemas(self):
-        """Extract OpenA functions from actual app tools."""
+        """Extract OpenAI functions from actual app tools and wrap them for the PCSS API."""
         # Instantiate tools with dummy paths just for schema extraction
         tools = []
         tools.extend(DocumentTools(root_dir=".").get_tools())
@@ -45,9 +45,11 @@ class MockAgentBenchmarkRunner:
         tools.extend(ViewFileTool(root_dir=".").get_tools())
         tools.extend(ChartTools(root_dir=".").get_tools())
         tools.extend(PythonREPL(root_dir=".").get_tools())
+        tools.extend(ChartTools(root_dir=".").get_tools()) # Added missing tools if any or just re-ensure
         tools.extend(CountPatternTool(root_dir=".").get_tools())
         
-        schemas = [convert_to_openai_function(t) for t in tools]
+        # PCSS (via litellm/vLLM) requires the "type": "function" wrapper
+        schemas = [{"type": "function", "function": convert_to_openai_function(t)} for t in tools]
         return schemas
         
     def evaluate_task(self, model: str, task) -> dict:
