@@ -249,9 +249,13 @@ class DocumentTools(_WorkspaceMixin):
 
                     if heading_level:
                         prefix = "#" * min(heading_level, 6)
-                        blocks.append(f"{prefix} {text}")
+                        for line in text.split('\n'):
+                            if line.strip():
+                                blocks.append(f"{prefix} {line.strip()}")
                     else:
-                        blocks.append(text)
+                        for line in text.split('\n'):
+                            if line.strip():
+                                blocks.append(line.strip())
 
                 # ── Table ────────────────────────────────────────────────
                 elif local == 'tbl':
@@ -273,19 +277,49 @@ class DocumentTools(_WorkspaceMixin):
 
             total_blocks = len(blocks)
 
-            # ── Paginate ─────────────────────────────────────────────────
+            # ── Paginate and Budget Characters ───────────────────────────
+            MAX_CHARS = 14000
             start_idx = max(0, (para_start or 1) - 1)
-            end_idx   = min(total_blocks, para_end or total_blocks)
-
+            
             if start_idx >= total_blocks:
                 return f"Error: para_start={para_start} exceeds total blocks ({total_blocks})."
 
-            chunk = blocks[start_idx:end_idx]
+            # Determine end_idx based on para_end AND char budget
+            requested_end = min(total_blocks, para_end or total_blocks)
+            actual_end = start_idx
+            current_chars = 0
+            chunk = []
+            truncated = False
+
+            for i in range(start_idx, requested_end):
+                block_text = blocks[i]
+                # Account for '\n\n' separator if not the first block in chunk
+                added_len = len(block_text) + (2 if chunk else 0)
+                
+                if current_chars + added_len > MAX_CHARS:
+                    truncated = True
+                    break
+                
+                chunk.append(block_text)
+                current_chars += added_len
+                actual_end = i + 1
+
             header = (
-                f"[DOCX: {file_path} | Blocks {start_idx+1}–{end_idx} of {total_blocks}]\n"
+                f"[DOCX: {file_path} | Blocks {start_idx+1}–{actual_end} of {total_blocks}]\n"
                 f"(Blocks = paragraphs + tables + images, in document order)\n"
             )
-            return header + "\n\n".join(chunk)
+            
+            output = header + "\n\n".join(chunk)
+            
+            if truncated:
+                footer = (
+                    f"\n\n--- OUTPUT TRUNCATED AT 14,000 CHARACTERS ---\n"
+                    f"Showing blocks {start_idx+1}–{actual_end} because the requested range is too large for a single observation.\n"
+                    f"TIP: To read the rest, call read_docx(file_path='{file_path}', para_start={actual_end + 1}, para_end={para_end or total_blocks})"
+                )
+                output += footer
+                
+            return output
 
         except PermissionError:
             raise

@@ -1,5 +1,6 @@
 name: Qwen3.5-397B-A17B
 description: "Optimized profile for Qwen3.5 397B with large context bounds to prevent truncation loops."
+tool_catalog: full
 system_prompt_additions: |
   LANGUAGE & ENCODING RULES (STRICT):
   - Code comments must ALWAYS be in English regardless of conversational language.
@@ -12,6 +13,7 @@ system_prompt_additions: |
   4. OUTPUT ONLY ONE ACTION PER TURN. Do not output multiple `Action:` blocks in a single response! Wait for the Observation after each action.
   5. DO NOT hallucinate that you have completed a task if you haven't actually run the tool. Iterate step by step using tools.
   6. ALWAYS read files using `view_file` (which provides line numbers) before editing them with `replace_file_content`.
+  7. DO NOT repeat the exact same tool call (identical arguments, same file) if you have already received a valid Observation. Instead, process the received data or move to the next item.
 
 instructions: |
   # QWEN3.5 OPERATIONAL RULES (MANDATORY)
@@ -21,6 +23,7 @@ instructions: |
   - Use 'Final Answer: [your response]' to finish the task once verification is done.
   - "PERSISTENCE: Frequently use `update_context` to save a summary of what has been done and what remains. This helps 'future you' resume work after a restart."
   - "LINE-BASED EDITING: To edit a file, you MUST first use `view_file` to read it and get line numbers. Then, use `replace_file_content` with `start_line` and `end_line`."
+  - "SYNTHESIS OVER REPETITION: After a successful `analyze_image` or `read_docx` call, synthesize the findings immediately. Do not re-run the same analysis on the same object unless the first attempt failed or provided corrupted data."
 
   ## SEARCH LANGUAGE POLICY
   - When using `search_web`, `search_news`, `search_academic`, or `deep_research` for technical/scientific topics: ALWAYS write queries in ENGLISH. Polish queries return irrelevant results for specialized domains.
@@ -33,22 +36,5 @@ instructions: |
   - **TRUNCATION PREVENTION:** NEVER write more than **15,000 characters** in a single `write_file` or `save_document` call.
   - **INCREMENTAL APPROACH:** For large files, write the core logic first, then use `replace_file_content` to append or expand sections in subsequent turns.
 
-  AVAILABLE TOOLS (USE ONLY THESE NAMES):
-  - view_file: View file with line numbers (REQUIRED before editing).
-  - write_file: Write full file (New files only).
-  - replace_file_content: Precise line-based modifications.
-  - run_terminal: Execute OS commands/scripts.
-  - search_files: Global string search.
-  - list_directory: Directory discovery.
-  - create_directory: Create new folders.
-  - update_context: Persistent briefing notes.
-  - run_python: Sandboxed data analysis/math.
-  - generate_chart: Create matplotlib charts.
-  - analyze_image / ocr_image: Visual UI/UX review & OCR extraction.
-  - search_web / search_news / visit_page / deep_research / search_academic: Technical and academic research (USE ENGLISH QUERIES).
-  - save_document (.pdf, .docx, .html, .txt ONLY) / convert_document / write_docx: Export reports.
-  - read_pdf / read_docx / read_xlsx: Read documents.
-  - count_pattern_in_file: Count regex occurrences in large files.
-
-temperature: 0.1
+temperature: 0.2
 max_tokens: 16384

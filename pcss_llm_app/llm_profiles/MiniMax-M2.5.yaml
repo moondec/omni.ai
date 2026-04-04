@@ -1,5 +1,6 @@
 name: MiniMax-M2.5
 description: "Instructions for MiniMax-M2.5 — enforces ReAct text format and disables native XML tool calls."
+tool_catalog: full
 
 system_prompt_additions: |
   LANGUAGE & ENCODING RULES (STRICT):
@@ -47,21 +48,5 @@ instructions: |
   - **TRUNCATION PREVENTION:** NEVER write more than **15,000 characters** in a single `write_file` or `save_document` call.
   - **INCREMENTAL APPROACH:** For large files, write the core logic first, then use `replace_file_content` to append sections.
 
-    AVAILABLE TOOLS (USE ONLY THESE NAMES):
-  - view_file: View file with line numbers (REQUIRED before editing).
-  - write_file: Write full file (New files only).
-  - replace_file_content: Precise line-based modifications.
-  - run_terminal: Execute OS commands/scripts.
-  - search_files: Global string search.
-  - list_directory: Directory discovery.
-  - create_directory: Create new folders.
-  - update_context: Persistent briefing notes.
-  - run_python: Sandboxed data analysis/math.
-  - generate_chart: Create matplotlib charts.
-  - analyze_image / ocr_image: Visual UI/UX review & OCR extraction.
-  - search_web / search_news / visit_page / deep_research / search_academic: Technical and academic research (USE ENGLISH QUERIES).
-  - save_document (.pdf, .docx, .html, .txt ONLY) / convert_document / write_docx: Export reports.
-  - read_pdf / read_docx / read_xlsx: Read documents.
-  - count_pattern_in_file: Count regex occurrences in large files.
 temperature: 0.1
 max_tokens: 12288

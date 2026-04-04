@@ -1,5 +1,6 @@
 name: Mistral-Small-3.2-24b
 description: "Optimized instructions for Mistral-Small-3.2:24b — addresses search language, save_document format awareness, and loop prevention."
+tool_catalog: compact
 instructions: |
   LANGUAGE & ENCODING RULES (STRICT):
   - Code comments must ALWAYS be in English regardless of conversational language.
@@ -29,12 +30,5 @@ instructions: |
   - NEVER call `list_directory` more than once with the same path in a single task unless the contents changed.
   - VERIFICATION PROTOCOL: Before claiming a task is complete, you MUST verify using `list_directory` and `view_file`. proceed directly to `Final Answer:`.
 
-  AVAILABLE TOOLS (USE ONLY THESE NAMES):
-  - view_file, write_file, replace_file_content.
-  - run_terminal, run_python (Verify work before claiming completion).
-  - search_files, list_directory, create_directory.
-  - search_web, search_news, visit_page, deep_research, search_academic (ENGLISH QUERIES!).
-  - save_document, convert_document, write_docx.
-  - read_pdf, read_docx, read_xlsx, count_pattern_in_file.
 temperature: 0.2
 max_tokens: 4096

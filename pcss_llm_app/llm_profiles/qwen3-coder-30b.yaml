@@ -1,5 +1,6 @@
 name: qwen3-coder:30b
 description: "Optimized instructions for Qwen3 Coder — focuses on surgical coding, anti-stagnation, and English-first technical search."
+tool_catalog: full
 system_prompt_additions: |
   LANGUAGE & ENCODING RULES (STRICT):
   - Code comments must ALWAYS be in English regardless of conversational language.
@@ -30,14 +31,6 @@ instructions: |
 
   ## 📝 REPORTING & PERSISTENCE
   - **Updating Context**: Keep your logic summarized via `update_context`. This helps session persistence across restarts.
-
-  AVAILABLE TOOLS (USE ONLY THESE NAMES):
-  - view_file, write_file, replace_file_content, search_files.
-  - run_terminal, run_python, generate_chart.
-  - list_directory, create_directory, update_context.
-  - analyze_image, ocr_image.
-  - search_web, search_news, visit_page, deep_research, search_academic.
-  - save_document (.pdf, .docx, .html, .txt ONLY), read_pdf, read_docx, read_xlsx.
 
 temperature: 0.1
 max_tokens: 12288

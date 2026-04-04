@@ -21,6 +21,7 @@ from pcss_llm_app.core.database import DatabaseManager
 
 from pcss_llm_app.core.file_manager import FileManager
 from pcss_llm_app.core.agent_engine import LangChainAgentEngine
+from pcss_llm_app.core.llm_profile_loader import load_llm_profile
 from pcss_llm_app.ui.syntax_highlighter import PygmentsSyntaxHighlighter
 from pcss_llm_app import __version__
 
@@ -1072,6 +1073,24 @@ class MainWindow(QMainWindow):
             QScrollBar::handle:vertical:hover {{
                 background-color: {theme['accent']};
             }}
+            /* Table Formatting */
+            table {{
+                border-collapse: collapse;
+                margin: 10px 0;
+                border: 1px solid {theme['border']};
+            }}
+            th {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['accent']};
+                font-weight: bold;
+                padding: 6px;
+                border: 1px solid {theme['border']};
+            }}
+            td {{
+                padding: 6px;
+                border: 1px solid {theme['border']};
+                color: {theme['foreground']};
+            }}
         """
         
         self.setStyleSheet(stylesheet)
@@ -1166,7 +1185,7 @@ class MainWindow(QMainWindow):
         self.chat_worker = None
 
     def _append_message(self, role, text):
-        html = markdown.markdown(text)
+        html = markdown.markdown(text, extensions=['extra', 'nl2br'])
         self.chat_display.append(f"<b>{role}:</b> {html}<br>")
         
         # Auto scroll
@@ -1239,29 +1258,11 @@ class MainWindow(QMainWindow):
         llm_profiles_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "llm_profiles"))
         if not os.path.exists(llm_profiles_dir):
             return "", 4096, "", 0
-
-        # Try to find exact model match
-        # Sanitize filename for Windows compatibility (replace : with -)
-        safe_model_name = model_name.replace(":", "-")
-        target_file = os.path.join(llm_profiles_dir, f"{safe_model_name}.yaml")
-        if not os.path.exists(target_file):
-            # Fallback to default
-            target_file = os.path.join(llm_profiles_dir, "default.yaml")
-
-        if os.path.exists(target_file):
-            try:
-                with open(target_file, 'r', encoding='utf-8') as f:
-                    profile = yaml.safe_load(f)
-                    if profile:
-                        return (
-                            profile.get('instructions', ""),
-                            profile.get('max_tokens', 4096),
-                            profile.get('system_prompt_additions', ""),
-                            profile.get('context_window', 0)
-                        )
-            except Exception as e:
-                self.append_log(f"Warning: Failed to load LLM profile {target_file}: {e}")
-        return "", 4096, "", 0
+        try:
+            return load_llm_profile(model_name, llm_profiles_dir)
+        except Exception as e:
+            self.append_log(f"Warning: Failed to load LLM profile: {e}")
+            return "", 4096, "", 0
 
     def create_assistant(self):
         name = self.agent_name_input.text() or "Assistant"
@@ -1332,7 +1333,7 @@ class MainWindow(QMainWindow):
             
         self._add_to_prompt_history(text)
             
-        html = markdown.markdown(text)
+        html = markdown.markdown(text, extensions=['extra', 'nl2br'])
         self.agent_display.append(f"<b>User:</b> {html}<br>")
         self.agent_input.clear()
         
@@ -1395,7 +1396,7 @@ class MainWindow(QMainWindow):
             html_parts = []
             from langchain_core.messages import HumanMessage
             for msg in self.agent_history:
-                m_html = markdown.markdown(msg.content)
+                m_html = markdown.markdown(msg.content, extensions=['extra', 'nl2br'])
                 role = "User" if isinstance(msg, HumanMessage) else "Agent"
                 html_parts.append(f"<b>{role}:</b> {m_html}<br>")
             self._cached_history_html = html_parts
@@ -1406,14 +1407,14 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'agent_worker') and self.agent_worker:
             # Cache the current user's prompt as well
             if not hasattr(self, '_cached_user_prompt_html') or getattr(self, '_cached_user_prompt_text', "") != self.agent_worker.text:
-                self._cached_user_prompt_html = markdown.markdown(self.agent_worker.text)
+                self._cached_user_prompt_html = markdown.markdown(self.agent_worker.text, extensions=['extra', 'nl2br'])
                 self._cached_user_prompt_text = self.agent_worker.text
             html_parts.append(f"<b>User:</b> {self._cached_user_prompt_html}<br>")
             
         is_streaming = False
         if hasattr(self, 'current_agent_stream') and self.current_agent_stream:
             # Only parse the currently streaming chunk
-            stream_html = markdown.markdown(self.current_agent_stream)
+            stream_html = markdown.markdown(self.current_agent_stream, extensions=['extra', 'nl2br'])
             html_parts.append(f"<b>Agent:</b> {stream_html}<br>")
             is_streaming = True
             

@@ -8,13 +8,17 @@ instructions: |
   PHASE 1: FORMAL BIBLIOGRAPHY ANALYSIS
   ═══════════════════════════════════════════════
 
+  Step 0 — ESTABLISH CURRENT CONTEXT:
+  - IMPORTANT: Before starting, check the current date and time (use `run_terminal` with `date` if unsure).
+  - Only flag dates as "future" if they are strictly later than the current month/year.
+
   Step 1 — READ THE MANUSCRIPT:
   - Read the full text of the article carefully before proceeding.
 
   Step 2 — CROSS-REFERENCE CITATIONS vs. BIBLIOGRAPHY (step-by-step, very carefully):
   - Extract the complete bibliography/reference list from the manuscript.
   - Extract ALL in-text citation markers (e.g., [Author, Year], [1], [Smith et al., 2020]).
-  - FOR LARGE MANUSCRIPTS: Use `count_pattern_in_file` with regex (e.g., r'\[\d+\]' or r'\[[A-Za-z]+.*, \d{4}\]') to reliably count citation occurrences without loading the full text into memory.
+  - FOR LARGE MANUSCRIPTS: Use `count_pattern_in_file` with regex (e.g., r'\n(?=[A-Z\u00C0-\u017F][a-zA-Z\u00C0-\u017F\'-]*\s+[A-Z\u00C0-\u017F])') to reliably count citation occurrences without loading the full text into memory.
   - For EACH item in the bibliography: confirm it has at least one corresponding in-text citation.
   - For EACH in-text citation: confirm there is a matching entry in the bibliography.
   - List ALL discrepancies explicitly:
@@ -23,10 +27,16 @@ instructions: |
 
   Step 3 — VERIFY EXISTENCE OF ALL REFERENCES:
   - For EVERY item in the bibliography, confirm it is a real, existing scientific publication.
-  - Use `search_web` or `deep_research` to locate EACH item online. Do NOT assume any reference exists — check every single one.
+  - DOI FORMAT RECOGNITION (CRITICAL): Be aware that DOIs appear in various formats. Extract the raw DOI string (starting with "10.") from:
+      - URLs: `https://doi.org/10.XXXX/YYYY`
+      - Prefixes: `DOI: 10.XXXX/YYYY`, `doi: 10.XXXX/YYYY`, or even embedded in text like `...Sciences, DOI: 10.1007/...`
+  - In the academic search queries use full headers imitating the browser, in order to avoid bot blocks.
+  - PRIMARY TOOL: Use `search_academic` to locate scientific papers, verify DOIs, and check publication status.
+  - FALLBACK TOOL: Use `search_web` or `deep_research` only if `search_academic` fails to find the specific entry.
   - Retrieve a DOI, journal link, or publisher link for each entry.
+  - If the item does not have a DOI, check whether it is a book chapter, report, website, etc. Mark it as such in the report.
   - If a reference cannot be located, flag it as UNVERIFIED.
-  - If a reference cannot be located, try to find author's names and afiliations that confirm they are scientists and are working in the field of the manuscript.
+  - If a reference cannot be located, try to find author's names and affiliations that confirm they are scientists and are working in the field of the manuscript.
 
   Step 4 — SAVE PHASE 1 REPORT:
   - Use `save_document` to write an HTML report containing:
@@ -90,17 +100,8 @@ instructions: |
   - NEVER ASSUME: If you cannot verify a fact, say so explicitly.
   - INTERACTION: If you need clarification, use: `Final Answer: [your question]`.
 
-  ═══════════════════════════════════════════════
-  AVAILABLE TOOLS
-  ═══════════════════════════════════════════════
-
-  - search_web / visit_page: Standard web search and page reading.
-  - deep_research: In-depth bibliographic verification and multi-source research.
-  - view_file: Read locally provided manuscripts.
-  - run_python: Parse text for citation patterns using regex, or perform data analysis.
-  - save_document: Save interim and final HTML reports.
-  - read_pdf: Extract text from PDF documents.
-  - read_docx: Extract text from Word documents.
-  - read_xlsx: Read Excel spreadsheets into Markdown tables.
+  LOOPS PREVENTION:
+  - If you receive a "Similarity Loop" or "Action Loop" warning, you MUST immediately change your strategy (e.g., skip to the next section or use a different tool like run_python to process already gathered data).
+  - NEVER call the same tool with the same parameters more than twice.
   - count_pattern_in_file: Counts regex occurrences in a file. Use for reliable citation counting in large texts.
   - update_context: Save progress state (use for `progress_review.md`).
