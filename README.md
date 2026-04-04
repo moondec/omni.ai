@@ -43,13 +43,15 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   `ocr_image` — extract text from images/scans (Nanonets OCR)
 -   `generate_chart` — generate charts and visualizations from data
 
-**System Architecture**
--   **Profiles**: YAML-based agent personas (researcher, coder, writer…) enforcing strict ReAct paradigms.
--   **Persistent Memory**: Agents utilize `.agent_context.md` auto-briefing upon load/restart, carrying over project knowledge across sessions.
--   **Workspace Security**: Agent execution (Terminal & Files) is strictly confined to a configured root directory.
--   **Fine-Adjustment (Few-Shot Tuning)**: The Agent automatically dynamicly fetches high-rated (Thumbs Up) previous interactions from the local database and uses them as **few-shot examples**. This allows the Agent to "learn" your preferred style and tool usage patterns without requiring actual model training.
+### 3. 🏠 Architecture & Persistence
+The application is designed for full data continuity and flexible session management:
+- **Full Session Persistence**: All interactions (Chat and Agent modes) are saved in a local SQLite database (`conversations.db`). Sessions are fully restored upon restart.
+- **Memory Management**:
+    - **Short-term (Thread) Memory**: The agent maintains context within a specific thread. Use the **"New Thread"** button to start a fresh session while keeping the historical log.
+    - **Few-Shot Learning (Long-term)**: When an assistant is initialized, the system fetches your **top-rated interactions** (Thumbs Up) from the database and uses them as few-shot examples. This allows the agent to "learn" your preferences and preferred tool usage patterns over time.
+- **Thread Control**: Users can freely switch between historical threads. Individual conversations can be deleted via the **Right-Click Context Menu** in the history list, or the entire history can be purged using the **"Clear History"** button.
 
-### 3. 🔒 Security
+### 4. 🔒 Security
 -   **Secure Storage**: API Keys are stored in the system Keyring (macOS Keychain, Windows Credential Locker), never in plain text.
 -   **Local Data**: All history and settings are stored locally.
 -   **Documentation**: See [MODEL_GUIDE.md](MODEL_GUIDE.md) and [TOOLS_GUIDE.md](TOOLS_GUIDE.md).
