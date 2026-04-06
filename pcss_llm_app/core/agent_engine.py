@@ -33,6 +33,17 @@ class LangChainAgentEngine:
         self.few_shot_examples = few_shot_examples or []
         self.max_tokens = max_tokens
         self.context_window = context_window
+        
+        # --- Context window guessing (if not provided by profile) ---
+        if self.context_window == 0:
+            m_lower = self.model_name.lower()
+            if "397b" in m_lower or "deepseek" in m_lower or "glm" in m_lower or "minimax" in m_lower:
+                self.context_window = 128_000
+            elif "qwen" in m_lower or "gpt-4" in m_lower or "claude-3" in m_lower:
+                self.context_window = 128_000
+            else:
+                self.context_window = 32_000
+
         self.active_scratchpad = "" # Persistence layer for long tasks
         self.consecutive_format_errors = 0
         self._initialize_agent()
@@ -132,7 +143,7 @@ class LangChainAgentEngine:
         self.tools = [t for t in toolkit.get_tools() if t.name != "read_file"]
         
         # Add Document Tools
-        doc_tools = DocumentTools(root_dir=str(self.workspace_path))
+        doc_tools = DocumentTools(root_dir=str(self.workspace_path), model_name=self.model_name)
         self.tools.extend(doc_tools.get_tools())
 
         # Add OCR Tools
@@ -177,7 +188,7 @@ class LangChainAgentEngine:
         self.tools.extend(search_tools.get_tools())
 
         # Add View File Tool
-        view_file_tool = ViewFileTool(root_dir=str(self.workspace_path))
+        view_file_tool = ViewFileTool(root_dir=str(self.workspace_path), model_name=self.model_name)
         self.tools.extend(view_file_tool.get_tools())
 
         # Add Replace File Content Tool
@@ -212,7 +223,7 @@ class LangChainAgentEngine:
 
     # Intelligent Run method with loop detection and flexible limits
     # Intelligent Run method with loop detection and flexible limits
-    def run(self, input_text: str, chat_history: List = None):
+    def run(self, input_text: str, chat_history: List = None, initial_scratchpad: str = ""):
         # RESET format error counter on new user message to break stagnation loops
         self.consecutive_format_errors = 0
         
@@ -299,11 +310,17 @@ Begin!"""
             else:
                  history_text += f"Final Answer: {content}\n"
 
-        # New-turn logic: always treat a new user message as a fresh step in the
-        # conversation, using only the summarized chat_history for context.
-        # We intentionally DO NOT resume from active_scratchpad across runs to avoid
-        # replaying old tool trajectories as answers to new instructions.
-        self.active_scratchpad = ""  # Ensure clean start for each run
+        # Continuation logic: if user says "continue" (or similar) and we have a scratchpad, resume.
+        continue_keywords = ["kontynuuj", "continue", "wznów", "resume", "dalej", "go on"]
+        # Only treat as structural continue if it's a short "continue" type message
+        is_continuation_intent = any(kw in input_text.lower() for kw in continue_keywords) and len(input_text.strip().split()) <= 3
+        
+        if is_continuation_intent and initial_scratchpad:
+            self.active_scratchpad = initial_scratchpad
+            self._log("🔄 Resuming from saved scratchpad context.")
+        else:
+            self.active_scratchpad = ""  # Ensure clean start for genuinely new tasks
+            
         self._write_status_file("🔄 Working", f"Processing: {input_text[:200]}")
         prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
 
@@ -316,7 +333,8 @@ Begin!"""
         action_loop_warnings = 0
         last_executed_tool = None
         
-        for i in range(max_steps):
+        i = 0
+        while i < max_steps:
             # Reset variables at start of each iteration to prevent stale values
             action = None
             action_input = None
@@ -341,7 +359,12 @@ Begin!"""
                 MAX_PROMPT_CHARS = max(10_000, int(available_input_tokens * 3.5))
             else:
                 MAX_PROMPT_CHARS = 300_000
-            self._log(f"Current prompt size: {len(prompt)} chars")
+            
+            # --- Dynamic Context Logging ---
+            est_tokens = int(len(prompt) / 3.5)
+            usage_pct = (len(prompt) / MAX_PROMPT_CHARS) * 100
+            limit_tokens = int(MAX_PROMPT_CHARS / 3.5)
+            self._log(f"Context: {len(prompt)} chars (~{est_tokens} tokens) | {usage_pct:.1f}% of {MAX_PROMPT_CHARS} chars (~{limit_tokens} tokens) limit")
             if len(prompt) > MAX_PROMPT_CHARS:
                 # Split at the first "\nThought:" that follows the Question line
                 # Everything before (and including) that marker is the immutable header.
@@ -945,16 +968,26 @@ Begin!"""
                             is_similarity_loop = True
                             self._log(f"⚠️ Similarity Loop detected (ratio: {similarity:.2f})")
 
+                # High-capacity models can handle more "retries" or larger context
+                is_large_model = (
+                    ("Qwen" in self.model_name and "397B" in self.model_name) or
+                    "minimax" in self.model_name.lower() or
+                    "deepseek" in self.model_name.lower() or
+                    "glm" in self.model_name.lower()
+                )
+                loop_threshold = 5 if is_large_model else 3
+
                 if is_identical_loop or is_similarity_loop:
                     # First time: intervene with an explicit instruction instead of immediately stopping.
                     # This helps weaker models recover from accidental repeats of idempotent actions.
-                    if action_loop_warnings < 3:
+                    if action_loop_warnings < loop_threshold:
                         action_loop_warnings += 1
-                        self._log(f"⚠️ Action Loop detected! Injecting intervention (warning {action_loop_warnings}/3).")
+                        self._log(f"⚠️ Action Loop detected! Injecting intervention (warning {action_loop_warnings}/{loop_threshold}).")
                         observation = (
                             "SYSTEM INTERVENTION: You are repeating the same (or highly similar) tool action. "
                             "STOP repeating it. Do NOT call the same tool with similar input again. "
-                            "Change strategy now (e.g., move to the next file/task, or validate results with list_directory/view_file/run_terminal)."
+                            "Change strategy now (e.g., move to the next file/task, or validate results with list_directory/view_file/run_terminal). "
+                            "If you are reading a long document, ENSURE YOU ARE INCREMENTING 'para_start' OR 'start_line' to progress."
                         )
                         observation_history.append(observation)
                         obs_text = f"\nObservation: {observation}\nThought:"
@@ -963,7 +996,7 @@ Begin!"""
                         continue
 
                     self._log("⚠️ Action Loop detected! Stopping agent after intervention.")
-                    return "Agent stopped: Repetitive action loop detected even after a system intervention. Please try a fundamentally different approach or ask the user for help."
+                    return f"Agent stopped: Repetitive action loop detected even after {loop_threshold} system interventions. Please try a fundamentally different approach or ask the user for help."
                 
                 action_history.append(current_action)
 
@@ -1097,6 +1130,16 @@ Begin!"""
                         if len(observation_history) > 0 and observation == observation_history[-1]:
                              self._log("⚠️ Stagnation detected (Repeated Observation).")
                              observation += "\n\n[SYSTEM WARNING: You just received the EXACT SAME observation as your last step. You are stuck in a loop. YOU MUST USE A DIFFERENT TOOL OR DIFFERENT ARGUMENTS NOW. Do not repeat the same action.]"
+                        else:
+                             # ── Dynamic Step Limit Bonus ──
+                             # If we reaching this point, we didn't loop or error out early.
+                             # This was a "productive" step for the context.
+                             if match and not is_identical_loop and not is_similarity_loop:
+                                 bonus = 2
+                                 old_limit = max_steps
+                                 max_steps = min(600, max_steps + bonus)
+                                 if max_steps > old_limit:
+                                     self._log(f"--- Progress detected (Action: {action}). Limit extended: {max_steps} steps. ---")
                         
                         observation_history.append(observation)
                     except Exception as e:
@@ -1106,9 +1149,9 @@ Begin!"""
                     observation = f"Error: Tool '{action}' not found. Available tools: {available_tools}. Use only these names!"
                 
                 # --- Observation Size Guard ---
-                # Prevent context-window saturation from large tool outputs (e.g. read_pdf).
-                # If an observation exceeds MAX_OBS_CHARS, truncate it and warn the model.
-                MAX_OBS_CHARS = 15_000
+                # Prevent context-window saturation from large tool outputs.
+                # Large models (GLM, DeepSeek, Qwen 397B) have deep context and can handle 60k chars.
+                MAX_OBS_CHARS = 60_000 if is_large_model else 15_000
                 observation_str = str(observation)
                 if len(observation_str) > MAX_OBS_CHARS:
                     truncated = observation_str[:MAX_OBS_CHARS]
@@ -1238,6 +1281,7 @@ Begin!"""
                 prompt += fmt_error
                 self.active_scratchpad += fmt_error
 
+            i += 1
 
         safety_msg = f"Agent reached safety limit of {max_steps} steps without finishing. To prevent excessive API usage, I have stopped here. You can ask me to 'continue' if you believe more progress can be made."
         self._write_status_file("⚠️ Stopped", f"Safety limit of {max_steps} steps reached.")

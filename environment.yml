@@ -56,5 +56,5 @@ dependencies:
     - mcp               # Model Context Protocol support
     - langchain-mcp-adapters # MCP integration for LangChain
   # Internet Search
-    - duckduckgo-search # DuckDuckGo search
+    - ddgs              # DuckDuckGo search
     - pdfplumber        # Rich PDF extraction

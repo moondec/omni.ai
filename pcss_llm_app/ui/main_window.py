@@ -25,6 +25,17 @@ from pcss_llm_app.core.llm_profile_loader import load_llm_profile
 from pcss_llm_app.ui.syntax_highlighter import PygmentsSyntaxHighlighter
 from pcss_llm_app import __version__
 
+# Safe LangChain Message Imports
+try:
+    from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+except ImportError:
+    try:
+        from langchain.schema import HumanMessage, AIMessage, BaseMessage
+    except ImportError:
+        class BaseMessage: content = ""
+        class HumanMessage(BaseMessage): pass
+        class AIMessage(BaseMessage): pass
+
 class AgentLogSignal(QObject):
     log_message = Signal(str)
 
@@ -151,11 +162,12 @@ class AgentWorker(QThread):
     chunk_received = Signal(str)
     tool_action_requested = Signal(object)
 
-    def __init__(self, agent_engine, text, chat_history=None):
+    def __init__(self, agent_engine, text, chat_history=None, initial_scratchpad: str = ""):
         super().__init__()
         self.agent_engine = agent_engine
         self.text = text
         self.chat_history = chat_history if chat_history else []
+        self.initial_scratchpad = initial_scratchpad
         self._is_cancelled = False
 
     def cancel(self):
@@ -174,7 +186,7 @@ class AgentWorker(QThread):
             self.status_update.emit("Agent thinking...")
             
             final_response = ""
-            agent_gen = self.agent_engine.run(self.text, self.chat_history)
+            agent_gen = self.agent_engine.run(self.text, self.chat_history, self.initial_scratchpad)
             
             if hasattr(agent_gen, '__next__'):
                 while True:
@@ -237,6 +249,7 @@ class MainWindow(QMainWindow):
         # Agent State (LangChain)
         self.agent_engine = None
         self.agent_history = []
+        self.current_agent_scratchpad = ""
         
         # Worker instances for cancellation
         self.chat_worker = None
@@ -250,7 +263,7 @@ class MainWindow(QMainWindow):
         self.chat_needs_render = False
         self.ui_update_timer = QTimer(self)
         self.ui_update_timer.timeout.connect(self._throttled_ui_update)
-        self.ui_update_timer.start(100) # 10 FPS
+        self.ui_update_timer.start(250) # 4 FPS (Smoother performance during heavy streaming)
 
         self._init_ui()
         
@@ -327,6 +340,35 @@ class MainWindow(QMainWindow):
             input_widget.setPlainText("")
 
     def eventFilter(self, source, event):
+        if event.type() == QEvent.DragEnter:
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+                return True
+            return False
+            
+        if event.type() == QEvent.Drop:
+            urls = event.mimeData().urls()
+            if urls:
+                input_widget = source
+                cursor = input_widget.textCursor()
+                paths = []
+                workspace_path = os.path.abspath(getattr(self, 'current_workspace', ""))
+                
+                for url in urls:
+                    local_path = os.path.abspath(url.toLocalFile())
+                    # Make it relative if within workspace
+                    if workspace_path and local_path.startswith(workspace_path):
+                        rel_path = os.path.relpath(local_path, workspace_path)
+                        paths.append(rel_path)
+                    else:
+                        paths.append(local_path)
+                
+                # Join with spaces or newlines? Usually spaces for commands
+                cursor.insertText(" ".join(paths))
+                input_widget.setFocus()
+                return True
+            return False
+
         if event.type() == QEvent.KeyPress:
              if hasattr(self, 'message_input') and source is self.message_input and \
                 event.key() in [Qt.Key_Return, Qt.Key_Enter] and not (event.modifiers() & Qt.ShiftModifier):
@@ -518,6 +560,8 @@ class MainWindow(QMainWindow):
         self.file_tree.setIndentation(14)
         self.file_tree.setSortingEnabled(True)
         self.file_tree.sortByColumn(0, Qt.AscendingOrder)
+        self.file_tree.setDragEnabled(True)
+        self.file_tree.setAcceptDrops(False)
         # Hide Size, Type, Date columns – keep only Name
         self.file_tree.hideColumn(1)
         self.file_tree.hideColumn(2)
@@ -703,6 +747,7 @@ class MainWindow(QMainWindow):
         self.message_input = QTextEdit()
         self.message_input.setAcceptRichText(False)
         self.message_input.setFixedHeight(80)
+        self.message_input.setAcceptDrops(True)
         self.message_input.installEventFilter(self)
         input_layout.addWidget(self.message_input)
         
@@ -799,6 +844,7 @@ class MainWindow(QMainWindow):
         self.agent_input = QTextEdit()
         self.agent_input.setAcceptRichText(False)
         self.agent_input.setFixedHeight(80)
+        self.agent_input.setAcceptDrops(True)
         self.agent_input.installEventFilter(self)
         input_layout.addWidget(self.agent_input)
         
@@ -1130,7 +1176,7 @@ class MainWindow(QMainWindow):
         # print(f"DEBUG: Sending message with model: {model}")
         if not self.current_conversation_id:
             title = text[:30] + "..."
-            self.current_conversation_id = self.db.create_conversation(title, model)
+            self.current_conversation_id = self.db.create_conversation(title, model, mode="chat")
             self.refresh_history()
 
         self._append_message("User", text)
@@ -1348,13 +1394,14 @@ class MainWindow(QMainWindow):
         # Persistence
         if not self.current_agent_conversation_id:
              model = self.model_combo.currentText()
+             profile = self.profile_combo.currentText()
              title = f"Agent: {text[:20]}..."
-             self.current_agent_conversation_id = self.db.create_conversation(title, model, mode="agent")
+             self.current_agent_conversation_id = self.db.create_conversation(title, model, mode="agent", agent_profile=profile)
              self.refresh_history()
         
         self.db.add_message(self.current_agent_conversation_id, "user", text)
         
-        self.agent_worker = AgentWorker(self.agent_engine, text, self.agent_history)
+        self.agent_worker = AgentWorker(self.agent_engine, text, self.agent_history, self.current_agent_scratchpad)
         self.agent_status_label.setText("Processing...")
         self.agent_worker.status_update.connect(self.update_agent_status)
         self.agent_worker.chunk_received.connect(self.handle_agent_chunk)
@@ -1391,10 +1438,24 @@ class MainWindow(QMainWindow):
             webbrowser.open(link)
 
     def _render_chat(self):
-        # Cache historical messages parsing to save CPU during streaming
+        # State tracking
+        current_stream_text = getattr(self, 'current_agent_stream', "")
+        worker_text = self.agent_worker.text if hasattr(self, 'agent_worker') and self.agent_worker else ""
+        
+        # Initialize scroll-related variables at top level of function scope
+        scrollbar = self.agent_display.verticalScrollBar()
+        saved_value = scrollbar.value()
+        was_at_bottom = saved_value >= scrollbar.maximum() - 30
+        is_streaming = bool(current_stream_text)
+
+        # Optimization: Only re-render if something actually changed (history, user prompt, or stream)
+        current_state_key = (len(self.agent_history), worker_text, current_stream_text)
+        if hasattr(self, '_last_render_state_key') and self._last_render_state_key == current_state_key:
+            return  # Nothing changed, skip expensive rendering
+
+        # Cache historical messages parsing
         if not hasattr(self, '_cached_history_html') or getattr(self, '_cached_history_len', -1) != len(self.agent_history):
             html_parts = []
-            from langchain_core.messages import HumanMessage
             for msg in self.agent_history:
                 m_html = markdown.markdown(msg.content, extensions=['extra', 'nl2br'])
                 role = "User" if isinstance(msg, HumanMessage) else "Agent"
@@ -1405,29 +1466,28 @@ class MainWindow(QMainWindow):
         html_parts = list(self._cached_history_html)
             
         if hasattr(self, 'agent_worker') and self.agent_worker:
-            # Cache the current user's prompt as well
-            if not hasattr(self, '_cached_user_prompt_html') or getattr(self, '_cached_user_prompt_text', "") != self.agent_worker.text:
-                self._cached_user_prompt_html = markdown.markdown(self.agent_worker.text, extensions=['extra', 'nl2br'])
-                self._cached_user_prompt_text = self.agent_worker.text
+            # Cache user prompt
+            if not hasattr(self, '_cached_user_prompt_html') or getattr(self, '_cached_user_prompt_text', "") != worker_text:
+                self._cached_user_prompt_html = markdown.markdown(worker_text, extensions=['extra', 'nl2br'])
+                self._cached_user_prompt_text = worker_text
             html_parts.append(f"<b>User:</b> {self._cached_user_prompt_html}<br>")
             
-        is_streaming = False
-        if hasattr(self, 'current_agent_stream') and self.current_agent_stream:
-            # Only parse the currently streaming chunk
-            stream_html = markdown.markdown(self.current_agent_stream, extensions=['extra', 'nl2br'])
-            html_parts.append(f"<b>Agent:</b> {stream_html}<br>")
-            is_streaming = True
+        if current_stream_text:
+            # Cache currently streaming chunk
+            if not hasattr(self, '_cached_stream_html') or getattr(self, '_cached_stream_text', "") != current_stream_text:
+                self._cached_stream_html = markdown.markdown(current_stream_text, extensions=['extra', 'nl2br'])
+                self._cached_stream_text = current_stream_text
+            html_parts.append(f"<b>Agent:</b> {self._cached_stream_html}<br>")
             
-        scrollbar = self.agent_display.verticalScrollBar()
-        was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 20
-        saved_value = scrollbar.value()
-
-        # Disable repainting to prevent the visual "strobe/jump" to the top
         self.agent_display.setUpdatesEnabled(False)
-        
         self.agent_display.setHtml("".join(html_parts))
+        self.agent_display.setUpdatesEnabled(True)
         
-        # Force the document layout to recalculate its height immediately
+        # Store state to prevent redundant renders
+        self._last_render_state_key = current_state_key
+
+        if was_at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
         self.agent_display.document().adjustSize()
         
         # Re-apply scroll position
@@ -1436,7 +1496,6 @@ class MainWindow(QMainWindow):
         else:
             scrollbar.setValue(saved_value)
             
-        # Re-enable repainting
         self.agent_display.setUpdatesEnabled(True)
 
     def update_agent_status(self, status):
@@ -1483,15 +1542,23 @@ class MainWindow(QMainWindow):
         action_obj.event.set()
 
     def handle_agent_response(self, content):
+        # Update scratchpad state
+        if self.agent_engine:
+            self.current_agent_scratchpad = getattr(self.agent_engine, 'active_scratchpad', "")
+            if self.current_agent_conversation_id:
+                self.db.update_conversation_scratchpad(self.current_agent_conversation_id, self.current_agent_scratchpad)
+
         # Persist Agent Response to get msg_id first
         msg_id = None
         if self.current_agent_conversation_id:
-            msg_id = self.db.add_message(self.current_agent_conversation_id, "assistant", content)
+            try:
+                msg_id = self.db.add_message(self.current_agent_conversation_id, "assistant", content)
+            except Exception as e:
+                self.append_log(f"⚠️ Error saving message to DB: {str(e)}")
 
         # Update history
         if self.agent_worker:
             input_text = self.agent_worker.text
-            from langchain_core.messages import HumanMessage, AIMessage
             self.agent_history.append(HumanMessage(content=input_text))
             
             display_content = content
@@ -1526,6 +1593,11 @@ class MainWindow(QMainWindow):
             self.console_display.hide()
 
     def handle_agent_error(self, err):
+        # Even on error, save the current scratchpad to allow "continue" attempts
+        if self.agent_engine and self.current_agent_conversation_id:
+            self.current_agent_scratchpad = getattr(self.agent_engine, 'active_scratchpad', "")
+            self.db.update_conversation_scratchpad(self.current_agent_conversation_id, self.current_agent_scratchpad)
+
         QMessageBox.critical(self, "Agent Error", err)
         self.agent_status_label.setText("Error")
         self._reset_agent_ui()
@@ -1572,12 +1644,25 @@ class MainWindow(QMainWindow):
             return
             
         mode = conv_info[4] if len(conv_info) > 4 else "chat"
+        saved_model = conv_info[3] if len(conv_info) > 3 else ""
+        saved_profile = conv_info[5] if len(conv_info) > 5 else ""
+        
         messages = self.db.get_messages(conv_id)
         
+        # Restore Model selection globally
+        if saved_model:
+            self.model_combo.setCurrentText(saved_model)
+
         if mode == "agent":
             # Switch to Agent Tab
             self.tabs.setCurrentIndex(1)
+            
+            # Restore Profile selection
+            if saved_profile:
+                self.profile_combo.setCurrentText(saved_profile)
+            
             self.current_agent_conversation_id = conv_id
+            self.current_agent_scratchpad = conv_info[6] if len(conv_info) > 6 else "" # Load scratchpad (index 6 now)
             self.agent_display.clear()
             self.agent_history = []
             
@@ -1588,6 +1673,21 @@ class MainWindow(QMainWindow):
                     self.agent_history.append(HumanMessage(content=content))
                 elif role == "assistant":
                     self.agent_history.append(AIMessage(content=content))
+            
+            # Auto-initialize Agent if engine is missing or model/profile changed
+            # This ensures tools and context are ready for "continue" keywords
+            should_init = not self.agent_engine or \
+                          self.agent_engine.model_name != saved_model or \
+                          self.profile_combo.currentText() != saved_profile
+
+            if should_init:
+                self.append_log(f"🔄 Auto-initializing Agent for conversation {conv_id}...")
+                # We need to preserve history specifically, so we don't use the standard create_assistant
+                # which clears history.
+                self.create_assistant()
+                # Restore the loaded history which create_assistant might have cleared
+                hist_copy = self.agent_history[:]
+                self.agent_history = hist_copy
                     
             self._render_chat()
             

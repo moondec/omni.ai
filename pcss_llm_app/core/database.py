@@ -21,7 +21,9 @@ class DatabaseManager:
                 title TEXT,
                 created_at TIMESTAMP,
                 model TEXT,
-                mode TEXT
+                mode TEXT,
+                agent_profile TEXT,
+                scratchpad TEXT
             )
         ''')
         
@@ -38,23 +40,39 @@ class DatabaseManager:
             )
         ''')
         
-        # Add rating column if it doesn't exist (for existing databases)
+        # Comprehensive migration check for existing 'messages' table
         try:
-            cursor.execute('ALTER TABLE messages ADD COLUMN rating INTEGER DEFAULT 0')
+            # Check for missing columns (rating)
+            cursor.execute("PRAGMA table_info(messages)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'rating' not in columns:
+                cursor.execute('ALTER TABLE messages ADD COLUMN rating INTEGER DEFAULT 0')
         except sqlite3.OperationalError:
-            # Column already exists
+            # Table might not exist yet if CREATE TABLE IF NOT EXISTS failed
+            # (which it shouldn't, but we be defensive)
+            pass
+            
+        # Comprehensive migration check for existing 'conversations' table
+        try:
+            cursor.execute("PRAGMA table_info(conversations)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'agent_profile' not in columns:
+                cursor.execute('ALTER TABLE conversations ADD COLUMN agent_profile TEXT')
+            if 'scratchpad' not in columns:
+                cursor.execute('ALTER TABLE conversations ADD COLUMN scratchpad TEXT')
+        except sqlite3.OperationalError:
             pass
         
         conn.commit()
         conn.close()
 
-    def create_conversation(self, title, model, mode="chat"):
+    def create_conversation(self, title, model, mode="chat", agent_profile=""):
         conn = self._get_connection()
         cursor = conn.cursor()
         created_at = datetime.datetime.now()
         cursor.execute(
-            'INSERT INTO conversations (title, created_at, model, mode) VALUES (?, ?, ?, ?)',
-            (title, created_at, model, mode)
+            'INSERT INTO conversations (title, created_at, model, mode, agent_profile, scratchpad) VALUES (?, ?, ?, ?, ?, ?)',
+            (title, created_at, model, mode, agent_profile, "")
         )
         conversation_id = cursor.lastrowid
         conn.commit()
@@ -85,7 +103,7 @@ class DatabaseManager:
     def get_conversation(self, conversation_id):
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT id, title, created_at, model, mode FROM conversations WHERE id = ?', (conversation_id,))
+        cursor.execute('SELECT id, title, created_at, model, mode, agent_profile, scratchpad FROM conversations WHERE id = ?', (conversation_id,))
         row = cursor.fetchone()
         conn.close()
         return row
@@ -148,3 +166,11 @@ class DatabaseManager:
         rows = cursor.fetchall()
         conn.close()
         return rows
+
+    def update_conversation_scratchpad(self, conversation_id, scratchpad):
+        """Persist agent's internal thought process to DB."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE conversations SET scratchpad = ? WHERE id = ?', (scratchpad, conversation_id))
+        conn.commit()
+        conn.close()

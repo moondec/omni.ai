@@ -30,7 +30,10 @@ import xml.dom.minidom
 try:
     from ddgs import DDGS
 except ImportError:
-    from duckduckgo_search import DDGS
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None  # Handled at runtime in search_web
 
 
 # ---------------------------------------------------------------------------
@@ -89,8 +92,19 @@ class SaveDocumentSchema(BaseModel):
     title: str = Field(default="Document", description="Document title (used in HTML header)")
 
 class DocumentTools(_WorkspaceMixin):
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, model_name: str = ""):
         self.root_dir = root_dir
+        self.model_name = model_name
+        
+        # High-capacity models can handle larger chunks (2x limit)
+        is_large_model = (
+            ("Qwen" in model_name and "397B" in model_name) or
+            "minimax" in model_name.lower() or
+            "deepseek" in model_name.lower() or
+            "glm" in model_name.lower()
+        )
+        self.max_chars = 56000 if is_large_model else 14000
+        self.max_rows = 200 if is_large_model else 50
 
     def _get_full_path(self, file_path: str) -> str:
         try:
@@ -170,7 +184,9 @@ class DocumentTools(_WorkspaceMixin):
             file_path: The name of the file to read.
             para_start: First block to read (1-indexed, counts paragraphs+tables+images).
             para_end: Last block to read inclusive (default: last block).
-                      Read in chunks of 100-150 blocks for large documents.
+                      Read in chunks of 100-500 blocks. High-capacity models 
+                      (GLM, DeepSeek, Qwen 397B, Minimax) can handle up to 
+                      500 blocks (~56k chars) in one call.
         Output format:
             - Headings  → ## Heading text  (# H1, ## H2, etc.)
             - Tables    → Markdown pipe tables
@@ -278,7 +294,7 @@ class DocumentTools(_WorkspaceMixin):
             total_blocks = len(blocks)
 
             # ── Paginate and Budget Characters ───────────────────────────
-            MAX_CHARS = 14000
+            MAX_CHARS = self.max_chars
             start_idx = max(0, (para_start or 1) - 1)
             
             if start_idx >= total_blocks:
@@ -313,7 +329,7 @@ class DocumentTools(_WorkspaceMixin):
             
             if truncated:
                 footer = (
-                    f"\n\n--- OUTPUT TRUNCATED AT 14,000 CHARACTERS ---\n"
+                    f"\n\n--- OUTPUT TRUNCATED AT {MAX_CHARS:,} CHARACTERS ---\n"
                     f"Showing blocks {start_idx+1}–{actual_end} because the requested range is too large for a single observation.\n"
                     f"TIP: To read the rest, call read_docx(file_path='{file_path}', para_start={actual_end + 1}, para_end={para_end or total_blocks})"
                 )
@@ -465,8 +481,9 @@ class DocumentTools(_WorkspaceMixin):
             sheet: Sheet name to read (default: first sheet). Use list_sheets=True
                    call (sheet='?') to get all sheet names first.
             row_start: First data row to read, counting from 1 incl. header (default: 1).
-            row_end: Last row to read inclusive (default: row_start + 49, i.e. 50 rows).
-                     For large sheets read in chunks of 50-100 rows.
+            row_end: Last row to read inclusive. High-capacity models 
+                     (GLM, DeepSeek, Qwen 397B, Minimax) can read up to 200 rows at once.
+                     For standard models, use chunks of 50-100 rows.
         Output:
             - Lists available sheet names in the header
             - Renders rows as a Markdown pipe table
@@ -513,7 +530,7 @@ class DocumentTools(_WorkspaceMixin):
 
             # Resolve row range (1-indexed)
             r_start = max(1, row_start or 1)
-            r_end   = min(total_rows, row_end or (r_start + 49))  # default 50 rows
+            r_end   = min(total_rows, row_end or (r_start + (self.max_rows - 1)))  # default max_rows
 
             chunk = all_rows[r_start - 1 : r_end]  # 0-indexed slice
 
@@ -1293,6 +1310,9 @@ class WebSearchTools:
             query: The search query string.
             max_results: Maximum number of results (default 10).
         """
+        if not DDGS:
+            return "Search error: DuckDuckGo search library (ddgs or duckduckgo-search) is not installed."
+            
         try:
             results = []
             with DDGS() as ddgs:
@@ -1671,12 +1691,24 @@ class ViewFileSchema(BaseModel):
     end_line: Optional[int] = Field(default=None, description="Optional ending line number (inclusive).")
 
 class ViewFileTool(_WorkspaceMixin):
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, model_name: str = ""):
         self.root_dir = root_dir
+        self.model_name = model_name
+        
+        # Double the viewed lines for highly capable models
+        is_large_model = (
+            ("Qwen" in model_name and "397B" in model_name) or
+            "minimax" in model_name.lower() or
+            "deepseek" in model_name.lower() or
+            "glm" in model_name.lower()
+        )
+        self.line_limit = 600 if is_large_model else 150
 
     def view_file(self, file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
         """
-        Views the contents of a file, prepending 1-indexed line numbers.
+        Views the contents of a file, prepending 1-indexed line numbers. 
+        High-capacity models (GLM, DeepSeek, Qwen 397B, Minimax) can view 
+        up to 600 lines at once.
         """
         try:
             full_path = self._get_full_path(file_path)
@@ -1698,8 +1730,8 @@ class ViewFileTool(_WorkspaceMixin):
                 end_idx = min(total_lines, end_line)
                 truncated = False
             else:
-                if total_lines - start_idx > 150:
-                    end_idx = start_idx + 150
+                if total_lines - start_idx > self.line_limit:
+                    end_idx = start_idx + self.line_limit
                     truncated = True
                 else:
                     end_idx = total_lines
@@ -1720,8 +1752,8 @@ class ViewFileTool(_WorkspaceMixin):
             result += "-" * 40
             
             if truncated:
-                result += f"\n[WARNING: File truncated at 150 lines to prevent context overflow."
-                result += f"\n To see the rest of the file, call view_file again with start_line={end_idx + 1} and end_line={min(total_lines, end_idx + 150)}]"
+                result += f"\n[WARNING: File truncated at {self.line_limit} lines to prevent context overflow."
+                result += f"\n To see the rest of the file, call view_file again with start_line={end_idx + 1} and end_line={min(total_lines, end_idx + self.line_limit)}]"
                 
             return result
             
