@@ -27,9 +27,7 @@ The codebase is cleanly separated into two primary layers:
 
 ## Current Project Status
 
-- **Version 0.3.4**: Added Time-to-First-Token (TTFT) and token throughput diagnostics to `LangChainAgentEngine` to accurately isolate HPC server latency vs. local parsing speeds.
-- **Version 0.4.0**: Fully integrated LLM benchmarking suite.
-- **Version 0.3.3**: Agent stabilization and UI input modularization (`ChatInputWidget`). Replaced forceful thread termination with graceful cancellation flags across `main_window.py` and `agent_engine.py` to prevent SQLite corruption.
+- **Version 0.4.1**: App-wide integration of new UI interactions (modular ChatInput), LangChain agent stabilization (cancellation flags, loop prevention), LLM performance profiling (TTFT/throughput tracking), and the full 0.4.0 LLM benchmarking suite.
 - **Benchmarks**: Replaced outdated `test_tmp/` mock scripts with fully modular benchmarking in `pcss_llm_app/benchmarks/`. The suite supports real-tool schema reflection for accurate evaluation, offering both fast mock mode and full isolated real UI testing via `LangChainAgentEngine`.
 - **Reporting**: Moved benchmark results to a standalone `BENCHMARK_RESULTS.md` with preserved historical runs safely archived in `pcss_llm_app/benchmarks/results/`.
 
