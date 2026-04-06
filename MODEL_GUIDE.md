@@ -46,6 +46,32 @@ This document provides a summary of models available in the application, categor
 > **Note:** Model names are case-sensitive and must match exactly (e.g., `bielik_11b` NOT `Bielik-11B-v2`)  
 > **Uwaga:** Nazwy modeli są wrażliwe na wielkość liter i muszą być dokładne (np. `bielik_11b` NIE `Bielik-11B-v2`)
 
+---
+
+## 🏗️ Model Capacity Profiles (Tiers) / Profile Wydajnościowe (Tiers)
+
+The PCSS LLM App automatically detects the reasoning capacity of each model and applies a **Tiered Capacity Profile**. This ensures that high-capacity models can ingest massive amounts of data while smaller models are protected from "context drowning" through aggressive truncation and tighter observation windows.
+
+*Aplikacja PCSS LLM automatycznie wykrywa zdolności rozumowania każdego modelu i nakłada **Profil Wydajnościowy (Tier)**. Zapewnia to, że potężne modele mogą przetwarzać ogromne ilości danych, podczas gdy mniejsze są chronione przed "utonięciem w kontekście" poprzez agresywne przycinanie odpowiedzi i mniejsze okna obserwacji.*
+
+| Tier | Context Window | Observation Limit | Block/Row Limit | Typical Models / Przykłady |
+| :--- | :--- | :--- | :--- | :--- |
+| **ULTRA** | 256k | 60,000 chars | 500 blocks / 200 rows | Qwen 397B, DeepSeek V3 |
+| **LARGE** | 128k | 30,000 chars | 300 blocks / 150 rows | GLM 4.7, MiniMax M2.5 |
+| **BASE** | 64k | 14,000 chars | 150 blocks / 80 rows | GPT-4o-mini, Llama3 70B |
+| **SMALL** | 16k | 4,000 chars | 50 blocks / 20 rows | Bielik-11B, Mistral-24B |
+
+### 🔍 Dynamic Adaptations / Adaptacje Dynamiczne
+
+1.  **Context Trimming**: High-tier models maintain a much longer history before the sliding window compression (Prompt Overflow Guard) kicks in.
+    *   *Modele wysokiego tieru utrzymują znacznie dłuższą historię przed aktywacją kompresji okna (Prompt Overflow Guard).*
+2.  **Tool Truncation**: `Terminal` and `PythonREPL` outputs are automatically truncated to fit within the tier's observation limit.
+    *   *Wyniki `Terminal` i `PythonREPL` są automatycznie przycinane, aby zmieścić się w limicie obserwacji danego tieru.*
+3.  **Smart Chunking**: `read_docx` and `view_file` adjust their chunking tips to match the model's tier.
+    *   *Narzędzia `read_docx` i `view_file` dostosowują parametry czytania do możliwości danego modelu.*
+
+---
+
 ## Workflow Examples
 
 - **Data Analysis**: Generating charts from CSV.

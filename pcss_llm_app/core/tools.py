@@ -24,7 +24,7 @@ try:
 except ImportError:
     pypandoc = None
 
-import re
+
 import xml.dom.minidom
 
 try:
@@ -92,19 +92,12 @@ class SaveDocumentSchema(BaseModel):
     title: str = Field(default="Document", description="Document title (used in HTML header)")
 
 class DocumentTools(_WorkspaceMixin):
-    def __init__(self, root_dir: str, model_name: str = ""):
+    def __init__(self, root_dir: str, model_name: str = "", max_chars: int = 14000, max_read_blocks: int = 150, max_rows: int = 50):
         self.root_dir = root_dir
         self.model_name = model_name
-        
-        # High-capacity models can handle larger chunks (2x limit)
-        is_large_model = (
-            ("Qwen" in model_name and "397B" in model_name) or
-            "minimax" in model_name.lower() or
-            "deepseek" in model_name.lower() or
-            "glm" in model_name.lower()
-        )
-        self.max_chars = 56000 if is_large_model else 14000
-        self.max_rows = 200 if is_large_model else 50
+        self.max_chars = max_chars
+        self.max_read_blocks = max_read_blocks
+        self.max_rows = max_rows
 
     def _get_full_path(self, file_path: str) -> str:
         try:
@@ -184,9 +177,9 @@ class DocumentTools(_WorkspaceMixin):
             file_path: The name of the file to read.
             para_start: First block to read (1-indexed, counts paragraphs+tables+images).
             para_end: Last block to read inclusive (default: last block).
-                      Read in chunks of 100-500 blocks. High-capacity models 
-                      (GLM, DeepSeek, Qwen 397B, Minimax) can handle up to 
-                      500 blocks (~56k chars) in one call.
+                      Read in chunks of 50-500 blocks. High-capacity models 
+                      can handle up to 500 blocks (~60k chars) in one call.
+                      Standard models should use 50-150 blocks.
         Output format:
             - Headings  → ## Heading text  (# H1, ## H2, etc.)
             - Tables    → Markdown pipe tables
@@ -300,7 +293,8 @@ class DocumentTools(_WorkspaceMixin):
             if start_idx >= total_blocks:
                 return f"Error: para_start={para_start} exceeds total blocks ({total_blocks})."
 
-            # Determine end_idx based on para_end AND char budget
+            # Determine end_idx based on para_end, char budget, AND block budget
+            MAX_BLOCKS = self.max_read_blocks
             requested_end = min(total_blocks, para_end or total_blocks)
             actual_end = start_idx
             current_chars = 0
@@ -309,6 +303,12 @@ class DocumentTools(_WorkspaceMixin):
 
             for i in range(start_idx, requested_end):
                 block_text = blocks[i]
+                
+                # Check block budget
+                if len(chunk) >= MAX_BLOCKS:
+                    truncated = True
+                    break
+                    
                 # Account for '\n\n' separator if not the first block in chunk
                 added_len = len(block_text) + (2 if chunk else 0)
                 
@@ -482,8 +482,8 @@ class DocumentTools(_WorkspaceMixin):
                    call (sheet='?') to get all sheet names first.
             row_start: First data row to read, counting from 1 incl. header (default: 1).
             row_end: Last row to read inclusive. High-capacity models 
-                     (GLM, DeepSeek, Qwen 397B, Minimax) can read up to 200 rows at once.
-                     For standard models, use chunks of 50-100 rows.
+                     can read up to 200 rows at once. For standard models, 
+                     use chunks of 20-80 rows.
         Output:
             - Lists available sheet names in the header
             - Renders rows as a Markdown pipe table
@@ -1577,8 +1577,9 @@ class PythonREPL:
     """
     A simple Python REPL for executing code safely.
     """
-    def __init__(self, root_dir: str = "."):
-        self.root_dir = root_dir
+    def __init__(self, root_dir: str = ".", max_chars: int = 14000):
+        self.root_dir = os.path.abspath(root_dir)
+        self.max_chars = max_chars
 
     def run_python(self, code: str) -> str:
         """
@@ -1675,7 +1676,14 @@ class PythonREPL:
         err = stderr.getvalue()
         if err:
             output += f"\n[stderr]:\n{err}"
-        return output if output else "Code executed successfully (no output)."
+        
+        final_output = output if output else "Code executed successfully (no output)."
+        
+        if len(final_output) > self.max_chars:
+            half = self.max_chars // 2
+            final_output = final_output[:half] + f"\n... [Output truncated from {len(final_output)} to {self.max_chars} chars] ...\n" + final_output[-half:]
+            
+        return final_output
 
     def get_tools(self):
         return [
@@ -1691,24 +1699,18 @@ class ViewFileSchema(BaseModel):
     end_line: Optional[int] = Field(default=None, description="Optional ending line number (inclusive).")
 
 class ViewFileTool(_WorkspaceMixin):
-    def __init__(self, root_dir: str, model_name: str = ""):
+    def __init__(self, root_dir: str, model_name: str = "", max_chars: int = 14000):
         self.root_dir = root_dir
         self.model_name = model_name
-        
-        # Double the viewed lines for highly capable models
-        is_large_model = (
-            ("Qwen" in model_name and "397B" in model_name) or
-            "minimax" in model_name.lower() or
-            "deepseek" in model_name.lower() or
-            "glm" in model_name.lower()
-        )
-        self.line_limit = 600 if is_large_model else 150
+        self.max_chars = max_chars
+        # Use simple heuristic: 1 line ~ 100 chars
+        self.line_limit = max(50, max_chars // 100)
 
     def view_file(self, file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
         """
-        Views the contents of a file, prepending 1-indexed line numbers. 
-        High-capacity models (GLM, DeepSeek, Qwen 397B, Minimax) can view 
-        up to 600 lines at once.
+        Views file contents with line numbers.
+        High-capacity models can read up to 600 lines (~60k chars) at once.
+        Standard models should use 100-200 lines.
         """
         try:
             full_path = self._get_full_path(file_path)
@@ -1941,8 +1943,9 @@ class TerminalSchema(BaseModel):
     command: str = Field(description="The shell command to execute in the workspace.")
 
 class TerminalTool(_WorkspaceMixin):
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, max_chars: int = 10000):
         self.root_dir = os.path.abspath(root_dir)
+        self.max_chars = max_chars
 
     def run_terminal(self, command: str) -> str:
         """
@@ -1994,9 +1997,10 @@ class TerminalTool(_WorkspaceMixin):
             if not output:
                 return f"Command executed successfully (exit code {process.returncode}), no output."
             
-            # Truncate extremely long output
-            if len(output) > 10000:
-                output = output[:5000] + "\n... [Output truncated for length] ...\n" + output[-5000:]
+            # Truncate long output based on tiered limit
+            if len(output) > self.max_chars:
+                half = self.max_chars // 2
+                output = output[:half] + f"\n... [Output truncated from {len(output)} to {self.max_chars} chars] ...\n" + output[-half:]
                 
             return output
         except Exception as e:

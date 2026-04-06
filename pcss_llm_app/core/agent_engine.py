@@ -1,21 +1,81 @@
-from typing import List, Dict, Any
 import os
 import re
-import json
-import datetime
+import io
 import ast
+import json
+import time
 import difflib
-import logging
-from langchain_openai import ChatOpenAI
-from langchain_community.agent_toolkits import FileManagementToolkit
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+import datetime
+import traceback
+import contextlib
+import subprocess
+from typing import List, Optional, Dict, Any, Union, Tuple
+from dataclasses import dataclass
+
+# Robust Message Imports
+try:
+    from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+except ImportError:
+    try:
+        from langchain.schema import HumanMessage, AIMessage, SystemMessage, BaseMessage
+    except ImportError:
+        class BaseMessage: pass
+        class HumanMessage(BaseMessage): pass
+        class AIMessage(BaseMessage): pass
+        class SystemMessage(BaseMessage): pass
+
+try:
+    from langchain_openai import ChatOpenAI
+    from langchain_core.tools import StructuredTool
+    from langchain_community.agent_toolkits import FileManagementToolkit
+except ImportError:
+    from langchain.chat_models import ChatOpenAI
+    from langchain.tools import StructuredTool
+    try:
+        from langchain.agent_toolkits import FileManagementToolkit
+    except ImportError:
+        FileManagementToolkit = None 
+
+# Local tool imports
 from pcss_llm_app.core.tools import (
-    DocumentTools, OCRTools, PandocTools, VisionTools, 
-    WebSearchTools, ChartTools, FolderTools, PythonREPL,
-    SearchTools, TerminalTool, UpdateContextTool,
-    ViewFileTool, ReplaceFileContentTool, CountPatternTool
+    DocumentTools, OCRTools, CountPatternTool, FolderTools, 
+    PandocTools, VisionTools, WebSearchTools, ChartTools, 
+    PythonREPL, SearchTools, ViewFileTool, ReplaceFileContentTool, 
+    TerminalTool, UpdateContextTool
 )
-from pcss_llm_app.core.mcp_tools import PlaywrightMCPTools
+
+try:
+    from pcss_llm_app.core.mcp_tools import PlaywrightMCPTools
+except ImportError:
+    PlaywrightMCPTools = None
+
+@dataclass
+class ModelProfile:
+    tier: int
+    name: str
+    context_window: int
+    max_observation_chars: int
+    max_read_blocks: int
+    max_read_rows: int
+
+def get_model_profile(model_name: str) -> ModelProfile:
+    m_lower = model_name.lower()
+    
+    # Tier 1: ULTRA (Massive MoE / High-Cap Agents)
+    if any(kw in m_lower for kw in ["397b", "deepseek-v3", "671b"]):
+        return ModelProfile(1, "ULTRA", 256_000, 60_000, 500, 200)
+    
+    # Tier 2: LARGE (High-Quality Medium-Large Models)
+    if any(kw in m_lower for kw in ["glm-4.7", "minimax-m2.5", "gpt-oss-120b", "72b", "70b", "235b"]):
+        return ModelProfile(2, "LARGE", 128_000, 40_000, 300, 150)
+    
+    # Tier 3: BASE (Standard Medium Models)
+    if any(kw in m_lower for kw in ["qwen", "glm", "minimax", "gpt-4o", "claude-3"]):
+        # Generic catch-all for high-cap families if specific size not found
+        return ModelProfile(3, "BASE", 64_000, 20_000, 150, 80)
+    
+    # Tier 4: SMALL (Compact Models)
+    return ModelProfile(4, "SMALL", 16_000, 8_000, 50, 20)
 
 class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
@@ -32,20 +92,16 @@ class LangChainAgentEngine:
         self.system_prompt_additions = system_prompt_additions or ""
         self.few_shot_examples = few_shot_examples or []
         self.max_tokens = max_tokens
-        self.context_window = context_window
         
-        # --- Context window guessing (if not provided by profile) ---
-        if self.context_window == 0:
-            m_lower = self.model_name.lower()
-            if "397b" in m_lower or "deepseek" in m_lower or "glm" in m_lower or "minimax" in m_lower:
-                self.context_window = 128_000
-            elif "qwen" in m_lower or "gpt-4" in m_lower or "claude-3" in m_lower:
-                self.context_window = 128_000
-            else:
-                self.context_window = 32_000
+        # --- Tiered Model Profiling ---
+        self.profile = get_model_profile(self.model_name)
+        
+        # Override context window if provided explicitly by user/profile
+        self.context_window = context_window if context_window > 0 else self.profile.context_window
 
         self.active_scratchpad = "" # Persistence layer for long tasks
-        self.consecutive_format_errors = 0
+        self._consecutive_format_errors = 0
+        self._is_cancelled = False
         self._initialize_agent()
 
     def _load_workspace_context(self) -> str:
@@ -136,14 +192,19 @@ class LangChainAgentEngine:
         )
 
         # 2. Initialize Tools
-        # print("DEBUG: Init FileToolkit", flush=True)
         toolkit = FileManagementToolkit(root_dir=str(self.workspace_path))
 
         # Filter out native read_file to force usage of our line-based view_file
         self.tools = [t for t in toolkit.get_tools() if t.name != "read_file"]
         
-        # Add Document Tools
-        doc_tools = DocumentTools(root_dir=str(self.workspace_path), model_name=self.model_name)
+        # Add Document Tools with Profile limits
+        doc_tools = DocumentTools(
+            root_dir=str(self.workspace_path), 
+            model_name=self.model_name,
+            max_chars=self.profile.max_observation_chars,
+            max_read_blocks=self.profile.max_read_blocks,
+            max_rows=self.profile.max_read_rows
+        )
         self.tools.extend(doc_tools.get_tools())
 
         # Add OCR Tools
@@ -179,24 +240,34 @@ class LangChainAgentEngine:
         chart_tools = ChartTools(root_dir=str(self.workspace_path))
         self.tools.extend(chart_tools.get_tools())
 
-        # Add Python REPL
-        repl = PythonREPL(root_dir=str(self.workspace_path))
+        # Add Python REPL with Profile limits
+        repl = PythonREPL(
+            root_dir=str(self.workspace_path),
+            max_chars=self.profile.max_observation_chars
+        )
         self.tools.extend(repl.get_tools())
 
         # Add Search Tools
         search_tools = SearchTools(root_dir=str(self.workspace_path))
         self.tools.extend(search_tools.get_tools())
 
-        # Add View File Tool
-        view_file_tool = ViewFileTool(root_dir=str(self.workspace_path), model_name=self.model_name)
+        # Add View File Tool with Profile limits
+        view_file_tool = ViewFileTool(
+            root_dir=str(self.workspace_path), 
+            model_name=self.model_name,
+            max_chars=self.profile.max_observation_chars
+        )
         self.tools.extend(view_file_tool.get_tools())
 
         # Add Replace File Content Tool
         replace_file_tool = ReplaceFileContentTool(root_dir=str(self.workspace_path))
         self.tools.extend(replace_file_tool.get_tools())
 
-        # Add Terminal Tool
-        terminal_tool = TerminalTool(root_dir=str(self.workspace_path))
+        # Add Terminal Tool with Profile limits
+        terminal_tool = TerminalTool(
+            root_dir=str(self.workspace_path),
+            max_chars=self.profile.max_observation_chars
+        )
         self.tools.extend(terminal_tool.get_tools())
 
         # Add Context Tool
@@ -204,16 +275,17 @@ class LangChainAgentEngine:
         self.tools.extend(context_tool.get_tools())
 
         # Add MCP Tools (Playwright Server)
-        try:
-            mcp_playwright = PlaywrightMCPTools()
-            mcp_tools = mcp_playwright.get_tools()
-            if mcp_tools:
-                self.tools.extend(mcp_tools)
-                self._log("Successfully loaded Playwright MCP Tools.")
-        except Exception as e:
-            import traceback
-            err_msg = traceback.format_exc()
-            self._log(f"Warning: Failed to load Playwright MCP:\n{err_msg}")
+        if PlaywrightMCPTools is not None:
+            try:
+                mcp_playwright = PlaywrightMCPTools()
+                mcp_tools = mcp_playwright.get_tools()
+                if mcp_tools:
+                    self.tools.extend(mcp_tools)
+                    self._log("Successfully loaded Playwright MCP Tools.")
+            except Exception as e:
+                import traceback
+                err_msg = traceback.format_exc()
+                self._log(f"Warning: Failed to load Playwright MCP:\n{err_msg}")
 
         # print("DEBUG: Building map", flush=True)
         self.tool_map = {t.name: t for t in self.tools}
@@ -222,10 +294,10 @@ class LangChainAgentEngine:
          return self.llm.invoke(prompt, stop=stop).content
 
     # Intelligent Run method with loop detection and flexible limits
-    # Intelligent Run method with loop detection and flexible limits
     def run(self, input_text: str, chat_history: List = None, initial_scratchpad: str = ""):
         # RESET format error counter on new user message to break stagnation loops
-        self.consecutive_format_errors = 0
+        self._consecutive_format_errors = 0
+        self._is_cancelled = False
         
         if chat_history is None:
             chat_history = []
@@ -322,6 +394,9 @@ Begin!"""
             self.active_scratchpad = ""  # Ensure clean start for genuinely new tasks
             
         self._write_status_file("🔄 Working", f"Processing: {input_text[:200]}")
+        self._log(f"🚀 Execution started for model: {self.model_name} (Tier: {self.profile.tier})")
+        self._log(f"📊 Profile Limits: Context={self.profile.context_window} | Observation={self.profile.max_observation_chars} | Blocks={self.profile.max_read_blocks} | Rows={self.profile.max_read_rows}")
+        
         prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
 
         max_steps = 100
@@ -428,8 +503,17 @@ Begin!"""
                 r')'
             )
             _stream_break_reason = "stop_sequence_or_eos"
+            _t_stream_start = time.monotonic()
+            _t_first_token = None
+            _token_count = 0
             for chunk in self.llm.stream(prompt, stop=["Observation:"]):
                 if chunk.content:
+                    # Record Time-to-First-Token
+                    if _t_first_token is None:
+                        _t_first_token = time.monotonic()
+                        _ttft = _t_first_token - _t_stream_start
+                        self._log(f"⏱️ TTFT (Time-to-First-Token): {_ttft:.2f}s")
+                    _token_count += 1
                     output += chunk.content
                     yield chunk.content
                     # Break as soon as we have a parseable Action + Input pair
@@ -444,7 +528,16 @@ Begin!"""
                             _stream_break_reason = "active_break_complete_action"
                             break
 
-            self._log(f"[STREAM] Ended. Reason: {_stream_break_reason}. Output length: {len(output)} chars.")
+            _t_stream_end = time.monotonic()
+            _total_gen = _t_stream_end - _t_stream_start
+            _gen_only = _t_stream_end - _t_first_token if _t_first_token else 0
+            _approx_tps = _token_count / _gen_only if _gen_only > 0 else 0
+            self._log(
+                f"[STREAM] Ended. Reason: {_stream_break_reason}. "
+                f"Output: {len(output)} chars (~{_token_count} chunks). "
+                f"Total: {_total_gen:.1f}s | TTFT: {(_t_first_token - _t_stream_start) if _t_first_token else 0:.1f}s | "
+                f"Generation: {_gen_only:.1f}s | ~{_approx_tps:.1f} chunks/s"
+            )
 
             # ── Strip <think> reasoning tags (GLM-4, Qwen3, DeepSeek, etc.) ──
             # CoT models emit <think>...</think> blocks that leak into the
@@ -964,7 +1057,12 @@ Begin!"""
                     if len(action_input) > 100 and len(prev_input) > 100:
                         # Slice strings to 1000 chars to keep SequenceMatcher FAST (O(N^2) complexity)
                         similarity = difflib.SequenceMatcher(None, action_input[:1000], prev_input[:1000]).ratio()
-                        if similarity > 0.95:
+                        
+                        # Tools like read_docx can have identical long filepaths but different chunk numbers.
+                        # Do not enforce similarity check on such tools, or enforce a much higher threshold.
+                        threshold = 0.99 if action in ["read_docx", "read_pdf", "web_read", "read_file"] else 0.95
+                        
+                        if similarity > threshold:
                             is_similarity_loop = True
                             self._log(f"⚠️ Similarity Loop detected (ratio: {similarity:.2f})")
 

@@ -22,6 +22,8 @@ from pcss_llm_app.core.database import DatabaseManager
 from pcss_llm_app.core.file_manager import FileManager
 from pcss_llm_app.core.agent_engine import LangChainAgentEngine
 from pcss_llm_app.core.llm_profile_loader import load_llm_profile
+from pcss_llm_app.core.workers import ChatWorker, AgentWorker
+from pcss_llm_app.ui.components.chat_input import ChatInputWidget
 from pcss_llm_app.ui.syntax_highlighter import PygmentsSyntaxHighlighter
 from pcss_llm_app import __version__
 
@@ -105,119 +107,6 @@ class SettingsDialog(QDialog):
             self.config.set("model", selected_model)
             
         self.accept()
-
-class ChatWorker(QThread):
-    finished = Signal(str)
-    error = Signal(str)
-    log_message = Signal(str)
-    cancelled = Signal()  # Signal when cancelled
-
-    def __init__(self, api_client, model, messages):
-        super().__init__()
-        self.api_client = api_client
-        self.model = model
-        self.messages = messages
-        self._is_cancelled = False
-
-    def cancel(self):
-        """Request cancellation of the worker."""
-        self._is_cancelled = True
-
-    def run(self):
-        try:
-            if self._is_cancelled:
-                self.cancelled.emit()
-                return
-                
-            self.log_message.emit(f"ChatWorker: Sending request to model '{self.model}'...")
-            self.log_message.emit(f"ChatWorker: Input messages: {len(self.messages)}")
-            
-            response = self.api_client.chat_completion(
-                model=self.model,
-                messages=self.messages
-            )
-            
-            if self._is_cancelled:
-                self.cancelled.emit()
-                return
-                
-            content = response.choices[0].message.content
-            self.log_message.emit("ChatWorker: Response received.")
-            self.log_message.emit(f"ChatWorker: Response length: {len(content)} chars.")
-            
-            self.finished.emit(content)
-        except Exception as e:
-            if not self._is_cancelled:
-                self.log_message.emit(f"ChatWorker Error: {str(e)}")
-                self.error.emit(str(e))
-
-class AgentWorker(QThread):
-    """
-    Worker to handle Agent interactions via LangChain Engine
-    """
-    finished = Signal(str)
-    status_update = Signal(str)
-    error = Signal(str)
-    cancelled = Signal()  # Signal when cancelled
-    chunk_received = Signal(str)
-    tool_action_requested = Signal(object)
-
-    def __init__(self, agent_engine, text, chat_history=None, initial_scratchpad: str = ""):
-        super().__init__()
-        self.agent_engine = agent_engine
-        self.text = text
-        self.chat_history = chat_history if chat_history else []
-        self.initial_scratchpad = initial_scratchpad
-        self._is_cancelled = False
-
-    def cancel(self):
-        """Request cancellation of the worker."""
-        self._is_cancelled = True
-        # Also set flag on the agent engine if possible
-        if hasattr(self.agent_engine, 'cancel'):
-            self.agent_engine.cancel()
-
-    def run(self):
-        try:
-            if self._is_cancelled:
-                self.cancelled.emit()
-                return
-                
-            self.status_update.emit("Agent thinking...")
-            
-            final_response = ""
-            agent_gen = self.agent_engine.run(self.text, self.chat_history, self.initial_scratchpad)
-            
-            if hasattr(agent_gen, '__next__'):
-                while True:
-                    try:
-                        chunk = next(agent_gen)
-                        if self._is_cancelled:
-                            self.cancelled.emit()
-                            return
-                        if chunk:
-                            if type(chunk).__name__ == "AgentToolAction":
-                                self.tool_action_requested.emit(chunk)
-                                chunk.event.wait()
-                            else:
-                                self.chunk_received.emit(chunk)
-                    except StopIteration as e:
-                        if e.value is not None:
-                            final_response = e.value
-                        break
-            else:
-                # Fallback if run() simply returns a string
-                final_response = agent_gen
-            
-            if self._is_cancelled:
-                self.cancelled.emit()
-                return
-                
-            self.finished.emit(final_response)
-                
-        except Exception as e:
-            if not self._is_cancelled:
-                self.error.emit(str(e))
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -339,67 +228,6 @@ class MainWindow(QMainWindow):
             self.prompt_history_idx = new_idx
             input_widget.setPlainText("")
 
-    def eventFilter(self, source, event):
-        if event.type() == QEvent.DragEnter:
-            if event.mimeData().hasUrls():
-                event.acceptProposedAction()
-                return True
-            return False
-            
-        if event.type() == QEvent.Drop:
-            urls = event.mimeData().urls()
-            if urls:
-                input_widget = source
-                cursor = input_widget.textCursor()
-                paths = []
-                workspace_path = os.path.abspath(getattr(self, 'current_workspace', ""))
-                
-                for url in urls:
-                    local_path = os.path.abspath(url.toLocalFile())
-                    # Make it relative if within workspace
-                    if workspace_path and local_path.startswith(workspace_path):
-                        rel_path = os.path.relpath(local_path, workspace_path)
-                        paths.append(rel_path)
-                    else:
-                        paths.append(local_path)
-                
-                # Join with spaces or newlines? Usually spaces for commands
-                cursor.insertText(" ".join(paths))
-                input_widget.setFocus()
-                return True
-            return False
-
-        if event.type() == QEvent.KeyPress:
-             if hasattr(self, 'message_input') and source is self.message_input and \
-                event.key() in [Qt.Key_Return, Qt.Key_Enter] and not (event.modifiers() & Qt.ShiftModifier):
-                 self.send_message()
-                 return True
-             if hasattr(self, 'agent_input') and source is self.agent_input and \
-                event.key() in [Qt.Key_Return, Qt.Key_Enter] and not (event.modifiers() & Qt.ShiftModifier):
-                 self.send_to_agent()
-                 return True
-                 
-             # Prompt History Navigation
-             if event.key() == Qt.Key_Up:
-                 for attr in ('message_input', 'agent_input'):
-                     if hasattr(self, attr):
-                         widget = getattr(self, attr)
-                         if source is widget:
-                             cursor = widget.textCursor()
-                             if cursor.blockNumber() == 0:
-                                 self._navigate_prompt_history(-1, widget)
-                                 return True
-             if event.key() == Qt.Key_Down:
-                 for attr in ('message_input', 'agent_input'):
-                     if hasattr(self, attr):
-                         widget = getattr(self, attr)
-                         if source is widget:
-                             cursor = widget.textCursor()
-                             if cursor.blockNumber() == widget.document().blockCount() - 1:
-                                 self._navigate_prompt_history(1, widget)
-                                 return True
-                                 
-        return super().eventFilter(source, event)
 
     def _init_ui(self):
         central_widget = QWidget()
@@ -466,11 +294,6 @@ class MainWindow(QMainWindow):
         
         refresh_btn = QPushButton("Refresh History")
         refresh_btn.clicked.connect(self.refresh_history)
-        sidebar_layout.addWidget(refresh_btn)
-
-        clear_btn = QPushButton("Clear All History")
-        clear_btn.clicked.connect(self.clear_history)
-        sidebar_layout.addWidget(clear_btn)
         sidebar_layout.addWidget(refresh_btn)
 
         settings_btn = QPushButton("Settings")
@@ -744,11 +567,11 @@ class MainWindow(QMainWindow):
         
         # Input
         input_layout = QHBoxLayout()
-        self.message_input = QTextEdit()
-        self.message_input.setAcceptRichText(False)
-        self.message_input.setFixedHeight(80)
-        self.message_input.setAcceptDrops(True)
-        self.message_input.installEventFilter(self)
+        self.message_input = ChatInputWidget()
+        self.message_input.workspace_path = getattr(self, 'current_workspace', "")
+        self.message_input.send_requested.connect(self.send_message)
+        self.message_input.history_up_requested.connect(lambda: self._navigate_prompt_history(-1, self.message_input))
+        self.message_input.history_down_requested.connect(lambda: self._navigate_prompt_history(1, self.message_input))
         input_layout.addWidget(self.message_input)
         
         self.chat_send_btn = QPushButton("Send")
@@ -841,11 +664,11 @@ class MainWindow(QMainWindow):
         
         # Input Area
         input_layout = QHBoxLayout()
-        self.agent_input = QTextEdit()
-        self.agent_input.setAcceptRichText(False)
-        self.agent_input.setFixedHeight(80)
-        self.agent_input.setAcceptDrops(True)
-        self.agent_input.installEventFilter(self)
+        self.agent_input = ChatInputWidget()
+        self.agent_input.workspace_path = getattr(self, 'current_workspace', "")
+        self.agent_input.send_requested.connect(self.send_to_agent)
+        self.agent_input.history_up_requested.connect(lambda: self._navigate_prompt_history(-1, self.agent_input))
+        self.agent_input.history_down_requested.connect(lambda: self._navigate_prompt_history(1, self.agent_input))
         input_layout.addWidget(self.agent_input)
         
         self.agent_send_btn = QPushButton("Send to Agent")
@@ -1216,10 +1039,9 @@ class MainWindow(QMainWindow):
         """Stop the current chat request."""
         if self.chat_worker and self.chat_worker.isRunning():
             self.chat_worker.cancel()
-            self.chat_worker.terminate()  # Force terminate the thread
-            self.chat_worker.wait(1000)   # Wait up to 1 second for cleanup
-            self.append_log("User cancelled chat request.")
-            self._append_message("System", "⚠️ Request cancelled by user.")
+            self.append_log("User cancelled chat request. Waiting for background task to complete...")
+            self._append_message("System", "⚠️ Cancellation requested, halting background process...")
+            # We don't forcibly kill it anymore. The worker will exit smoothly or block on TCP logic.
             self._reset_chat_ui()
     
     def _reset_chat_ui(self):
@@ -1481,7 +1303,6 @@ class MainWindow(QMainWindow):
             
         self.agent_display.setUpdatesEnabled(False)
         self.agent_display.setHtml("".join(html_parts))
-        self.agent_display.setUpdatesEnabled(True)
         
         # Store state to prevent redundant renders
         self._last_render_state_key = current_state_key
@@ -1611,10 +1432,9 @@ class MainWindow(QMainWindow):
         """Stop the current agent task."""
         if self.agent_worker and self.agent_worker.isRunning():
             self.agent_worker.cancel()
-            self.agent_worker.terminate()  # Force terminate the thread
-            self.agent_worker.wait(1000)   # Wait up to 1 second for cleanup
-            self.append_log("User cancelled agent task.")
-            self.agent_display.append("<b>System:</b> ⚠️ Agent task cancelled by user.<br>")
+            self.append_log("User cancelled agent task. Waiting for background task to complete...")
+            self.agent_display.append("<b>System:</b> ⚠️ Agent cancellation requested, halting background process...<br>")
+            # Smooth shutdown instead of terminate()
             self._reset_agent_ui()
     
     def _reset_agent_ui(self):
@@ -1666,7 +1486,15 @@ class MainWindow(QMainWindow):
             self.agent_display.clear()
             self.agent_history = []
             
-            from langchain_core.messages import HumanMessage, AIMessage
+            # Using robust message types from top-level imports
+            try:
+                from langchain_core.messages import HumanMessage, AIMessage
+            except ImportError:
+                try:
+                    from langchain.schema import HumanMessage, AIMessage
+                except ImportError:
+                    # Top-level fallback classes already defined if needed
+                    pass
             
             for msg_id, role, content, timestamp, rating in messages:
                 if role == "user":

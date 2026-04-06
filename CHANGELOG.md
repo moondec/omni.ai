@@ -2,6 +2,25 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.3.4] - 2026-04-06
+
+### Added
+
+- **Server Latency Diagnostics**: Added exact Time-to-First-Token (TTFT) and overall generation throughput (approx. tokens/sec) instrumentation to `LangChainAgentEngine._log`. This separates HPC prefill server latency wait times from local execution stream speed, enabling true performance benchmarking of high-capacity models like DeepSeek.
+
+## [0.3.3] - 2026-04-06
+
+### Added
+
+- **Modular UI Components**: Extracted chat and agent text inputs from `main_window.py` event filters into a standalone `ChatInputWidget` component (`ui/components/chat_input.py`), improving code decoupling.
+- **Graceful Shutdown Flags**: Implemented boolean cancellation flags in `Worker` threads and `LangChainAgentEngine` to allow gentle interrupting of long generation loops.
+
+### Fixed
+
+- **App Freezes / SQLite Corruption**: Removed forceful `QThread.terminate()` calls when clicking the "Stop" button, resolving background instability.
+- **Agent Loops on Document Reading**: Raised similarity loop threshold to 0.99 for file-reading tools to avoid false positives during incremental reading.
+- **Playwright MCP Missing TypeError**: Added proper `None`-checks for Playwright initializations handling edge cases where the MCP sub-process fails to load.
+
 ## [0.4.0] - 2026-04-02
 
 ### Added
