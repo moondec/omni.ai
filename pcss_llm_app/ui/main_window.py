@@ -21,8 +21,9 @@ from pcss_llm_app.core.database import DatabaseManager
 
 from pcss_llm_app.core.file_manager import FileManager
 from pcss_llm_app.core.agent_engine import LangChainAgentEngine
+from pcss_llm_app.core.consilium import ConsiliumOrchestrator
 from pcss_llm_app.core.llm_profile_loader import load_llm_profile
-from pcss_llm_app.core.workers import ChatWorker, AgentWorker
+from pcss_llm_app.core.workers import ChatWorker, AgentWorker, ConsiliumWorker
 from pcss_llm_app.ui.components.chat_input import ChatInputWidget
 from pcss_llm_app.ui.syntax_highlighter import PygmentsSyntaxHighlighter
 from pcss_llm_app import __version__
@@ -630,6 +631,40 @@ class MainWindow(QMainWindow):
 
         agent_layout.addLayout(config_layout)
         
+        # --- Consilium Mode Configuration ---
+        self.consilium_layout = QHBoxLayout()
+        self.consilium_layout.setContentsMargins(0, 5, 0, 5)
+        
+        from PySide6.QtWidgets import QCheckBox
+        self.consilium_checkbox = QCheckBox("Consilium Mode")
+        self.consilium_checkbox.toggled.connect(self._toggle_consilium_ui)
+        self.consilium_layout.addWidget(self.consilium_checkbox)
+        
+        self.consilium_controls = QWidget()
+        consilium_grid = QHBoxLayout(self.consilium_controls)
+        consilium_grid.setContentsMargins(0, 0, 0, 0)
+        
+        consilium_grid.addWidget(QLabel("Executor:"))
+        self.consilium_executor_combo = QComboBox()
+        consilium_grid.addWidget(self.consilium_executor_combo)
+        
+        consilium_grid.addWidget(QLabel("Reviewer:"))
+        self.consilium_reviewer_combo = QComboBox()
+        consilium_grid.addWidget(self.consilium_reviewer_combo)
+        
+        consilium_grid.addWidget(QLabel("Skeptic:"))
+        self.consilium_skeptic_combo = QComboBox()
+        consilium_grid.addWidget(self.consilium_skeptic_combo)
+        
+        # We will populate these comboboxes in _refresh_models
+        
+        self.consilium_controls.setVisible(False)
+        self.consilium_layout.addWidget(self.consilium_controls)
+        self.consilium_layout.addStretch()
+        
+        agent_layout.addLayout(self.consilium_layout)
+        # ------------------------------------
+        
         # Load profiles on init
         self.agent_profiles = {}  # {name: {description, instructions}}
         self.current_profile_instructions = ""
@@ -685,6 +720,13 @@ class MainWindow(QMainWindow):
         
         agent_layout.addLayout(input_layout)
 
+    def _toggle_consilium_ui(self, checked):
+        self.consilium_controls.setVisible(checked)
+        if checked:
+            self.statusBar().showMessage("Consilium Mode activated. Click 'Create Assistant' to re-initialize.", 5000)
+        else:
+            self.statusBar().showMessage("Solo Mode activated. Click 'Create Assistant' to re-initialize.", 5000)
+
     def _refresh_models(self):
         """
         Refresh available models from API.
@@ -709,6 +751,12 @@ class MainWindow(QMainWindow):
                 # 3. Update UI with fetched models
                 self.model_combo.clear()
                 self.model_combo.addItems(final_models)
+                
+                # Consilium Combos
+                for combo in [self.consilium_executor_combo, self.consilium_reviewer_combo, self.consilium_skeptic_combo]:
+                    if hasattr(self, 'consilium_executor_combo'): # Check if initialized
+                        combo.clear()
+                        combo.addItems(final_models)
                 
                 # 4. Smart model selection with fallback
                 saved_model = self.config.get("model")
@@ -747,6 +795,19 @@ class MainWindow(QMainWindow):
                     # Save the new selection
                     if selected_model:
                         self.config.set("model", selected_model)
+                
+                # Default Consilium selections if available
+                def _set_consilium_default(combo, preferred):
+                    idx = combo.findText(preferred)
+                    if idx >= 0:
+                        combo.setCurrentIndex(idx)
+                    elif combo.count() > 0:
+                        combo.setCurrentIndex(0)
+                        
+                if hasattr(self, 'consilium_executor_combo'):
+                    _set_consilium_default(self.consilium_executor_combo, "Qwen3.5-397B-A17B")
+                    _set_consilium_default(self.consilium_reviewer_combo, "DeepSeek-V3.1-vLLM")
+                    _set_consilium_default(self.consilium_skeptic_combo, "GLM-4.7")
                 
                 # 5. Success feedback
                 current_model = self.model_combo.currentText()
@@ -1155,26 +1216,50 @@ class MainWindow(QMainWindow):
             # Fetch top-rated examples for this model
             top_examples = self.db.get_top_rated_interactions(model, limit=3)
             
-            # Initialize engine with both task instructions, rules, and token limits
-            self.agent_engine = LangChainAgentEngine(
-                api_key, model, workspace, 
-                log_callback=self.agent_logger.log_message.emit,
-                custom_instructions=instructions,
-                llm_instructions=llm_rules,
-                few_shot_examples=top_examples,
-                max_tokens=max_tokens,
-                system_prompt_additions=system_prompt_additions,
-                context_window=context_window
-            )
-            
             self.agent_status_label.setText("Agent Ready")
             self.agent_history = [] # Reset history
             
+            is_consilium = hasattr(self, 'consilium_checkbox') and self.consilium_checkbox.isChecked()
+            
+            if is_consilium:
+                # Initialize Consilium Orchestrator
+                ex_model = self.consilium_executor_combo.currentText()
+                rv_model = self.consilium_reviewer_combo.currentText()
+                sk_model = self.consilium_skeptic_combo.currentText()
+                
+                self.agent_engine = ConsiliumOrchestrator(
+                    api_key=api_key,
+                    workspace_path=workspace,
+                    executor_model=ex_model,
+                    reviewer_model=rv_model,
+                    skeptic_model=sk_model,
+                    log_callback=self.agent_logger.log_message.emit,
+                    executor_instructions=instructions
+                )
+                
+                self.agent_display.append(f"<b>System:</b> 🏛️ Consilium '{name}' initialized.<br>")
+                self.agent_display.append(f"<b>System:</b> Executor: {ex_model}<br>")
+                self.agent_display.append(f"<b>System:</b> Reviewer: {rv_model}<br>")
+                self.agent_display.append(f"<b>System:</b> Skeptic: {sk_model}<br>")
+                
+            else:
+                # Initialize Standard Engine
+                self.agent_engine = LangChainAgentEngine(
+                    api_key, model, workspace, 
+                    log_callback=self.agent_logger.log_message.emit,
+                    custom_instructions=instructions,
+                    llm_instructions=llm_rules,
+                    few_shot_examples=top_examples,
+                    max_tokens=max_tokens,
+                    system_prompt_additions=system_prompt_additions,
+                    context_window=context_window
+                )
+                self.agent_display.append(f"<b>System:</b> Agent '{name}' initialized with profile: {profile_name}<br>")
+                self.agent_display.append(f"<b>System:</b> Active LLM Model: {model} (Loaded operational rules)<br>")
+                
             # Start new persistence session for Agent
             self.current_agent_conversation_id = None # Will be created on first message
             
-            self.agent_display.append(f"<b>System:</b> Agent '{name}' initialized with profile: {profile_name}<br>")
-            self.agent_display.append(f"<b>System:</b> Active LLM Model: {model} (Loaded operational rules)<br>")
             self.agent_display.append(f"<b>System:</b> Workspace: {workspace}<br>")
             self.agent_display.append(f"<b>System:</b> Tools: [Files, Documents, OCR, Vision, Web Search]<br>")
             
@@ -1223,11 +1308,17 @@ class MainWindow(QMainWindow):
         
         self.db.add_message(self.current_agent_conversation_id, "user", text)
         
-        self.agent_worker = AgentWorker(self.agent_engine, text, self.agent_history, self.current_agent_scratchpad)
+        is_consilium = hasattr(self, 'consilium_checkbox') and self.consilium_checkbox.isChecked()
+        
+        if is_consilium and isinstance(self.agent_engine, ConsiliumOrchestrator):
+            self.agent_worker = ConsiliumWorker(self.agent_engine, text, self.agent_history)
+        else:
+            self.agent_worker = AgentWorker(self.agent_engine, text, self.agent_history, self.current_agent_scratchpad)
+            self.agent_worker.tool_action_requested.connect(self.prompt_tool_action)
+
         self.agent_status_label.setText("Processing...")
         self.agent_worker.status_update.connect(self.update_agent_status)
         self.agent_worker.chunk_received.connect(self.handle_agent_chunk)
-        self.agent_worker.tool_action_requested.connect(self.prompt_tool_action)
         self.agent_worker.finished.connect(self.handle_agent_response)
         self.agent_worker.error.connect(self.handle_agent_error)
         self.agent_worker.cancelled.connect(self.handle_agent_cancelled)

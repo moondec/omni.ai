@@ -5,6 +5,11 @@ This document describes the tools available to the Autonomous Agent in the PCSS 
 > [!IMPORTANT]
 > **Workspace Sandboxing:** For security, the agent is strictly confined to the directory defined in Settings. It cannot read or write files outside this path. Absolute paths and traversal attempts are automatically blocked.
 
+## 🏛️ Multi-LLM Consilium Mode (New in v0.5.0)
+Consilium Mode allows multiple models to debate and refine a solution iteratively.
+- **Executor**: Possesses the **full toolset** described below and performs the actual work.
+- **Reviewer / Skeptic**: Restricted to **read-only tools** (e.g., `view_file`, `list_directory`, `search_files`). This prevents them from accidentally modifying the Executor's work, ensuring a safe, non-destructive review process.
+
 ## 📂 File Management
 Basic and advanced operations within the workspace.
 *   **list_directory**: Lists files and folders.

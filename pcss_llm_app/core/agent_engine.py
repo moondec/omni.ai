@@ -82,7 +82,7 @@ class LangChainAgentEngine:
                  log_callback=None, custom_instructions: str = None, 
                  llm_instructions: str = None, few_shot_examples: List[tuple] = None,
                  max_tokens: int = 4096, system_prompt_additions: str = None,
-                 context_window: int = 0):
+                 context_window: int = 0, tool_filter: set = None):
         self.api_key = api_key
         self.model_name = model_name
         self.workspace_path = workspace_path
@@ -99,6 +99,7 @@ class LangChainAgentEngine:
         # Override context window if provided explicitly by user/profile
         self.context_window = context_window if context_window > 0 else self.profile.context_window
 
+        self.tool_filter = tool_filter  # Consilium: restrict to read-only tools
         self.active_scratchpad = "" # Persistence layer for long tasks
         self._consecutive_format_errors = 0
         self._is_cancelled = False
@@ -287,7 +288,11 @@ class LangChainAgentEngine:
                 err_msg = traceback.format_exc()
                 self._log(f"Warning: Failed to load Playwright MCP:\n{err_msg}")
 
-        # print("DEBUG: Building map", flush=True)
+        # Consilium: filter to read-only tools if requested
+        if self.tool_filter:
+            self.tools = [t for t in self.tools if t.name in self.tool_filter]
+            self._log(f"Tool filter active: {len(self.tools)} tools available ({', '.join(t.name for t in self.tools)})")
+
         self.tool_map = {t.name: t for t in self.tools}
 
     def run_step(self, prompt, stop=None):

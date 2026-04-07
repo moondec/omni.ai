@@ -112,3 +112,61 @@ class AgentWorker(QThread):
         except Exception as e:
             if not self._is_cancelled:
                 self.error.emit(str(e))
+
+class ConsiliumWorker(QThread):
+    """Worker for multi-model consilium execution."""
+    finished = Signal(str)
+    status_update = Signal(str)
+    phase_update = Signal(str)
+    error = Signal(str)
+    cancelled = Signal()
+    chunk_received = Signal(str)
+
+    def __init__(self, orchestrator, text, chat_history=None):
+        super().__init__()
+        self.orchestrator = orchestrator
+        self.text = text
+        self.chat_history = chat_history or []
+        self._is_cancelled = False
+
+    def cancel(self):
+        """Request cancellation of the worker and orchestrator."""
+        self._is_cancelled = True
+        if hasattr(self.orchestrator, 'cancel'):
+            self.orchestrator.cancel()
+
+    def run(self):
+        try:
+            if self._is_cancelled:
+                self.cancelled.emit()
+                return
+
+            self.status_update.emit("Consilium processing...")
+            
+            gen = self.orchestrator.run(self.text, self.chat_history)
+            final_response = ""
+            
+            if hasattr(gen, '__next__'):
+                while True:
+                    try:
+                        chunk = next(gen)
+                        if self._is_cancelled:
+                            self.cancelled.emit()
+                            return
+                        if chunk:
+                            self.chunk_received.emit(chunk)
+                    except StopIteration as e:
+                        if e.value is not None:
+                            final_response = e.value
+                        break
+            else:
+                final_response = gen
+                
+            if self._is_cancelled:
+                self.cancelled.emit()
+                return
+                
+            self.finished.emit(final_response)
+        except Exception as e:
+            if not self._is_cancelled:
+                self.error.emit(str(e))

@@ -2,6 +2,15 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.5.0] - 2026-04-07
+### Added
+- **Multi-LLM Consilium Mode**: A new collaborative mode where multiple LLMs work together to solve complex tasks using the "Debate" pattern.
+  - **Executor Role**: Primary model that performs the task with full tool access (default: Qwen3.5-397B).
+  - **Reviewer Role**: Evaluates the Executor's output for accuracy and completeness (default: DeepSeek-V3.1).
+  - **Skeptic Role**: Acts as a Devil's Advocate, challenging assumptions and finding edge cases (default: GLM-4.7).
+  - **Read-Only Tool Filter**: Reviewer and Skeptic models are programmatically restricted to non-destructive tools (`view_file`, `search_files`, etc.) to prevent workspace conflicts.
+  - **UI Integration**: New toggle in the Agent tab to activate Consilium Mode and select models for each role. Debug console prefixes (`[EXECUTOR]`, `[REVIEWER]`, `[SKEPTIC]`) trace the collaboration.
+
 ## [0.4.2] - 2026-04-07
 
 ### Enhanced
