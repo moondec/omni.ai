@@ -81,6 +81,11 @@ class SettingsDialog(QDialog):
         self.model_combo.setCurrentText(current_model)
         settings_dlg_layout.addRow("Default Model:", self.model_combo)
 
+        # Base URL
+        self.base_url_input = QLineEdit(self.config.get_base_url())
+        self.base_url_input.setPlaceholderText("https://llm.hpc.pcss.pl/v1")
+        settings_dlg_layout.addRow("LLM Server URL:", self.base_url_input)
+
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_settings)
         settings_dlg_layout.addRow(save_btn)
@@ -106,6 +111,10 @@ class SettingsDialog(QDialog):
         selected_model = self.model_combo.currentText()
         if selected_model:
             self.config.set("model", selected_model)
+
+        base_url = self.base_url_input.text().strip()
+        if base_url:
+            self.config.set_base_url(base_url)
             
         self.accept()
 
@@ -888,8 +897,11 @@ class MainWindow(QMainWindow):
             theme_name = "Cobalt"
         
         theme = self.THEMES[theme_name]
-        self.current_theme = theme_name
-        self.config.set("theme", theme_name)
+        
+        # Only set and save if the theme actually changed to avoid clobbering config on startup
+        if self.current_theme != theme_name:
+            self.current_theme = theme_name
+            self.config.set("theme", theme_name)
         
         # Update theme toggle button text
         if hasattr(self, 'theme_btn'):

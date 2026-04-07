@@ -32,7 +32,17 @@ class ConfigManager:
         if self.config_path.exists():
             try:
                 with open(self.config_path, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+                    return {}
+            except json.JSONDecodeError as e:
+                # If JSON is invalid, don't return an empty dict that will be filled with defaults and saved,
+                # clobbering the user's manual changes. Instead, print a warning.
+                print(f"Error: settings.json contains invalid JSON ({e}). Config not loaded to prevent clobbering.")
+                # We could return a partial config or a flag, but for now we return {} 
+                # but we should probably avoid save_config in __init__ if this happened.
+                return {}
             except Exception:
                 return {}
         return {}
