@@ -14,6 +14,19 @@ class ConfigManager:
     def __init__(self):
         self.config_path = Path("settings.json")
         self._config = self._load_config()
+        
+        # Ensure default values exist and are saved on first run
+        modified = False
+        if "workspace_path" not in self._config:
+            self._config["workspace_path"] = str(Path.home() / "Documents" / "Bielik_Workspace")
+            modified = True
+            
+        if "base_url" not in self._config:
+            self._config["base_url"] = "https://llm.hpc.pcss.pl/v1"
+            modified = True
+            
+        if modified:
+            self.save_config()
 
     def _load_config(self):
         if self.config_path.exists():
