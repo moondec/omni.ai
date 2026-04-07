@@ -2,6 +2,17 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.4.2] - 2026-04-07
+
+### Enhanced
+
+- **`search_files` — Binary Document Search**: The `search_files` tool now natively searches inside `.docx`, `.pdf`, and `.xlsx`/`.xls` files by extracting text content using `python-docx`, `pdfplumber`/`pypdf`, and `openpyxl`. Previously, these binary files were opened as raw UTF-8 text, producing garbage results.
+  - **Regex support**: New `use_regex` parameter allows searching with regular expressions.
+  - **Case sensitivity**: New `case_sensitive` parameter (default: `False` for intuitive matching).
+  - **DOCX tables**: Extracts text from both paragraphs and table cells.
+  - **Statistics**: Results now include a count of text vs. document files searched.
+  - **Zero new dependencies**: Uses libraries already present in `requirements.txt`.
+
 ## [0.4.1] - 2026-04-06
 
 ### Added

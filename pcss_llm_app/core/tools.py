@@ -1879,16 +1879,89 @@ class ReplaceFileContentTool(_WorkspaceMixin):
         ]
 
 class SearchTools(_WorkspaceMixin):
+    """
+    Search tools with native support for binary document formats.
+    Supported: .docx, .pdf, .xlsx/.xls + all plain-text files.
+    """
+
+    # Extensions that require special extraction (not raw text open)
+    BINARY_EXTENSIONS = {'.docx', '.pdf', '.xlsx', '.xls'}
+
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
 
-    def search_files(self, query: str = "", pattern: str = "*", recursive: bool = True, path: str = "") -> str:
+    # ── Binary document text extraction ─────────────────────────────
+    def _extract_text(self, file_path: str, ext: str) -> str:
         """
-        Searches for a string (query) inside files matching the pattern.
+        Extract plain text from a binary document file.
+        Returns the full text content split into lines.
+        """
+        if ext == '.docx':
+            from docx import Document as DocxDocument
+            doc = DocxDocument(file_path)
+            lines = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    lines.append(para.text)
+            # Also extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = ' | '.join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                    if row_text:
+                        lines.append(row_text)
+            return '\n'.join(lines)
+
+        elif ext == '.pdf':
+            try:
+                import pdfplumber
+                with pdfplumber.open(file_path) as pdf:
+                    pages = []
+                    for page in pdf.pages:
+                        text = page.extract_text()
+                        if text:
+                            pages.append(text)
+                    return '\n'.join(pages)
+            except ImportError:
+                from pypdf import PdfReader
+                reader = PdfReader(file_path)
+                pages = []
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        pages.append(text)
+                return '\n'.join(pages)
+
+        elif ext in ('.xlsx', '.xls'):
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            lines = []
+            for sheet in wb.worksheets:
+                lines.append(f"[Sheet: {sheet.title}]")
+                for row in sheet.iter_rows(values_only=True):
+                    row_text = ' | '.join(
+                        str(c) if c is not None else '' for c in row
+                    )
+                    if row_text.strip(' |'):
+                        lines.append(row_text)
+            wb.close()
+            return '\n'.join(lines)
+
+        return ''
+
+    # ── Main search method ──────────────────────────────────────────
+    def search_files(self, query: str = "", pattern: str = "*",
+                     recursive: bool = True, path: str = "",
+                     use_regex: bool = False,
+                     case_sensitive: bool = False) -> str:
+        """
+        Searches for a string or regex pattern inside files in the workspace.
+        Supports text files AND binary documents: .docx, .pdf, .xlsx/.xls.
         Args:
-            query: The text to search for. Also accepts 'path' as an alias.
-            pattern: Glob pattern for files (e.g., '*.py').
+            query: The text or regex pattern to search for. Also accepts 'path' as an alias.
+            pattern: Glob pattern for files (e.g., '*.py', '*.pdf', '*.docx').
             recursive: Whether to search subdirectories.
+            use_regex: If True, treats query as a regex pattern.
+            case_sensitive: Whether the search is case-sensitive (default: False).
         """
         # Accept 'path' as alias for 'query' (some models use this name)
         if not query and path:
@@ -1896,45 +1969,103 @@ class SearchTools(_WorkspaceMixin):
         if not query:
             return "Error: provide a search query (query parameter)."
         try:
-            results = []
             import fnmatch
-            
+
+            # Compile regex once
+            flags = 0 if case_sensitive else re.IGNORECASE
+            if use_regex:
+                regex = re.compile(query, flags)
+            else:
+                regex = re.compile(re.escape(query), flags)
+
+            results = []
+            binary_files_searched = 0
+            text_files_searched = 0
+
             search_path = self.root_dir
             for root, dirs, files in os.walk(search_path):
                 if not recursive and root != search_path:
                     continue
-                
+
                 for filename in fnmatch.filter(files, pattern):
                     if filename.startswith('.'): continue
-                    
+
                     full_path = os.path.join(root, filename)
                     rel_path = os.path.relpath(full_path, self.root_dir)
-                    
+                    ext = os.path.splitext(filename)[1].lower()
+
                     try:
-                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            for i, line in enumerate(f, 1):
-                                if query.lower() in line.lower():
-                                    results.append(f"{rel_path}:{i}: {line.strip()}")
+                        # ── Binary document: extract text first ──
+                        if ext in self.BINARY_EXTENSIONS:
+                            binary_files_searched += 1
+                            text = self._extract_text(full_path, ext)
+                            if not text:
+                                continue
+                            for i, line in enumerate(text.split('\n'), 1):
+                                if regex.search(line):
+                                    # Show match with surrounding context
+                                    match = regex.search(line)
+                                    start = max(0, match.start() - 40)
+                                    end = min(len(line), match.end() + 40)
+                                    snippet = line[start:end].strip()
+                                    if start > 0:
+                                        snippet = '...' + snippet
+                                    if end < len(line):
+                                        snippet = snippet + '...'
+                                    results.append(f"{rel_path}:~{i}: {snippet}")
                                     if len(results) > 50:
-                                        return "Too many results (truncated):\n" + "\n".join(results[:50])
+                                        return self._format_results(results, query,
+                                                                    text_files_searched,
+                                                                    binary_files_searched,
+                                                                    truncated=True)
+                        # ── Plain text file ──
+                        else:
+                            text_files_searched += 1
+                            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                for i, line in enumerate(f, 1):
+                                    if regex.search(line):
+                                        results.append(f"{rel_path}:{i}: {line.strip()}")
+                                        if len(results) > 50:
+                                            return self._format_results(results, query,
+                                                                        text_files_searched,
+                                                                        binary_files_searched,
+                                                                        truncated=True)
                     except Exception:
                         continue
-            
-            if not results:
-                return f"No matches found for '{query}'."
-            
-            return "\n".join(results)
+
+            return self._format_results(results, query,
+                                        text_files_searched,
+                                        binary_files_searched)
         except PermissionError:
             raise
+        except re.error as e:
+            return f"Invalid regex pattern '{query}': {str(e)}"
         except Exception as e:
             return f"Error searching files: {str(e)}"
+
+    def _format_results(self, results: list, query: str,
+                        text_count: int, binary_count: int,
+                        truncated: bool = False) -> str:
+        """Format search results with statistics."""
+        stats = f"[Searched: {text_count} text + {binary_count} document files]"
+        if not results:
+            return f"No matches found for '{query}'. {stats}"
+        header = f"Found {len(results)} match(es). {stats}"
+        if truncated:
+            header += " (results truncated at 50)"
+        return header + "\n" + "\n".join(results[:50])
 
     def get_tools(self):
         return [
             StructuredTool.from_function(
                 func=self.search_files,
                 name="search_files",
-                description="Searches for a specific string within files in the workspace. Returns file names and line numbers."
+                description=(
+                    "Searches for a text string or regex pattern inside files in the workspace. "
+                    "Supports plain text files AND binary documents: .docx, .pdf, .xlsx. "
+                    "Returns file names, line numbers, and matching snippets. "
+                    "Use pattern='*.pdf' to limit search to specific file types."
+                )
             )
         ]
 

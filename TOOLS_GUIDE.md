@@ -15,8 +15,11 @@ Basic and advanced operations within the workspace.
 *   **replace_file_content** ⭐ (New): 
     *   *Function:* Surgically replaces a specific block of text based on an exact integer line range (`start_line`, `end_line`).
     *   *Advantage:* Extremely safe for large files; bypasses the string-matching escaping bugs inherent to weak LLMs.
-*   **search_files** ⭐ (New):
-    *   *Function:* Searches for a string across all files in the workspace (or matching a pattern like `*.py`).
+*   **search_files** ⭐⭐ (Enhanced):
+    *   *Function:* Searches for a text string or **regex pattern** across all files in the workspace.
+    *   *Supports:* Plain text files **AND binary documents**: `.docx`, `.pdf`, `.xlsx`/`.xls`.
+    *   *New Parameters:* `use_regex` (treat query as regex), `case_sensitive`.
+    *   *Tip:* Use `pattern='*.pdf'` to limit search to specific file types.
 *   **count_pattern_in_file** ⭐ (New):
     *   *Function:* Efficiently counts occurrences of a regex pattern in a specific file. Great for analyzing large log files without loading them into memory.
 *   **copy_file / move_file / delete_file**: Standard file operations.
