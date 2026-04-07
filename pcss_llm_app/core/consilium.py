@@ -126,10 +126,12 @@ class ConsiliumOrchestrator:
         skeptic_model: str = None,
         max_rounds: int = 2,
         log_callback=None,
-        executor_instructions: str = ""
+        executor_instructions: str = "",
+        base_url: str = "https://llm.hpc.pcss.pl/v1"
     ):
         self.api_key = api_key
         self.workspace_path = workspace_path
+        self.base_url = base_url
         self.max_rounds = max_rounds
         self._log_callback = log_callback
         self._is_cancelled = False
@@ -169,6 +171,7 @@ class ConsiliumOrchestrator:
             max_tokens=ex_max_tokens,
             system_prompt_additions=ex_sys_prompt,
             context_window=ex_ctx,
+            base_url=self.base_url,
         )
         
         # === Create Reviewer Engine (read-only tools) ===
@@ -186,6 +189,7 @@ class ConsiliumOrchestrator:
             system_prompt_additions=rv_sys_prompt,
             context_window=rv_ctx,
             tool_filter=READONLY_TOOLS,
+            base_url=self.base_url,
         )
         
         # === Create Skeptic Engine (read-only tools) ===
@@ -203,6 +207,7 @@ class ConsiliumOrchestrator:
             system_prompt_additions=sk_sys_prompt,
             context_window=sk_ctx,
             tool_filter=READONLY_TOOLS,
+            base_url=self.base_url,
         )
     
     # ── Public API ────────────────────────────────────────────────────────

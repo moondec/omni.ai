@@ -90,3 +90,14 @@ class ConfigManager:
     def set_workspace_path(self, path):
         self._config["workspace_path"] = str(path)
         self.save_config()
+
+    def get_base_url(self):
+        """
+        Returns the LLM API base URL from settings.
+        Default: https://llm.hpc.pcss.pl/v1
+        """
+        return self._config.get("base_url", "https://llm.hpc.pcss.pl/v1")
+
+    def set_base_url(self, url):
+        self._config["base_url"] = str(url)
+        self.save_config()

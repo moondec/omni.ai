@@ -157,6 +157,29 @@ Recommended if you prefer not to use Conda or encounter installation issues.
 
 1.  **API Key**: On first launch, enter your PCSS Cloud API Token (corresponds to your active Grant). See [MODEL_GUIDE.md](MODEL_GUIDE.md) for more information.
 2.  **Workspace**: In **Settings**, select the directory where the Agent is allowed to operate (Default: `~/Documents/Bielik_Workspace`).
+3.  **LLM Server URL (`base_url`)**: The application supports connecting to **any OpenAI-compatible API server** — not only PCSS HPC. To change the server, edit the `base_url` field in `settings.json`:
+
+    ```json
+    {
+        "workspace_path": "/path/to/workspace",
+        "model": "your-model-name",
+        "theme": "Cobalt",
+        "base_url": "https://llm.hpc.pcss.pl/v1"
+    }
+    ```
+
+    **Examples for popular local servers:**
+
+    | Server | `base_url` value |
+    | :--- | :--- |
+    | **PCSS HPC** (default) | `https://llm.hpc.pcss.pl/v1` |
+    | **LM Studio** | `http://127.0.0.1:1234/v1` |
+    | **Ollama** | `http://127.0.0.1:11434/v1` |
+    | **vLLM** (local) | `http://127.0.0.1:8000/v1` |
+    | **text-generation-webui** | `http://127.0.0.1:5000/v1` |
+
+    > [!NOTE]
+    > The `base_url` is propagated to **all components**: Chat mode, Agent mode, Consilium (multi-agent), OCR, Vision, and Web Search tools. Changing it in one place (`settings.json`) is sufficient — no code modifications required.
 
 ## ▶️ Usage
 

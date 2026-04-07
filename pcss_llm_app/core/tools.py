@@ -952,12 +952,12 @@ class FolderTools(_WorkspaceMixin):
         ]
 
 class OCRTools(_WorkspaceMixin):
-    def __init__(self, root_dir: str, api_key: str):
+    def __init__(self, root_dir: str, api_key: str, base_url: str = "https://llm.hpc.pcss.pl/v1"):
         self.root_dir = root_dir
         self.api_key = api_key
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://llm.hpc.pcss.pl/v1"
+            base_url=base_url
         )
         self.model = "Nanonets-OCR-s"
 
@@ -1068,12 +1068,12 @@ class PandocTools(_WorkspaceMixin):
 
 
 class VisionTools(_WorkspaceMixin):
-    def __init__(self, root_dir: str, api_key: str, model_name: str = None):
+    def __init__(self, root_dir: str, api_key: str, model_name: str = None, base_url: str = "https://llm.hpc.pcss.pl/v1"):
         self.root_dir = root_dir
         self.api_key = api_key
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://llm.hpc.pcss.pl/v1"
+            base_url=base_url
         )
         self.model = model_name or "Qwen3-VL-235B-A22B-Instruct"
         self.vision_available = True

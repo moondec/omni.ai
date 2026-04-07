@@ -1234,7 +1234,8 @@ class MainWindow(QMainWindow):
                     reviewer_model=rv_model,
                     skeptic_model=sk_model,
                     log_callback=self.agent_logger.log_message.emit,
-                    executor_instructions=instructions
+                    executor_instructions=instructions,
+                    base_url=self.config.get_base_url()
                 )
                 
                 self.agent_display.append(f"<b>System:</b> 🏛️ Consilium '{name}' initialized.<br>")
@@ -1252,7 +1253,8 @@ class MainWindow(QMainWindow):
                     few_shot_examples=top_examples,
                     max_tokens=max_tokens,
                     system_prompt_additions=system_prompt_additions,
-                    context_window=context_window
+                    context_window=context_window,
+                    base_url=self.config.get_base_url()
                 )
                 self.agent_display.append(f"<b>System:</b> Agent '{name}' initialized with profile: {profile_name}<br>")
                 self.agent_display.append(f"<b>System:</b> Active LLM Model: {model} (Loaded operational rules)<br>")

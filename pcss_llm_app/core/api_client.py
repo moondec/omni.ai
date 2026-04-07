@@ -17,7 +17,7 @@ class PcssApiClient:
         if api_key:
             self.client = OpenAI(
                 api_key=api_key,
-                base_url="https://llm.hpc.pcss.pl/v1"
+                base_url=self.config.get_base_url()
             )
 
     def is_configured(self):

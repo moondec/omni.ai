@@ -82,10 +82,12 @@ class LangChainAgentEngine:
                  log_callback=None, custom_instructions: str = None, 
                  llm_instructions: str = None, few_shot_examples: List[tuple] = None,
                  max_tokens: int = 4096, system_prompt_additions: str = None,
-                 context_window: int = 0, tool_filter: set = None):
+                 context_window: int = 0, tool_filter: set = None,
+                 base_url: str = "https://llm.hpc.pcss.pl/v1"):
         self.api_key = api_key
         self.model_name = model_name
         self.workspace_path = workspace_path
+        self.base_url = base_url
         self.log_callback = log_callback
         self.custom_instructions = custom_instructions or ""
         self.llm_instructions = llm_instructions or ""
@@ -185,7 +187,7 @@ class LangChainAgentEngine:
         # 1. Initialize LLM with performance optimizations
         self.llm = ChatOpenAI(
             api_key=self.api_key,
-            base_url="https://llm.hpc.pcss.pl/v1",
+            base_url=self.base_url,
             model=self.model_name,
             temperature=0.2,  # Small randomness to prevent deterministic loops
             max_tokens=self.max_tokens,  # Dynamic token limit based on LLM profile
@@ -209,7 +211,7 @@ class LangChainAgentEngine:
         self.tools.extend(doc_tools.get_tools())
 
         # Add OCR Tools
-        ocr_tools = OCRTools(root_dir=str(self.workspace_path), api_key=self.api_key)
+        ocr_tools = OCRTools(root_dir=str(self.workspace_path), api_key=self.api_key, base_url=self.base_url)
         self.tools.extend(ocr_tools.get_tools())
 
         # Add Counting Tool
@@ -226,14 +228,14 @@ class LangChainAgentEngine:
 
         # Vision tools - specifically use Qwen3-VL for image analysis
         vision_model = "Qwen3-VL-235B-A22B-Instruct"
-        vision_tools = VisionTools(root_dir=str(self.workspace_path), api_key=self.api_key, model_name=vision_model)
+        vision_tools = VisionTools(root_dir=str(self.workspace_path), api_key=self.api_key, model_name=vision_model, base_url=self.base_url)
         self.tools.extend(vision_tools.get_tools())
 
         # Add Web Search Tools
         web_search_tools = WebSearchTools(
             api_key=self.api_key, 
             model_name=self.model_name,
-            base_url="https://llm.hpc.pcss.pl/v1"
+            base_url=self.base_url
         )
         self.tools.extend(web_search_tools.get_tools())
 
