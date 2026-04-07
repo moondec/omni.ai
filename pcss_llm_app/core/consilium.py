@@ -152,8 +152,8 @@ class ConsiliumOrchestrator:
         agent_profiles_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "agent_profiles")
         )
-        reviewer_instructions = self._load_agent_profile(agent_profiles_dir, "consilium_reviewer.yaml")
-        skeptic_instructions = self._load_agent_profile(agent_profiles_dir, "consilium_skeptic.yaml")
+        reviewer_instructions = self._load_agent_profile(agent_profiles_dir, "consilium_roles/consilium_reviewer.yaml")
+        skeptic_instructions = self._load_agent_profile(agent_profiles_dir, "consilium_roles/consilium_skeptic.yaml")
         
         # === Create Executor Engine (full toolset) ===
         ex_llm_rules, ex_max_tokens, ex_sys_prompt, ex_ctx = load_llm_profile(

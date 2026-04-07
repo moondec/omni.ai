@@ -11,6 +11,12 @@ All notable changes to the Bielik (PCSS LLM Client) project will be documented i
   - **Read-Only Tool Filter**: Reviewer and Skeptic models are programmatically restricted to non-destructive tools (`view_file`, `search_files`, etc.) to prevent workspace conflicts.
   - **UI Integration**: New toggle in the Agent tab to activate Consilium Mode and select models for each role. Debug console prefixes (`[EXECUTOR]`, `[REVIEWER]`, `[SKEPTIC]`) trace the collaboration.
 
+### Changed
+- **Consilium Profiles**: Moved Consilium-specific agent profiles (`consilium_reviewer.yaml`, `consilium_skeptic.yaml`) into a dedicated `consilium_roles/` subdirectory to declutter the main profile selection menu in the UI.
+
+### Fixed
+- **Agent Feedback Loops**: Added definitive "Conversation Rules" to strict agent profiles (`reviewer.yaml`, `bielik_pisarz.yaml`, and consilium roles). This "Mode Switching" prevents agents from restarting their hardcoded procedural workflows from step zero when the user provides conversational feedback or argues with their analysis.
+
 ## [0.4.2] - 2026-04-07
 
 ### Enhanced
