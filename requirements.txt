@@ -37,3 +37,16 @@ pandas
 
 # Utilities
 pygments
+
+# ---------------------------------------------------------------------------
+# Smart Document Intelligence (OPTIONAL — heavy dependency, ~1 GB)
+# Enables: smart_read_document, translate_document, extract_document_images
+# These tools use AI-powered layout analysis to parse PDFs and DOCX files
+# "like a human" — understanding structure, tables, and images.
+#
+# To activate, install manually:
+#   pip install docling pillow
+#
+# The agent will auto-detect docling and enable the tools at startup.
+# Without docling, the app works normally with standard read_pdf/read_docx.
+# ---------------------------------------------------------------------------

@@ -243,6 +243,24 @@ class LangChainAgentEngine:
         chart_tools = ChartTools(root_dir=str(self.workspace_path))
         self.tools.extend(chart_tools.get_tools())
 
+        # Add Smart Document Tools (Docling-powered, optional)
+        # Requires: pip install docling pillow
+        try:
+            from pcss_llm_app.core.smart_doc_tools import SmartDocumentTools, DOCLING_AVAILABLE
+            if DOCLING_AVAILABLE:
+                smart_doc = SmartDocumentTools(
+                    root_dir=str(self.workspace_path),
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    log_callback=self._log
+                )
+                self.tools.extend(smart_doc.get_tools())
+                self._log("✓ Smart Document Tools (Docling) loaded")
+            else:
+                self._log("ℹ Smart Document Tools unavailable (install: pip install docling pillow)")
+        except ImportError:
+            self._log("ℹ Smart Document Tools unavailable (install: pip install docling pillow)")
+
         # Add Python REPL with Profile limits
         repl = PythonREPL(
             root_dir=str(self.workspace_path),
