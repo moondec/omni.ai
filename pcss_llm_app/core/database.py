@@ -3,8 +3,12 @@ import datetime
 from pathlib import Path
 
 class DatabaseManager:
-    def __init__(self, db_path="conversations.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        if db_path is None:
+            project_dir = Path(__file__).resolve().parent.parent.parent
+            self.db_path = str(project_dir / "conversations.db")
+        else:
+            self.db_path = db_path
         self._init_db()
 
     def _get_connection(self):

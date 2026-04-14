@@ -41,7 +41,7 @@ from pcss_llm_app.core.tools import (
     DocumentTools, OCRTools, CountPatternTool, FolderTools, 
     PandocTools, VisionTools, WebSearchTools, ChartTools, 
     PythonREPL, SearchTools, ViewFileTool, ReplaceFileContentTool, 
-    TerminalTool, UpdateContextTool
+    TerminalTool, UpdateContextTool, AudioTools
 )
 
 try:
@@ -213,6 +213,10 @@ class LangChainAgentEngine:
         # Add OCR Tools
         ocr_tools = OCRTools(root_dir=str(self.workspace_path), api_key=self.api_key, base_url=self.base_url)
         self.tools.extend(ocr_tools.get_tools())
+
+        # Add Audio Tools
+        audio_tools = AudioTools(root_dir=str(self.workspace_path), api_key=self.api_key, base_url=self.base_url)
+        self.tools.extend(audio_tools.get_tools())
 
         # Add Counting Tool
         counting_tool = CountPatternTool(root_dir=str(self.workspace_path))

@@ -1114,8 +1114,8 @@ class MainWindow(QMainWindow):
             self.chat_worker.cancel()
             self.append_log("User cancelled chat request. Waiting for background task to complete...")
             self._append_message("System", "⚠️ Cancellation requested, halting background process...")
+            self.chat_stop_btn.setEnabled(False)
             # We don't forcibly kill it anymore. The worker will exit smoothly or block on TCP logic.
-            self._reset_chat_ui()
     
     def _reset_chat_ui(self):
         """Reset chat UI after response/error/cancel."""
@@ -1123,7 +1123,9 @@ class MainWindow(QMainWindow):
         self.chat_send_btn.setEnabled(True)
         self.chat_stop_btn.setEnabled(False)
         self.message_input.setFocus()
-        self.chat_worker = None
+        if getattr(self, 'chat_worker', None):
+            self.chat_worker.deleteLater()
+            self.chat_worker = None
 
     def _append_message(self, role, text):
         html = markdown.markdown(text, extensions=['extra', 'nl2br'])
@@ -1539,8 +1541,10 @@ class MainWindow(QMainWindow):
             self.agent_worker.cancel()
             self.append_log("User cancelled agent task. Waiting for background task to complete...")
             self.agent_display.append("<b>System:</b> ⚠️ Agent cancellation requested, halting background process...<br>")
+            self.agent_status_label.setText("Stopping...")
+            self.agent_stop_btn.setEnabled(False)
             # Smooth shutdown instead of terminate()
-            self._reset_agent_ui()
+            # Waiting for handle_agent_cancelled signal
     
     def _reset_agent_ui(self):
         """Reset agent UI after response/error/cancel."""
@@ -1549,7 +1553,9 @@ class MainWindow(QMainWindow):
         self.agent_send_btn.setEnabled(True)
         self.agent_stop_btn.setEnabled(False)
         self.agent_input.setFocus()
-        self.agent_worker = None
+        if getattr(self, 'agent_worker', None):
+            self.agent_worker.deleteLater()
+            self.agent_worker = None
 
     # --- Common Methods ---
     def refresh_history(self):

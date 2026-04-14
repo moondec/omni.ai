@@ -95,3 +95,14 @@ class PcssApiClient:
          return self.client.beta.threads.messages.list(
              thread_id=thread_id
          )
+
+    def transcribe_audio(self, file_path, model="whisper-large-v3-turbo:0.8b"):
+        """ Transcribe audio file using Whisper """
+        if not self.is_configured():
+            raise ValueError("API Client not configured")
+        with open(file_path, "rb") as audio_file:
+            transcript = self.client.audio.transcriptions.create(
+                model=model,
+                file=audio_file
+            )
+        return transcript.text

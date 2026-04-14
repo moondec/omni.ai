@@ -2208,3 +2208,52 @@ class UpdateContextTool(_WorkspaceMixin):
                 args_schema=UpdateContextSchema
             )
         ]
+
+class TranscribeAudioSchema(BaseModel):
+    file_path: str = Field(description="The path to the audio file (mp3, wav, m4a).")
+    model: str = Field(default="whisper-large-v3-turbo:0.8b", description="The whisper model to use for transcription.")
+
+class AudioTools(_WorkspaceMixin):
+    def __init__(self, root_dir: str, api_key: str, base_url: str = "https://llm.hpc.pcss.pl/v1"):
+        self.root_dir = root_dir
+        self.api_key = api_key
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url
+        )
+
+    def transcribe_audio(self, file_path: str, model: str = "whisper-large-v3-turbo:0.8b") -> str:
+        """
+        Transcribes an audio file using the provided Whisper model.
+        Args:
+            file_path: Path to the audio file locally.
+            model: The whisper model to use.
+        """
+        try:
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return f"Error: File {file_path} not found."
+
+            with open(full_path, "rb") as audio_file:
+                transcript = self.client.audio.transcriptions.create(
+                    model=model,
+                    file=audio_file
+                )
+            
+            return transcript.text
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error transcribing audio: {str(e)}"
+
+    def get_tools(self):
+        from langchain_core.tools import StructuredTool
+
+        return [
+            StructuredTool.from_function(
+                func=self.transcribe_audio,
+                name="transcribe_audio",
+                description="Transcribes an audio file (e.g. mp3, wav) into text. Returns the transcribed text.",
+                args_schema=TranscribeAudioSchema
+            )
+        ]
