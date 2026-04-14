@@ -39,9 +39,14 @@ The application features a powerful Agent capable of performing complex, multi-s
 -   `playwright_*` — 33+ tools for headless browser control (navigate, click, type, screenshot) using **Model Context Protocol**
 
 **Document Processing**
--   `read_pdf`, `read_docx`, `read_xlsx`, `save_document`, `convert_document` — read and generate files
+-   `read_pdf`, `read_docx`, `read_xlsx`, `save_document`,-   `convert_document` — read and generate files
 -   `ocr_image` — extract text from images/scans (Nanonets OCR)
 -   `generate_chart` — generate charts and visualizations from data
+
+### 3. 🎙️ Audio Transcription & Dictation
+-   **Configurable Transcription**: Choose your preferred Whisper model (e.g., `whisper-large-v3-turbo:0.8b`) in Settings to use with the `transcribe_audio` tool.
+-   **System-wide Dictation App**: A standalone utility (`pcss_dictation.py`) that runs in the tray and allows you to dictate text into **any** application via a global hotkey (`Left Ctrl + Space`).
+-   **Secure Keys**: Both apps share a secure connection to PCSS via the system Keyring.
 
 ### 4. 💬 Chat vs. 🤖 Agent (Important!)
 
@@ -158,6 +163,9 @@ Recommended if you prefer not to use Conda or encounter installation issues.
     pip install -r requirements.txt
     ```
 
+    > [!TIP]
+    > **Dictation App Dependencies**: Running the dictation utility for the first time will ensure `pynput`, `sounddevice`, and `soundfile` are available. Check `requirements.txt` for details.
+
 4.  **🧠 Smart Document Intelligence (Optional)**
 
     The application includes advanced tools for visual and layout-aware document analysis powered by **Docling** (IBM, MIT license). These tools run **100% locally** — no data leaves your machine.
@@ -225,10 +233,17 @@ Recommended if you prefer not to use Conda or encounter installation issues.
 - **venv (macOS/Linux)**: `source venv/bin/activate`
 - **venv (Windows)**: `venv\Scripts\activate`
 
-### 2. Run Application
 ```bash
 python pcss_llm_app/main.py
 ```
+
+### 3. Run Dictation Utility (Standalone)
+To use the global "Voice-to-Text" feature in any application (Terminal, VSCode, etc.):
+```bash
+python pcss_dictation.py
+```
+- **Hotkey**: Hold `Left Ctrl + Space` to record. Release to transcribe and type.
+- **Permissions**: On macOS, you must grant "Accessibility" permissions to the Terminal/Python in System Settings.
 
 ## ⚠️ Conda update
 

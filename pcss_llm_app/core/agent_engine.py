@@ -83,11 +83,13 @@ class LangChainAgentEngine:
                  llm_instructions: str = None, few_shot_examples: List[tuple] = None,
                  max_tokens: int = 4096, system_prompt_additions: str = None,
                  context_window: int = 0, tool_filter: set = None,
-                 base_url: str = "https://llm.hpc.pcss.pl/v1"):
+                 base_url: str = "https://llm.hpc.pcss.pl/v1",
+                 transcription_model: str = "whisper-large-v3-turbo:0.8b"):
         self.api_key = api_key
         self.model_name = model_name
         self.workspace_path = workspace_path
         self.base_url = base_url
+        self.transcription_model = transcription_model
         self.log_callback = log_callback
         self.custom_instructions = custom_instructions or ""
         self.llm_instructions = llm_instructions or ""
@@ -215,7 +217,7 @@ class LangChainAgentEngine:
         self.tools.extend(ocr_tools.get_tools())
 
         # Add Audio Tools
-        audio_tools = AudioTools(root_dir=str(self.workspace_path), api_key=self.api_key, base_url=self.base_url)
+        audio_tools = AudioTools(root_dir=str(self.workspace_path), api_key=self.api_key, base_url=self.base_url, default_model=self.transcription_model)
         self.tools.extend(audio_tools.get_tools())
 
         # Add Counting Tool

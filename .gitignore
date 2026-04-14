@@ -23,5 +23,8 @@ agent_debug.log
 CLAUDE.md
 status.md
 test_venv/
-agent_debug_*.log
 pcss_llm_app/benchmarks/results/*.json
+
+# Local and test files
+dictation_settings.json
+test_tmp/

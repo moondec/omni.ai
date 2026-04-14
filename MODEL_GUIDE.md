@@ -38,6 +38,8 @@ This document provides a summary of models available in the application, categor
 | **Vision** | `Qwen3-VL-235B-A22B-Instruct` | **Multi-modal (Active)**: Visual analysis & OCR |
 | **Tools** | `Nanonets-OCR-s` | OCR (not for chat) |
 | **Experimental** | `gpt-oss_120b` | PCSS experimental |
+| **Transcription** | `whisper-large-v3-turbo:0.8b` | **Default Transcription**: Fast & Precise |
+| **Transcription** | `whisper-large-v3` | High-fidelity transcription |
 
 ## Agent Features
 
@@ -146,6 +148,12 @@ Models trained specifically to understand programming languages and reasoning.
 - **gpt-oss_120b**
   - **Type:** Experimental / Internal PCSS model.
   - **Use:** Used for testing LLM system performance.
+
+### 🎙️ Audio Transcription Models
+- **Whisper Turbo** (`whisper-large-v3-turbo:0.8b`)
+  - **Best for:** Real-time dictation and fast audio processing. Default for the Dictation App.
+- **Whisper Large** (`whisper-large-v3`)
+  - **Best for:** Extremely high fidelity transcription of complex audio or multiple speakers.
 
 ---
 

@@ -86,6 +86,11 @@ class SettingsDialog(QDialog):
         self.base_url_input.setPlaceholderText("https://llm.hpc.pcss.pl/v1")
         settings_dlg_layout.addRow("LLM Server URL:", self.base_url_input)
 
+        # Transcription Model
+        self.transcription_model_input = QLineEdit(self.config.get("transcription_model", "whisper-large-v3-turbo:0.8b"))
+        self.transcription_model_input.setPlaceholderText("whisper-large-v3-turbo:0.8b")
+        settings_dlg_layout.addRow("Transcription Model:", self.transcription_model_input)
+
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_settings)
         settings_dlg_layout.addRow(save_btn)
@@ -115,6 +120,10 @@ class SettingsDialog(QDialog):
         base_url = self.base_url_input.text().strip()
         if base_url:
             self.config.set_base_url(base_url)
+            
+        transcription_model = self.transcription_model_input.text().strip()
+        if transcription_model:
+            self.config.set("transcription_model", transcription_model)
             
         self.accept()
 
@@ -1268,7 +1277,8 @@ class MainWindow(QMainWindow):
                     max_tokens=max_tokens,
                     system_prompt_additions=system_prompt_additions,
                     context_window=context_window,
-                    base_url=self.config.get_base_url()
+                    base_url=self.config.get_base_url(),
+                    transcription_model=self.config.get("transcription_model", "whisper-large-v3-turbo:0.8b")
                 )
                 self.agent_display.append(f"<b>System:</b> Agent '{name}' initialized with profile: {profile_name}<br>")
                 self.agent_display.append(f"<b>System:</b> Active LLM Model: {model} (Loaded operational rules)<br>")

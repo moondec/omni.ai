@@ -47,6 +47,13 @@ Basic and advanced operations within the workspace.
     *   *Features:* Automatically downloads and embeds remote images into the final document.
 *   **convert_document**: Converts files between formats using Pandoc.
 
+## 🎙️ Audio Transcription (New in v0.6.0)
+The Agent can now "hear" and transcribe audio files directly.
+*   **transcribe_audio** ⭐:
+    *   *Function:* Transcribes audio files (WAV, MP3, M4A, etc.) to text using high-performance Whisper models on PCSS.
+    *   *Configurable:* The model can be changed in the application Settings (default: `whisper-large-v3-turbo:0.8b`).
+    *   *Use Case:* "Read this recording and summarize current meeting notes."
+
 ## 🌐 Internet & Research
 *   **search_web**: General DuckDuckGo search for links/snippets.
 *   **search_news**: Specialized search for the latest news articles.

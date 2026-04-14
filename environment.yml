@@ -58,3 +58,7 @@ dependencies:
   # Internet Search
     - ddgs              # DuckDuckGo search
     - pdfplumber        # Rich PDF extraction
+  # Dictation Utility
+    - pynput            # Keyboard simulator and hotkeys
+    - sounddevice       # Audio recording stream
+    - soundfile         # WAV file saving

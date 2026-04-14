@@ -37,6 +37,9 @@ pandas
 
 # Utilities
 pygments
+pynput
+sounddevice
+soundfile
 
 # ---------------------------------------------------------------------------
 # Smart Document Intelligence (OPTIONAL — heavy dependency, ~1 GB)

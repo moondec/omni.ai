@@ -2211,24 +2211,26 @@ class UpdateContextTool(_WorkspaceMixin):
 
 class TranscribeAudioSchema(BaseModel):
     file_path: str = Field(description="The path to the audio file (mp3, wav, m4a).")
-    model: str = Field(default="whisper-large-v3-turbo:0.8b", description="The whisper model to use for transcription.")
+    model: str = Field(default=None, description="The whisper model to use for transcription. Leave empty to use system default.")
 
 class AudioTools(_WorkspaceMixin):
-    def __init__(self, root_dir: str, api_key: str, base_url: str = "https://llm.hpc.pcss.pl/v1"):
+    def __init__(self, root_dir: str, api_key: str, base_url: str = "https://llm.hpc.pcss.pl/v1", default_model: str = "whisper-large-v3-turbo:0.8b"):
         self.root_dir = root_dir
         self.api_key = api_key
+        self.default_model = default_model
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url
         )
 
-    def transcribe_audio(self, file_path: str, model: str = "whisper-large-v3-turbo:0.8b") -> str:
+    def transcribe_audio(self, file_path: str, model: str = None) -> str:
         """
         Transcribes an audio file using the provided Whisper model.
         Args:
             file_path: Path to the audio file locally.
-            model: The whisper model to use.
+            model: The whisper model to use. If None, uses default.
         """
+        actual_model = model if model else self.default_model
         try:
             full_path = self._get_full_path(file_path)
             if not os.path.exists(full_path):
@@ -2236,7 +2238,7 @@ class AudioTools(_WorkspaceMixin):
 
             with open(full_path, "rb") as audio_file:
                 transcript = self.client.audio.transcriptions.create(
-                    model=model,
+                    model=actual_model,
                     file=audio_file
                 )
             
