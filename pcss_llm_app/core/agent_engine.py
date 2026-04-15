@@ -328,6 +328,7 @@ class LangChainAgentEngine:
     def run(self, input_text: str, chat_history: List = None, initial_scratchpad: str = ""):
         # RESET format error counter on new user message to break stagnation loops
         self._consecutive_format_errors = 0
+        self._hallucination_gate_fired = False  # Allow one gate check per run
         self._is_cancelled = False
         
         if chat_history is None:
@@ -725,13 +726,20 @@ Begin!"""
                 final_ans = output.split("Final Answer:")[-1].strip()
 
                 # Anti-hallucination gate: do not accept "done" claims without any verification tool usage.
+                # IMPORTANT: This gate fires AT MOST ONCE per run() to prevent infinite loops
+                # when the answer legitimately contains claim-like words (e.g. "Gotowe" as a UI button).
                 verification_tools = {"list_directory", "view_file", "run_terminal", "run_python", "search_files", "update_context"}
                 claim_markers = [
-                    "utworzy", "stworzy", "zakończ", "zrobion", "gotow",
-                    "wszystkie wymagania", "spełnia", "zaimplementowan", "completed", "done"
+                    "utworzyłem", "stworzyłem", "zakończono", "zrobione", "gotowe jest",
+                    "wszystkie wymagania", "spełnia wymagania", "zaimplementowano",
+                    "completed the task", "done with the task", "task is done",
+                    "plik został utworzony", "skrypt został", "aplikacja została"
                 ]
                 looks_like_claim = any(m in final_ans.lower() for m in claim_markers)
-                if looks_like_claim and (last_executed_tool not in verification_tools):
+                if not hasattr(self, '_hallucination_gate_fired'):
+                    self._hallucination_gate_fired = False
+                if looks_like_claim and (last_executed_tool not in verification_tools) and not self._hallucination_gate_fired:
+                    self._hallucination_gate_fired = True  # Fire only once
                     self._log("⚠️ Final Answer appears to claim completion without verification. Forcing validation step.")
                     gate_obs = (
                         "\nObservation: SYSTEM CHECK: You are claiming completion. "
