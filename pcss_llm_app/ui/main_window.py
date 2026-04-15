@@ -2,6 +2,8 @@ import sys
 import os
 import glob
 import yaml
+import platform
+import subprocess
 from PySide6.QtCore import Qt, QSize, QTimer, QThread, Signal, QObject, QEvent, QDir, QFileInfo
 from PySide6.QtGui import QAction, QIcon, QTextCursor, QPixmap
 from PySide6.QtWidgets import (
@@ -425,24 +427,26 @@ class MainWindow(QMainWindow):
             self.file_tree.setRootIndex(new_root)
 
     def on_file_double_clicked(self, index):
-        """Open the double-clicked file in the Editor tab."""
+        """Open the double-clicked file in the Editor tab, or with system default for binary files."""
         file_path = self.fs_model.filePath(index)
         if not os.path.isfile(file_path):
             return  # Ignore directory double-click (expand/collapse)
 
-        # Only open text-based files
+        # Text-based files supported by the built-in editor
         TEXT_EXTENSIONS = {
             '.py', '.txt', '.md', '.yaml', '.yml', '.json', '.toml',
-            '.cfg', '.ini', '.sh', '.bat', '.csv', '.html', '.css',
+            '.cfg', '.ini', '.sh', '.bat', '.csv', '.html', '.htm', '.css',
             '.js', '.ts', '.xml', '.rst', '.env', '.log',
         }
+        # Extensions that support a rendered preview
+        RENDERABLE_EXTENSIONS = {'.md', '.html', '.htm'}
+
         _, ext = os.path.splitext(file_path)
-        if ext.lower() not in TEXT_EXTENSIONS:
-            QMessageBox.information(
-                self, "Cannot Open",
-                f"File type '{ext}' is not supported in the editor.\n"
-                "Only text-based files can be opened."
-            )
+        ext_lower = ext.lower()
+
+        if ext_lower not in TEXT_EXTENSIONS:
+            # Open binary / non-text files with the system default application
+            self._open_file_with_system(file_path)
             return
 
         try:
@@ -455,6 +459,14 @@ class MainWindow(QMainWindow):
         self._current_editor_file = file_path
         self.editor_file_label.setText(file_path)
         self.editor_edit.setPlainText(content)
+
+        # Show/hide Render Preview checkbox for .md/.html files
+        self.render_checkbox.setChecked(False)
+        self.render_checkbox.setVisible(ext_lower in RENDERABLE_EXTENSIONS)
+
+        # Ensure we show the text editor (not the preview browser)
+        self.editor_edit.setVisible(True)
+        self.editor_preview.setVisible(False)
 
         # Update syntax highlighter for the new file type
         if self._editor_highlighter is not None:
@@ -472,11 +484,26 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(2)
         self.append_log(f"Opened file: {file_path}")
 
+    def _open_file_with_system(self, file_path):
+        """Open a file with the operating system's default application (cross-platform)."""
+        try:
+            system = platform.system()
+            if system == "Darwin":
+                subprocess.Popen(["open", file_path])
+            elif system == "Windows":
+                os.startfile(file_path)
+            else:  # Linux and other Unix-like
+                subprocess.Popen(["xdg-open", file_path])
+            self.append_log(f"Opened '{os.path.basename(file_path)}' with system default app.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error Opening File",
+                f"Could not open file with system application:\n{e}")
+
     # ------------------------------------------------------------------
     #  Editor Tab
     # ------------------------------------------------------------------
     def _init_editor_tab(self):
-        """Create the text editor tab with syntax highlighting."""
+        """Create the text editor tab with syntax highlighting and optional render preview."""
         self._current_editor_file = None
         self._editor_highlighter = None
         layout = QVBoxLayout(self.editor_tab)
@@ -495,6 +522,13 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(save_as_btn)
 
         toolbar.addStretch()
+
+        # Render Preview checkbox (hidden by default, visible only for .md/.html)
+        from PySide6.QtWidgets import QCheckBox
+        self.render_checkbox = QCheckBox("Render Preview")
+        self.render_checkbox.setVisible(False)
+        self.render_checkbox.toggled.connect(self._toggle_render_preview)
+        toolbar.addWidget(self.render_checkbox)
 
         # Language indicator label
         self.editor_lang_label = QLabel("")
@@ -531,6 +565,33 @@ class MainWindow(QMainWindow):
             self.editor_edit.document(), filename=""
         )
         layout.addWidget(self.editor_edit)
+
+        # Render Preview browser (hidden by default, shown when checkbox is toggled)
+        self.editor_preview = QTextBrowser()
+        self.editor_preview.setReadOnly(True)
+        self.editor_preview.setOpenExternalLinks(True)
+        self.editor_preview.setVisible(False)
+        layout.addWidget(self.editor_preview)
+
+    def _toggle_render_preview(self, checked):
+        """Toggle between raw text editor and rendered preview for .md/.html files."""
+        if checked and self._current_editor_file:
+            _, ext = os.path.splitext(self._current_editor_file)
+            raw_text = self.editor_edit.toPlainText()
+
+            if ext.lower() == '.md':
+                rendered_html = markdown.markdown(raw_text, extensions=['extra', 'nl2br'])
+            elif ext.lower() in ('.html', '.htm'):
+                rendered_html = raw_text  # HTML is already renderable
+            else:
+                rendered_html = f"<pre>{raw_text}</pre>"
+
+            self.editor_preview.setHtml(rendered_html)
+            self.editor_edit.setVisible(False)
+            self.editor_preview.setVisible(True)
+        else:
+            self.editor_edit.setVisible(True)
+            self.editor_preview.setVisible(False)
 
     def save_current_file(self):
         """Save editor content to the currently open file."""
@@ -1216,7 +1277,7 @@ class MainWindow(QMainWindow):
             self.append_log(f"Warning: Failed to load LLM profile: {e}")
             return "", 4096, "", 0
 
-    def create_assistant(self):
+    def create_assistant(self, preserve_history=False):
         name = self.agent_name_input.text() or "Assistant"
         # Get instructions from selected profile
         instructions = self.current_profile_instructions
@@ -1240,7 +1301,8 @@ class MainWindow(QMainWindow):
             top_examples = self.db.get_top_rated_interactions(model, limit=3)
             
             self.agent_status_label.setText("Agent Ready")
-            self.agent_history = [] # Reset history
+            if not preserve_history:
+                self.agent_history = [] # Reset history only when not restoring
             
             is_consilium = hasattr(self, 'consilium_checkbox') and self.consilium_checkbox.isChecked()
             
@@ -1631,13 +1693,12 @@ class MainWindow(QMainWindow):
 
             if should_init:
                 self.append_log(f"🔄 Auto-initializing Agent for conversation {conv_id}...")
-                # We need to preserve history specifically, so we don't use the standard create_assistant
-                # which clears history.
-                self.create_assistant()
-                # Restore the loaded history which create_assistant might have cleared
-                hist_copy = self.agent_history[:]
-                self.agent_history = hist_copy
+                # Preserve loaded history during re-initialization
+                self.create_assistant(preserve_history=True)
                     
+            # Force cache invalidation before rendering loaded history
+            self._last_render_state_key = None
+            self._cached_history_len = -1
             self._render_chat()
             
         else:

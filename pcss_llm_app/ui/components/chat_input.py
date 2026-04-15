@@ -13,6 +13,7 @@ class ChatInputWidget(QTextEdit):
         self.setAcceptRichText(False)
         self.setFixedHeight(80)
         self.setAcceptDrops(True)
+        self.setCursorWidth(2)  # Make cursor clearly visible and blinking
         self.workspace_path = "" # To be set by main app for relative paths
 
     def keyPressEvent(self, event):
@@ -21,17 +22,15 @@ class ChatInputWidget(QTextEdit):
             self.send_requested.emit()
             return
 
-        # Up arrow at the beginning of document navigates history
+        # Up arrow navigates history ONLY when input is completely empty
         if event.key() == Qt.Key_Up:
-            cursor = self.textCursor()
-            if cursor.blockNumber() == 0:
+            if not self.toPlainText().strip():
                 self.history_up_requested.emit()
                 return
 
-        # Down arrow at the end of document navigates history
+        # Down arrow navigates history ONLY when input is completely empty
         if event.key() == Qt.Key_Down:
-            cursor = self.textCursor()
-            if cursor.blockNumber() == self.document().blockCount() - 1:
+            if not self.toPlainText().strip():
                 self.history_down_requested.emit()
                 return
 
