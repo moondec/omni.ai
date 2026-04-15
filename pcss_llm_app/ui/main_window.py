@@ -132,7 +132,7 @@ class SettingsDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"PCSS LLM Client v{__version__}")
+        self.setWindowTitle(f"PCSS LLM Client v0.6.4")
         self.setGeometry(100, 100, 1200, 800)
         
         # Set App Icon
@@ -1278,9 +1278,15 @@ class MainWindow(QMainWindow):
             return "", 4096, "", 0
 
     def create_assistant(self, preserve_history=False):
-        name = self.agent_name_input.text() or "Assistant"
+        name = self.agent_name_input.text().strip()
         # Get instructions from selected profile
         instructions = self.current_profile_instructions
+        
+        # Inject Agent Name/Role into instructions if provided
+        if name:
+            name_header = f"Twoje imię/rola to: {name}.\n"
+            instructions = name_header + (instructions or "")
+            
         profile_name = self.profile_combo.currentText()
         
         # Create/Init Engine
