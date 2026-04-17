@@ -36,7 +36,17 @@ class ChatWorker(QThread):
                 self.cancelled.emit()
                 return
                 
-            content = response.choices[0].message.content
+            # Robust extraction of content (handles OpenAI objects, dicts, and raw strings)
+            if isinstance(response, str):
+                content = response
+            elif hasattr(response, 'choices'):
+                content = response.choices[0].message.content
+            elif isinstance(response, dict) and 'choices' in response:
+                content = response['choices'][0]['message']['content']
+            else:
+                self.log_message.emit(f"ChatWorker: Received unusual response type: {type(response).__name__}")
+                content = str(response)
+
             self.log_message.emit("ChatWorker: Response received.")
             self.log_message.emit(f"ChatWorker: Response length: {len(content)} chars.")
             
