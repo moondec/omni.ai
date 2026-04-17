@@ -429,6 +429,15 @@ Begin!"""
         self._log(f"🚀 Execution started for model: {self.model_name} (Tier: {self.profile.tier})")
         self._log(f"📊 Profile Limits: Context={self.profile.context_window} | Observation={self.profile.max_observation_chars} | Blocks={self.profile.max_read_blocks} | Rows={self.profile.max_read_rows}")
         
+        # Inject planning instructions for high-capability models (ULTRA/LARGE)
+        if self.profile.tier <= 2:
+            planning_block = (
+                "\n- PLANNING (complex tasks): In your very first Thought, write a brief numbered plan "
+                "before executing: 'Plan: 1. [action] → 2. [action] → 3. [verify]'. "
+                "This reduces unnecessary back-and-forth significantly.\n"
+            )
+            system_template = system_template.replace("Begin!", planning_block + "Begin!")
+
         prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
 
         max_steps = 100

@@ -69,6 +69,11 @@ class DatabaseManager:
         except sqlite3.OperationalError:
             pass
         
+        # Performance indexes
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_conv_id ON messages(conversation_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_rating ON messages(rating)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at)')
+
         conn.commit()
         conn.close()
 

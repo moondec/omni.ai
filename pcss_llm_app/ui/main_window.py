@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import glob
 import yaml
 import platform
@@ -161,10 +162,19 @@ class MainWindow(QMainWindow):
         self.agent_engine = None
         self.agent_history = []
         self.current_agent_scratchpad = ""
-        
+
+        # Chat streaming state
+        self._chat_messages = []       # List of (display_role, content) for unified rendering
+        self.current_chat_stream = ""  # Accumulates streaming chunks from ChatWorker
+        self.chat_stream_needs_render = False
+
+        # Reasoning panel state (CoT think-tag accumulator)
+        self._accumulated_reasoning = ""
+
         # Worker instances for cancellation
         self.chat_worker = None
         self.agent_worker = None
+        self._optimize_worker = None   # Prompt optimizer worker
         
         # Theme state
         self.current_theme = "Cobalt"
@@ -639,7 +649,12 @@ class MainWindow(QMainWindow):
         self.toggle_console_chat_btn.setCheckable(True)
         self.toggle_console_chat_btn.toggled.connect(self.toggle_console)
         controls_layout.addWidget(self.toggle_console_chat_btn)
-        
+
+        self.chat_optimize_btn = QPushButton("✨ Optimize Prompt")
+        self.chat_optimize_btn.setToolTip("Rewrite prompt using AI for better clarity and precision")
+        self.chat_optimize_btn.clicked.connect(lambda: self.optimize_prompt(self.message_input))
+        controls_layout.addWidget(self.chat_optimize_btn)
+
         layout.addLayout(controls_layout)
         
         # Chat Display
@@ -752,13 +767,47 @@ class MainWindow(QMainWindow):
         self.current_profile_instructions = ""
         self._load_agent_profiles()
 
-        # Agent Chat Display
+        # Agent Chat Display + Reasoning Panel (vertical splitter)
+        self._display_splitter = QSplitter(Qt.Vertical)
+
         self.agent_display = QTextBrowser()
         self.agent_display.setReadOnly(True)
         self.agent_display.setOpenExternalLinks(False)
         self.agent_display.setOpenLinks(False)
         self.agent_display.anchorClicked.connect(self._handle_link_click)
-        agent_layout.addWidget(self.agent_display)
+        self._display_splitter.addWidget(self.agent_display)
+
+        # Reasoning Panel — shows <think> CoT content, hidden until content arrives
+        self.reasoning_frame = QFrame()
+        self.reasoning_frame.setFrameShape(QFrame.StyledPanel)
+        reasoning_outer = QVBoxLayout(self.reasoning_frame)
+        reasoning_outer.setContentsMargins(4, 2, 4, 2)
+        reasoning_outer.setSpacing(2)
+
+        reasoning_header = QHBoxLayout()
+        self.reasoning_toggle_btn = QPushButton("🧠 Rozumowanie modelu (CoT)")
+        self.reasoning_toggle_btn.setCheckable(True)
+        self.reasoning_toggle_btn.setChecked(False)
+        self.reasoning_toggle_btn.setFixedHeight(24)
+        self.reasoning_toggle_btn.toggled.connect(self._toggle_reasoning_body)
+        reasoning_header.addWidget(self.reasoning_toggle_btn)
+        reasoning_header.addStretch()
+        reasoning_outer.addLayout(reasoning_header)
+
+        self.reasoning_body = QFrame()
+        reasoning_body_layout = QVBoxLayout(self.reasoning_body)
+        reasoning_body_layout.setContentsMargins(0, 0, 0, 0)
+        self.reasoning_display = QTextBrowser()
+        self.reasoning_display.setReadOnly(True)
+        self.reasoning_display.setMaximumHeight(200)
+        reasoning_body_layout.addWidget(self.reasoning_display)
+        self.reasoning_body.setVisible(False)
+        reasoning_outer.addWidget(self.reasoning_body)
+
+        self.reasoning_frame.setVisible(False)
+        self._display_splitter.addWidget(self.reasoning_frame)
+        self._display_splitter.setSizes([1, 0])
+        agent_layout.addWidget(self._display_splitter)
 
         # Agent Console Toggle
         self.toggle_console_agent_btn = QPushButton("Show Debug Console")
@@ -788,11 +837,19 @@ class MainWindow(QMainWindow):
         self.agent_input.history_down_requested.connect(lambda: self._navigate_prompt_history(1, self.agent_input))
         input_layout.addWidget(self.agent_input)
         
+        agent_btn_col = QVBoxLayout()
         self.agent_send_btn = QPushButton("Send to Agent")
-        self.agent_send_btn.setFixedSize(120, 80)
+        self.agent_send_btn.setFixedSize(120, 38)
         self.agent_send_btn.clicked.connect(self.send_to_agent)
-        input_layout.addWidget(self.agent_send_btn)
-        
+        agent_btn_col.addWidget(self.agent_send_btn)
+
+        self.agent_optimize_btn = QPushButton("✨ Optimize Prompt")
+        self.agent_optimize_btn.setFixedSize(120, 38)
+        self.agent_optimize_btn.setToolTip("Rewrite prompt using AI for better clarity and precision")
+        self.agent_optimize_btn.clicked.connect(lambda: self.optimize_prompt(self.agent_input))
+        agent_btn_col.addWidget(self.agent_optimize_btn)
+        input_layout.addLayout(agent_btn_col)
+
         self.agent_stop_btn = QPushButton("⬛ Stop")
         self.agent_stop_btn.setFixedSize(80, 80)
         self.agent_stop_btn.clicked.connect(self.stop_agent)
@@ -1110,6 +1167,8 @@ class MainWindow(QMainWindow):
     def start_new_chat(self):
         self.current_conversation_id = None
         self.chat_history = []
+        self._chat_messages = []
+        self.current_chat_stream = ""
         self.chat_display.clear()
         self.model_combo.setEnabled(True)
 
@@ -1147,10 +1206,12 @@ class MainWindow(QMainWindow):
         self.db.add_message(self.current_conversation_id, "user", text)
 
         self.chat_worker = ChatWorker(self.api, model, self.chat_history)
+        self.chat_worker.chunk_received.connect(self.handle_chat_chunk)
         self.chat_worker.finished.connect(self.handle_response)
         self.chat_worker.error.connect(self.handle_error)
         self.chat_worker.cancelled.connect(self.handle_chat_cancelled)
         self.chat_worker.log_message.connect(self.append_log)
+        self.current_chat_stream = ""
         self.chat_worker.start()
         
         # UI state: disable input, enable Stop
@@ -1158,7 +1219,12 @@ class MainWindow(QMainWindow):
         self.chat_send_btn.setEnabled(False)
         self.chat_stop_btn.setEnabled(True)
 
+    def handle_chat_chunk(self, chunk):
+        self.current_chat_stream += chunk
+        self.chat_stream_needs_render = True
+
     def handle_response(self, content):
+        self.current_chat_stream = ""  # Clear stream buffer before appending final message
         self._append_message("AI", content)
         self.chat_history.append({"role": "assistant", "content": content})
         self.db.add_message(self.current_conversation_id, "assistant", content)
@@ -1170,6 +1236,7 @@ class MainWindow(QMainWindow):
 
     def handle_chat_cancelled(self):
         """Handle chat worker cancellation."""
+        self.current_chat_stream = ""
         self._append_message("System", "⚠️ Request cancelled by user.")
         self._reset_chat_ui()
     
@@ -1194,13 +1261,35 @@ class MainWindow(QMainWindow):
             self.chat_worker = None
 
     def _append_message(self, role, text):
-        html = markdown.markdown(text, extensions=['extra', 'nl2br'])
-        self.chat_display.append(f"<b>{role}:</b> {html}<br>")
-        
-        # Auto scroll
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        self.chat_display.setTextCursor(cursor)
+        if not hasattr(self, '_chat_messages'):
+            self._chat_messages = []
+        self._chat_messages.append((role, text))
+        self._render_chat_display()
+
+    def _render_chat_display(self):
+        """Unified chat-mode renderer: rebuilds HTML from _chat_messages + current stream."""
+        scrollbar = self.chat_display.verticalScrollBar()
+        saved_value = scrollbar.value()
+        was_at_bottom = saved_value >= scrollbar.maximum() - 30
+
+        html_parts = []
+        for display_role, content in getattr(self, '_chat_messages', []):
+            m_html = markdown.markdown(content, extensions=['extra', 'nl2br'])
+            html_parts.append(f"<b>{display_role}:</b> {m_html}<br>")
+
+        current_stream = getattr(self, 'current_chat_stream', '')
+        if current_stream:
+            stream_html = markdown.markdown(current_stream, extensions=['extra', 'nl2br'])
+            html_parts.append(f"<b>AI:</b> {stream_html}<br>")
+
+        self.chat_display.setUpdatesEnabled(False)
+        self.chat_display.setHtml("".join(html_parts))
+        self.chat_display.setUpdatesEnabled(True)
+
+        if was_at_bottom or current_stream:
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            scrollbar.setValue(saved_value)
 
     # --- Agent Profile Methods ---
     def _load_agent_profiles(self):
@@ -1299,8 +1388,14 @@ class MainWindow(QMainWindow):
         
         try:
             self.agent_status_label.setText("Initializing Agent...")
-            # Fetch top-rated examples for this model
-            top_examples = self.db.get_top_rated_interactions(model, limit=3)
+            # Tier-based few-shot limit: stronger models benefit from more examples
+            try:
+                from pcss_llm_app.core.agent_engine import get_model_profile
+                _tier = get_model_profile(model).tier
+            except Exception:
+                _tier = 4
+            _few_shot_limit = {1: 10, 2: 7, 3: 5, 4: 3}.get(_tier, 3)
+            top_examples = self.db.get_top_rated_interactions(model, limit=_few_shot_limit)
             
             self.agent_status_label.setText("Agent Ready")
             
@@ -1432,8 +1527,10 @@ class MainWindow(QMainWindow):
         self.agent_worker.cancelled.connect(self.handle_agent_cancelled)
         
         self.current_agent_stream = ""
+        self._accumulated_reasoning = ""
+        self._update_reasoning_panel("")
         self._render_chat()
-        
+
         # UI state: make input read-only (preserves cursor blink), enable Stop
         self.agent_input.setReadOnly(True)
         self.agent_send_btn.setEnabled(False)
@@ -1494,11 +1591,24 @@ class MainWindow(QMainWindow):
             html_parts.append(f"<b>User:</b> {self._cached_user_prompt_html}<br>")
             
         if current_stream_text:
-            # Cache currently streaming chunk
-            if not hasattr(self, '_cached_stream_html') or getattr(self, '_cached_stream_text', "") != current_stream_text:
-                self._cached_stream_html = markdown.markdown(current_stream_text, extensions=['extra', 'nl2br'])
-                self._cached_stream_text = current_stream_text
-            html_parts.append(f"<b>Agent:</b> {self._cached_stream_html}<br>")
+            # Extract <think> reasoning content → route to reasoning panel
+            think_matches = re.findall(r'<think>(.*?)</think>', current_stream_text, re.DOTALL)
+            if think_matches:
+                new_reasoning = "\n\n---\n\n".join(think_matches)
+                if new_reasoning != getattr(self, '_accumulated_reasoning', ''):
+                    self._accumulated_reasoning = new_reasoning
+                    self._update_reasoning_panel(new_reasoning)
+
+            # Strip think tags from main display
+            stream_for_display = re.sub(r'<think>.*?</think>\s*', '', current_stream_text, flags=re.DOTALL)
+            stream_for_display = re.sub(r'<think>[^<]*$', '', stream_for_display)
+            stream_for_display = stream_for_display.strip()
+
+            if stream_for_display:
+                if not hasattr(self, '_cached_stream_html') or getattr(self, '_cached_stream_text', "") != stream_for_display:
+                    self._cached_stream_html = markdown.markdown(stream_for_display, extensions=['extra', 'nl2br'])
+                    self._cached_stream_text = stream_for_display
+                html_parts.append(f"<b>Agent:</b> {self._cached_stream_html}<br>")
             
         self.agent_display.setUpdatesEnabled(False)
         self.agent_display.setHtml("".join(html_parts))
@@ -1518,6 +1628,63 @@ class MainWindow(QMainWindow):
             
         self.agent_display.setUpdatesEnabled(True)
 
+    def _update_reasoning_panel(self, content: str):
+        """Update the CoT reasoning panel with extracted <think> content."""
+        if not hasattr(self, 'reasoning_display'):
+            return
+        if content:
+            html = markdown.markdown(content, extensions=['extra', 'nl2br'])
+            self.reasoning_display.setHtml(html)
+            self.reasoning_frame.setVisible(True)
+        else:
+            self.reasoning_display.setHtml("")
+
+    def _toggle_reasoning_body(self, checked: bool):
+        self.reasoning_body.setVisible(checked)
+
+    def optimize_prompt(self, input_widget):
+        """Rewrite the current prompt for better clarity using the active model."""
+        text = input_widget.toPlainText().strip()
+        if not text or len(text) < 5:
+            return
+
+        original_text = text
+        input_widget.setReadOnly(True)
+        input_widget.setPlainText("⏳ Optymalizuję prompt...")
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Jesteś ekspertem od inżynierii promptów dla modeli językowych. "
+                    "Przepisz poniższy prompt tak, aby był bardziej precyzyjny, konkretny i skuteczny. "
+                    "Zachowaj intencję użytkownika. Zwróć WYŁĄCZNIE przepisany prompt, bez komentarzy."
+                )
+            },
+            {"role": "user", "content": text}
+        ]
+        model = self.model_combo.currentText()
+        worker = ChatWorker(self.api, model, messages)
+
+        def on_done(result):
+            input_widget.setPlainText(result.strip())
+            input_widget.setReadOnly(False)
+            input_widget.setFocus()
+            cursor = input_widget.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            input_widget.setTextCursor(cursor)
+            self._optimize_worker = None
+
+        def on_error(_err):
+            input_widget.setPlainText(original_text)
+            input_widget.setReadOnly(False)
+            self._optimize_worker = None
+
+        worker.finished.connect(on_done)
+        worker.error.connect(on_error)
+        self._optimize_worker = worker
+        worker.start()
+
     def update_agent_status(self, status):
         self.agent_status_label.setText(status)
 
@@ -1531,13 +1698,16 @@ class MainWindow(QMainWindow):
             messages = "\n".join(self.log_buffer)
             self.log_buffer.clear()
             self.console_display.append(messages)
-            
-            # Auto scroll
             cursor = self.console_display.textCursor()
             cursor.movePosition(QTextCursor.End)
             self.console_display.setTextCursor(cursor)
-            
-        # Update chat
+
+        # Update chat streaming (Chat Mode)
+        if getattr(self, 'chat_stream_needs_render', False):
+            self.chat_stream_needs_render = False
+            self._render_chat_display()
+
+        # Update agent streaming (Agent Mode)
         if self.chat_needs_render:
             self.chat_needs_render = False
             self._render_chat()
@@ -1736,7 +1906,9 @@ class MainWindow(QMainWindow):
             self.current_conversation_id = conv_id
             self.chat_display.clear()
             self.chat_history = []
-            
+            self._chat_messages = []
+            self.current_chat_stream = ""
+
             for msg_id, role, content, timestamp, rating in messages:
                 self._append_message("AI" if role == "assistant" else "User", content)
                 self.chat_history.append({"role": role, "content": content})

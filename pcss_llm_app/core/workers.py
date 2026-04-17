@@ -3,9 +3,10 @@ import json
 
 class ChatWorker(QThread):
     finished = Signal(str)
+    chunk_received = Signal(str)
     error = Signal(str)
     log_message = Signal(str)
-    cancelled = Signal()  # Signal when cancelled
+    cancelled = Signal()
 
     def __init__(self, api_client, model, messages):
         super().__init__()
@@ -15,7 +16,6 @@ class ChatWorker(QThread):
         self._is_cancelled = False
 
     def cancel(self):
-        """Request cancellation of the worker."""
         self._is_cancelled = True
 
     def run(self):
@@ -23,54 +23,76 @@ class ChatWorker(QThread):
             if self._is_cancelled:
                 self.cancelled.emit()
                 return
-                
+
             self.log_message.emit(f"ChatWorker: Sending request to model '{self.model}'...")
             self.log_message.emit(f"ChatWorker: Input messages: {len(self.messages)}")
-            
+
             response = self.api_client.chat_completion(
                 model=self.model,
                 messages=self.messages,
-                stream=False  # Explicitly request non-streaming response
+                stream=True
             )
-            
+
             if self._is_cancelled:
                 self.cancelled.emit()
                 return
-                
-            # Robust extraction of content (handles OpenAI objects, dicts, raw strings, and SSE streams)
+
             content = ""
-            if isinstance(response, str):
+
+            if hasattr(response, '__iter__') and not isinstance(response, (str, bytes)):
+                # True streaming response — iterable of delta chunks
+                for chunk in response:
+                    if self._is_cancelled:
+                        self.cancelled.emit()
+                        return
+                    delta_text = ""
+                    if hasattr(chunk, 'choices') and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, 'content') and delta.content:
+                            delta_text = delta.content
+                    elif isinstance(chunk, dict) and 'choices' in chunk:
+                        delta_text = (chunk['choices'][0].get('delta') or {}).get('content') or ''
+                    if delta_text:
+                        content += delta_text
+                        self.chunk_received.emit(delta_text)
+            elif isinstance(response, str):
                 if response.strip().startswith("data: "):
-                    # Handle raw SSE stream string (common with some local servers)
+                    # Raw SSE string fallback
                     self.log_message.emit("ChatWorker: Detected SSE stream in string response. Parsing...")
-                    chunks = []
                     for line in response.splitlines():
                         if line.startswith("data: "):
                             payload = line[6:].strip()
-                            if payload == "[DONE]": break
+                            if payload == "[DONE]":
+                                break
                             try:
                                 data = json.loads(payload)
                                 if "choices" in data and data["choices"]:
                                     delta = data["choices"][0].get("delta", {})
                                     msg = data["choices"][0].get("message", {})
-                                    chunk = delta.get("content", "") or msg.get("content", "")
-                                    if chunk: chunks.append(chunk)
-                            except: pass
-                    content = "".join(chunks)
+                                    piece = delta.get("content", "") or msg.get("content", "")
+                                    if piece:
+                                        content += piece
+                                        self.chunk_received.emit(piece)
+                            except Exception:
+                                pass
                 else:
                     content = response
+                    self.chunk_received.emit(response)
             elif hasattr(response, 'choices'):
                 content = response.choices[0].message.content
+                self.chunk_received.emit(content)
             elif isinstance(response, dict) and 'choices' in response:
                 content = response['choices'][0]['message']['content']
+                self.chunk_received.emit(content)
             else:
                 self.log_message.emit(f"ChatWorker: Received unusual response type: {type(response).__name__}")
                 content = str(response)
+                self.chunk_received.emit(content)
 
             self.log_message.emit("ChatWorker: Response received.")
             self.log_message.emit(f"ChatWorker: Response length: {len(content)} chars.")
-            
             self.finished.emit(content)
+
         except Exception as e:
             if not self._is_cancelled:
                 self.log_message.emit(f"ChatWorker Error: {str(e)}")
