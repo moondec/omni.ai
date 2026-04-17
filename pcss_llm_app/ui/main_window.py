@@ -1364,11 +1364,17 @@ class MainWindow(QMainWindow):
                 self.agent_display.append(f"<b>System:</b> Agent '{name}' initialized with profile: {profile_name}<br>")
                 self.agent_display.append(f"<b>System:</b> Active LLM Model: {model} (Loaded operational rules)<br>")
                 
-            # Start new persistence session for Agent
-            self.current_agent_conversation_id = None # Will be created on first message
+            # Only reset conversation ID if we are NOT preserving history
+            if not preserve_history:
+                self.current_agent_conversation_id = None
             
             self.agent_display.append(f"<b>System:</b> Workspace: {workspace}<br>")
             self.agent_display.append(f"<b>System:</b> Tools: [Files, Documents, OCR, Vision, Web Search]<br>")
+            
+            # Force UI refresh to show history if we preserved it
+            if preserve_history:
+                self._last_render_state_key = None # Invalidate cache
+                self._render_chat()
             
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -1674,6 +1680,7 @@ class MainWindow(QMainWindow):
         saved_profile = conv_info[5] if len(conv_info) > 5 else ""
         
         messages = self.db.get_messages(conv_id)
+        saved_agent_name = conv_info[7] if len(conv_info) > 7 else ""
         
         # Restore Model selection globally
         if saved_model:
@@ -1686,10 +1693,6 @@ class MainWindow(QMainWindow):
             # Restore Profile selection
             if saved_profile:
                 self.profile_combo.setCurrentText(saved_profile)
-            
-            self.current_agent_conversation_id = conv_id
-            self.current_agent_scratchpad = conv_info[6] if len(conv_info) > 6 else "" # Load scratchpad (index 6)
-            saved_agent_name = conv_info[7] if len(conv_info) > 7 else ""
             
             if saved_agent_name:
                 self.agent_name_input.setText(saved_agent_name)
@@ -1727,6 +1730,12 @@ class MainWindow(QMainWindow):
             # Force cache invalidation before rendering loaded history
             self._last_render_state_key = None
             self._cached_history_len = -1
+            
+            # CRITICAL: Set ID and scratchpad AFTER potential re-initialization
+            # so create_assistant doesn't wipe them.
+            self.current_agent_conversation_id = conv_id
+            self.current_agent_scratchpad = conv_info[6] if len(conv_info) > 6 else ""
+            
             self._render_chat()
             
         else:
