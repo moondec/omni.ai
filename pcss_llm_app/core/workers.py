@@ -29,16 +29,36 @@ class ChatWorker(QThread):
             
             response = self.api_client.chat_completion(
                 model=self.model,
-                messages=self.messages
+                messages=self.messages,
+                stream=False  # Explicitly request non-streaming response
             )
             
             if self._is_cancelled:
                 self.cancelled.emit()
                 return
                 
-            # Robust extraction of content (handles OpenAI objects, dicts, and raw strings)
+            # Robust extraction of content (handles OpenAI objects, dicts, raw strings, and SSE streams)
+            content = ""
             if isinstance(response, str):
-                content = response
+                if response.strip().startswith("data: "):
+                    # Handle raw SSE stream string (common with some local servers)
+                    self.log_message.emit("ChatWorker: Detected SSE stream in string response. Parsing...")
+                    chunks = []
+                    for line in response.splitlines():
+                        if line.startswith("data: "):
+                            payload = line[6:].strip()
+                            if payload == "[DONE]": break
+                            try:
+                                data = json.loads(payload)
+                                if "choices" in data and data["choices"]:
+                                    delta = data["choices"][0].get("delta", {})
+                                    msg = data["choices"][0].get("message", {})
+                                    chunk = delta.get("content", "") or msg.get("content", "")
+                                    if chunk: chunks.append(chunk)
+                            except: pass
+                    content = "".join(chunks)
+                else:
+                    content = response
             elif hasattr(response, 'choices'):
                 content = response.choices[0].message.content
             elif isinstance(response, dict) and 'choices' in response:
