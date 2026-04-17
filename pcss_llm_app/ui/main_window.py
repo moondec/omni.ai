@@ -1310,8 +1310,17 @@ class MainWindow(QMainWindow):
             top_examples = self.db.get_top_rated_interactions(model, limit=3)
             
             self.agent_status_label.setText("Agent Ready")
+            
+            # Smart history management: 
+            # If manually re-initializing (preserve_history=False) but we HAVE history,
+            # we likely want to keep it (hot-swapping models). 
+            # To start fresh, user uses "New Thread".
+            if not preserve_history and self.agent_history:
+                self.append_log("🔄 Re-initializing Agent. History preserved for model/profile switch.")
+                preserve_history = True
+                
             if not preserve_history:
-                self.agent_history = [] # Reset history only when not restoring
+                self.agent_history = [] # Reset history only when starting truly fresh or initial
             
             is_consilium = hasattr(self, 'consilium_checkbox') and self.consilium_checkbox.isChecked()
             
@@ -1399,8 +1408,11 @@ class MainWindow(QMainWindow):
         if not self.current_agent_conversation_id:
              model = self.model_combo.currentText()
              profile = self.profile_combo.currentText()
+             agent_name = self.agent_name_input.text().strip()
              title = f"Agent: {text[:20]}..."
-             self.current_agent_conversation_id = self.db.create_conversation(title, model, mode="agent", agent_profile=profile)
+             self.current_agent_conversation_id = self.db.create_conversation(
+                 title, model, mode="agent", agent_profile=profile, agent_name=agent_name
+             )
              self.refresh_history()
         
         self.db.add_message(self.current_agent_conversation_id, "user", text)
@@ -1675,7 +1687,12 @@ class MainWindow(QMainWindow):
                 self.profile_combo.setCurrentText(saved_profile)
             
             self.current_agent_conversation_id = conv_id
-            self.current_agent_scratchpad = conv_info[6] if len(conv_info) > 6 else "" # Load scratchpad (index 6 now)
+            self.current_agent_scratchpad = conv_info[6] if len(conv_info) > 6 else "" # Load scratchpad (index 6)
+            saved_agent_name = conv_info[7] if len(conv_info) > 7 else ""
+            
+            if saved_agent_name:
+                self.agent_name_input.setText(saved_agent_name)
+                
             self.agent_display.clear()
             self.agent_history = []
             

@@ -64,19 +64,21 @@ class DatabaseManager:
                 cursor.execute('ALTER TABLE conversations ADD COLUMN agent_profile TEXT')
             if 'scratchpad' not in columns:
                 cursor.execute('ALTER TABLE conversations ADD COLUMN scratchpad TEXT')
+            if 'agent_name' not in columns:
+                cursor.execute('ALTER TABLE conversations ADD COLUMN agent_name TEXT')
         except sqlite3.OperationalError:
             pass
         
         conn.commit()
         conn.close()
 
-    def create_conversation(self, title, model, mode="chat", agent_profile=""):
+    def create_conversation(self, title, model, mode="chat", agent_profile="", agent_name=""):
         conn = self._get_connection()
         cursor = conn.cursor()
         created_at = datetime.datetime.now()
         cursor.execute(
-            'INSERT INTO conversations (title, created_at, model, mode, agent_profile, scratchpad) VALUES (?, ?, ?, ?, ?, ?)',
-            (title, created_at, model, mode, agent_profile, "")
+            'INSERT INTO conversations (title, created_at, model, mode, agent_profile, scratchpad, agent_name) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (title, created_at, model, mode, agent_profile, "", agent_name)
         )
         conversation_id = cursor.lastrowid
         conn.commit()
@@ -107,7 +109,7 @@ class DatabaseManager:
     def get_conversation(self, conversation_id):
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT id, title, created_at, model, mode, agent_profile, scratchpad FROM conversations WHERE id = ?', (conversation_id,))
+        cursor.execute('SELECT id, title, created_at, model, mode, agent_profile, scratchpad, agent_name FROM conversations WHERE id = ?', (conversation_id,))
         row = cursor.fetchone()
         conn.close()
         return row
