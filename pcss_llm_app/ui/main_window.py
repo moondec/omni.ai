@@ -43,6 +43,104 @@ except ImportError:
         class HumanMessage(BaseMessage): pass
         class AIMessage(BaseMessage): pass
 
+class CheckpointsDialog(QDialog):
+    """Dialog for browsing and restoring agent checkpoints."""
+
+    def __init__(self, checkpoint_manager, parent=None):
+        super().__init__(parent)
+        from PySide6.QtGui import QFont
+        self._cm = checkpoint_manager
+        self.setWindowTitle("Agent Checkpoints")
+        self.setMinimumSize(720, 480)
+
+        layout = QVBoxLayout(self)
+
+        mode_label = QLabel(
+            f"Mode: {'🔀 git commits' if self._cm.mode() == 'git' else '📁 file snapshots'}"
+        )
+        mode_label.setStyleSheet("font-size: 10px; color: gray;")
+        layout.addWidget(mode_label)
+
+        layout.addWidget(QLabel("Checkpoints (newest first):"))
+        self.list_widget = QListWidget()
+        self.list_widget.currentRowChanged.connect(self._on_select)
+        layout.addWidget(self.list_widget)
+
+        layout.addWidget(QLabel("Files changed since this checkpoint:"))
+        self.diff_display = QTextEdit()
+        self.diff_display.setReadOnly(True)
+        self.diff_display.setMaximumHeight(160)
+        mono = QFont("Courier New", 9)
+        mono.setStyleHint(QFont.Monospace)
+        self.diff_display.setFont(mono)
+        layout.addWidget(self.diff_display)
+
+        btn_layout = QHBoxLayout()
+        self.restore_btn = QPushButton("⏪ Restore to this checkpoint")
+        self.restore_btn.setEnabled(False)
+        self.restore_btn.clicked.connect(self._on_restore)
+        btn_layout.addWidget(self.restore_btn)
+        btn_layout.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+
+        self._checkpoints = []
+        self._refresh()
+
+    def _refresh(self):
+        self._checkpoints = self._cm.list()
+        self.list_widget.clear()
+        if not self._checkpoints:
+            self.list_widget.addItem("(No checkpoints yet — checkpoints are created automatically at the start of each agent task)")
+            return
+        for cp in self._checkpoints:
+            ts = cp.get('timestamp', '')[:16]
+            label = cp.get('label', '')[:70]
+            icon = '🔀' if cp.get('type') == 'git' else '📁'
+            self.list_widget.addItem(f"{icon}  {ts}   {label}")
+
+    def _on_select(self, row):
+        if row < 0 or row >= len(self._checkpoints):
+            self.restore_btn.setEnabled(False)
+            self.diff_display.clear()
+            return
+        self.restore_btn.setEnabled(True)
+        cp = self._checkpoints[row]
+        cp_id = cp.get('full_id') or cp.get('id', '')
+        diff = self._cm.diff_summary(cp_id)
+        self.diff_display.setPlainText(diff)
+
+    def _on_restore(self):
+        row = self.list_widget.currentRow()
+        if row < 0 or row >= len(self._checkpoints):
+            return
+        cp = self._checkpoints[row]
+        label = cp.get('label', '')[:60]
+        ts = cp.get('timestamp', '')[:16]
+        reply = QMessageBox.warning(
+            self, "Confirm Restore",
+            f"Restore workspace to checkpoint from:\n\n"
+            f"  {ts}  —  \"{label}\"\n\n"
+            "This will overwrite ALL current changes in the workspace.\n"
+            "Are you sure?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        cp_id = cp.get('full_id') or cp.get('id', '')
+        ok = self._cm.restore(cp_id)
+        if ok:
+            QMessageBox.information(self, "Restored", "Workspace restored successfully.")
+            self.accept()
+        else:
+            QMessageBox.critical(self, "Restore Failed",
+                                 "Could not restore the checkpoint.\n"
+                                 "Check the debug console for details.")
+
+
 class AgentLogSignal(QObject):
     log_message = Signal(str)
 
@@ -721,10 +819,15 @@ class MainWindow(QMainWindow):
         create_agent_btn = QPushButton("Create Assistant")
         create_agent_btn.clicked.connect(self.create_assistant)
         config_layout.addWidget(create_agent_btn)
-        
+
         create_thread_btn = QPushButton("New Thread")
         create_thread_btn.clicked.connect(self.create_thread)
         config_layout.addWidget(create_thread_btn)
+
+        checkpoints_btn = QPushButton("🔖 Checkpoints")
+        checkpoints_btn.setToolTip("Browse and restore workspace checkpoints")
+        checkpoints_btn.clicked.connect(self.open_checkpoints_dialog)
+        config_layout.addWidget(checkpoints_btn)
 
         agent_layout.addLayout(config_layout)
         
@@ -1474,6 +1577,19 @@ class MainWindow(QMainWindow):
         self.agent_display.clear()
         self.agent_display.append("<b>System:</b> Memory cleared. New Session.<br>")
         self.agent_status_label.setText("Ready")
+
+    def open_checkpoints_dialog(self):
+        """Open the checkpoints browser dialog."""
+        if not self.agent_engine:
+            QMessageBox.information(
+                self, "Checkpoints",
+                "Initialize the Agent first (Create Assistant) so the workspace path is known."
+            )
+            return
+        from pcss_llm_app.core.checkpoint_manager import CheckpointManager
+        cm = self.agent_engine.checkpoint_manager
+        dlg = CheckpointsDialog(cm, parent=self)
+        dlg.exec()
 
     def send_to_agent(self):
         if not self.agent_engine:

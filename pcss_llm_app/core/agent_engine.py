@@ -37,6 +37,7 @@ except ImportError:
         FileManagementToolkit = None 
 
 # Local tool imports
+from pcss_llm_app.core.checkpoint_manager import CheckpointManager
 from pcss_llm_app.core.tools import (
     DocumentTools, OCRTools, CountPatternTool, FolderTools, 
     PandocTools, VisionTools, WebSearchTools, ChartTools, 
@@ -107,6 +108,7 @@ class LangChainAgentEngine:
         self.active_scratchpad = "" # Persistence layer for long tasks
         self._consecutive_format_errors = 0
         self._is_cancelled = False
+        self.checkpoint_manager = CheckpointManager(workspace_path)
         self._initialize_agent()
 
     def _load_workspace_context(self) -> str:
@@ -488,6 +490,14 @@ Begin!"""
         # Bootstrap .agent_context.md on the very first run in this workspace
         if not is_continuation_intent:
             self._bootstrap_context_file(input_text)
+
+        # Create a restore-point before the agent touches anything
+        cp_id = self.checkpoint_manager.create(input_text[:120])
+        if cp_id:
+            mode = self.checkpoint_manager.mode()
+            self._log(f"🔖 Checkpoint created [{mode}]: {cp_id[:14]}…")
+        else:
+            self._log("⚠️ Could not create checkpoint (workspace may be read-only).")
 
         self._write_status_file("🔄 Working", f"Processing: {input_text[:200]}")
         self._log(f"🚀 Execution started for model: {self.model_name} (Tier: {self.profile.tier})")
