@@ -18,6 +18,7 @@ import markdown
 import time
 
 from pcss_llm_app.config import ConfigManager
+from pcss_llm_app import __version__
 from pcss_llm_app.core.api_client import PcssApiClient
 from pcss_llm_app.core.database import DatabaseManager
 
@@ -132,7 +133,7 @@ class SettingsDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"PCSS LLM Client v0.6.4")
+        self.setWindowTitle(f"PCSS LLM Client v{__version__}")
         self.setGeometry(100, 100, 1200, 800)
         
         # Set App Icon
