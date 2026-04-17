@@ -925,14 +925,6 @@ class MainWindow(QMainWindow):
         
         # Update status bar with current model
         self.statusBar().showMessage(f"Using model: {text}", 5000)
-        
-        # Reset Chat
-        self.start_new_chat()
-        
-        # Reset Agent
-        self.agent_history = []
-        self.current_agent_conversation_id = None
-        self.agent_display.clear()
         self.agent_display.append(f"<b>System:</b> Model changed to {text}. Please re-initialize Assistant.<br>")
         self.agent_engine = None # Force re-creation with new model
         self.agent_status_label.setText("Model Changed")
