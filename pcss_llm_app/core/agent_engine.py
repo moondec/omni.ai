@@ -166,15 +166,16 @@ class LangChainAgentEngine:
             pass  # Never let logger crash the agent
 
     def _write_status_file(self, status: str, details: str = ""):
-        """Writes a CLAUDE.md status file to the workspace directory.
-        
-        This provides the user (and external tools) with a quick overview
-        of the agent's current task state.
+        """Writes .agent_status.md to the workspace (hidden ephemeral status file).
+
+        Named with a leading dot to stay out of the user's project files.
+        CLAUDE.md is intentionally NOT used — it collides with Claude Code's
+        project-instruction convention and is reserved for human-authored content.
         """
         try:
-            status_path = os.path.join(self.workspace_path, "CLAUDE.md")
+            status_path = os.path.join(self.workspace_path, ".agent_status.md")
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            content = f"# Agent Status\n\n"
+            content = "# Agent Status\n\n"
             content += f"- **Status:** {status}\n"
             content += f"- **Model:** {self.model_name}\n"
             content += f"- **Updated:** {ts}\n"
@@ -184,6 +185,65 @@ class LangChainAgentEngine:
                 f.write(content)
         except Exception:
             pass  # Never let status writer crash the agent
+
+    def _bootstrap_context_file(self, first_prompt: str):
+        """Creates .agent_context.md when it does not yet exist in the workspace.
+
+        Generates a structured project-description template populated with the
+        user's first prompt.  The agent is expected to keep the file updated via
+        the update_context tool as the work progresses.
+        """
+        context_path = os.path.join(self.workspace_path, ".agent_context.md")
+        if os.path.exists(context_path):
+            return  # Already initialised — never overwrite
+
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Heuristic: is this a descriptive project task or a one-liner command?
+        _words = first_prompt.strip().split()
+        is_descriptive = len(_words) >= 6
+
+        goal_text = first_prompt.strip() if is_descriptive else f"*(describe the project goal here)*\n\nFirst task: {first_prompt.strip()}"
+
+        template = f"""# Project Context
+
+**Created:** {ts}
+**Model:** {self.model_name}
+
+## Project Goal
+
+{goal_text}
+
+## Technology Stack
+
+*(to be identified — e.g. Python 3.11, FastAPI, PostgreSQL, React …)*
+
+## Current Status
+
+🆕 Just started
+
+## Completed
+
+*(nothing yet)*
+
+## Todo
+
+- [ ] {_words[0].capitalize() + ' ' + ' '.join(_words[1:]) if _words else 'Initial task'}
+
+## Architecture & Key Decisions
+
+*(document important design choices here)*
+
+## Notes
+
+*(free-form notes, links, references)*
+"""
+        try:
+            with open(context_path, "w", encoding="utf-8") as f:
+                f.write(template)
+            self._log("📄 Initialised .agent_context.md with project template.")
+        except Exception:
+            pass
 
     def _initialize_agent(self):
         # 1. Initialize LLM with performance optimizations
@@ -425,6 +485,10 @@ Begin!"""
         else:
             self.active_scratchpad = ""  # Ensure clean start for genuinely new tasks
             
+        # Bootstrap .agent_context.md on the very first run in this workspace
+        if not is_continuation_intent:
+            self._bootstrap_context_file(input_text)
+
         self._write_status_file("🔄 Working", f"Processing: {input_text[:200]}")
         self._log(f"🚀 Execution started for model: {self.model_name} (Tier: {self.profile.tier})")
         self._log(f"📊 Profile Limits: Context={self.profile.context_window} | Observation={self.profile.max_observation_chars} | Blocks={self.profile.max_read_blocks} | Rows={self.profile.max_read_rows}")
