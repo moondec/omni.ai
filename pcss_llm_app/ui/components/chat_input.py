@@ -15,6 +15,7 @@ class ChatInputWidget(QTextEdit):
         self.setAcceptDrops(True)
         self.setCursorWidth(2)  # Make cursor clearly visible and blinking
         self.workspace_path = "" # To be set by main app for relative paths
+        self._browsing_history = False  # True when navigating through prompt history
 
     def keyPressEvent(self, event):
         # Shift+Enter is default newline, Enter is submit
@@ -22,19 +23,44 @@ class ChatInputWidget(QTextEdit):
             self.send_requested.emit()
             return
 
-        # Up arrow navigates history ONLY when input is completely empty
+        # Up arrow navigates history when:
+        # - input is empty, OR
+        # - we are already browsing history (loaded a previous entry)
         if event.key() == Qt.Key_Up:
-            if not self.toPlainText().strip():
+            if not self.toPlainText().strip() or self._browsing_history:
                 self.history_up_requested.emit()
                 return
 
-        # Down arrow navigates history ONLY when input is completely empty
+        # Down arrow navigates history when:
+        # - input is empty, OR
+        # - we are already browsing history
         if event.key() == Qt.Key_Down:
-            if not self.toPlainText().strip():
+            if not self.toPlainText().strip() or self._browsing_history:
                 self.history_down_requested.emit()
                 return
 
+        # Any other key press exits history browsing mode
+        self._browsing_history = False
+
         super().keyPressEvent(event)
+
+    def enter_history_mode(self):
+        """Called by MainWindow when a history entry is loaded into the widget."""
+        self._browsing_history = True
+
+    def exit_history_mode(self):
+        """Called when the user exits history (e.g. Down past the newest entry)."""
+        self._browsing_history = False
+
+    def restore_cursor_blink(self):
+        """Force-restart the cursor blink timer.
+
+        Qt's QTextEdit loses its cursor blink animation after setEnabled(False/True)
+        or setReadOnly(True/False) cycles. This workaround toggles cursorWidth to
+        restart the internal blink timer.
+        """
+        self.setCursorWidth(0)
+        self.setCursorWidth(2)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():

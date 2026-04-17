@@ -245,9 +245,11 @@ class MainWindow(QMainWindow):
             cursor = input_widget.textCursor()
             cursor.movePosition(QTextCursor.End)
             input_widget.setTextCursor(cursor)
+            input_widget.enter_history_mode()  # Allow continued scrolling
         elif new_idx == len(self.prompt_history):
             self.prompt_history_idx = new_idx
             input_widget.setPlainText("")
+            input_widget.exit_history_mode()  # Back to normal editing
 
 
     def _init_ui(self):
@@ -1159,7 +1161,7 @@ class MainWindow(QMainWindow):
         self.chat_worker.start()
         
         # UI state: disable input, enable Stop
-        self.message_input.setEnabled(False)
+        self.message_input.setReadOnly(True)
         self.chat_send_btn.setEnabled(False)
         self.chat_stop_btn.setEnabled(True)
 
@@ -1189,7 +1191,8 @@ class MainWindow(QMainWindow):
     
     def _reset_chat_ui(self):
         """Reset chat UI after response/error/cancel."""
-        self.message_input.setEnabled(True)
+        self.message_input.setReadOnly(False)
+        self.message_input.restore_cursor_blink()  # Fix Qt cursor blink death
         self.chat_send_btn.setEnabled(True)
         self.chat_stop_btn.setEnabled(False)
         self.message_input.setFocus()
@@ -1420,8 +1423,8 @@ class MainWindow(QMainWindow):
         self.current_agent_stream = ""
         self._render_chat()
         
-        # UI state: disable input, enable Stop
-        self.agent_input.setEnabled(False)
+        # UI state: make input read-only (preserves cursor blink), enable Stop
+        self.agent_input.setReadOnly(True)
         self.agent_send_btn.setEnabled(False)
         self.agent_stop_btn.setEnabled(True)
         self.agent_worker.start()
@@ -1627,10 +1630,11 @@ class MainWindow(QMainWindow):
     def _reset_agent_ui(self):
         """Reset agent UI after response/error/cancel."""
         self.agent_status_label.setText("Ready")
-        self.agent_input.setEnabled(True)
+        self.agent_input.setReadOnly(False)
         self.agent_send_btn.setEnabled(True)
         self.agent_stop_btn.setEnabled(False)
         self.agent_input.setFocus()
+        self.agent_input.restore_cursor_blink()  # Fix Qt cursor blink death
         if getattr(self, 'agent_worker', None):
             self.agent_worker.deleteLater()
             self.agent_worker = None
