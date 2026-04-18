@@ -522,6 +522,7 @@ Begin!"""
         observation_history = []
         action_loop_warnings = {}   # key: action signature → consecutive warning count
         total_loop_warnings = 0     # cumulative across all signatures (hard safety cap)
+        consecutive_stream_errors = 0  # circuit breaker for back-to-back llm.stream() failures
         last_executed_tool = None
         
         i = 0
@@ -656,16 +657,37 @@ Begin!"""
             # If stream failed before producing any output, inject a recovery observation
             # instead of crashing — this preserves scratchpad and gives the agent a chance
             # to recover or the user a clean error message.
+            # Circuit breaker: after N consecutive stream failures the server is effectively
+            # unavailable — bail out with a rich diagnostic instead of retrying forever.
             if _stream_error is not None and not output.strip():
+                consecutive_stream_errors += 1
                 err_msg = f"{type(_stream_error).__name__}: {_stream_error}"[:300]
+
+                if consecutive_stream_errors >= 3:
+                    self._log(f"⛔ Circuit breaker: {consecutive_stream_errors} consecutive stream errors — stopping.")
+                    last_action = action_history[-1] if action_history else ("(none)", "")
+                    recent_obs = observation_history[-1][:200] if observation_history else "(brak)"
+                    return (
+                        f"Agent zatrzymany: 3 błędy streamu LLM z rzędu.\n\n"
+                        f"**Ostatni błąd:** {err_msg}\n"
+                        f"**Ostatnia akcja:** {last_action[0]}({str(last_action[1])[:60]})\n"
+                        f"**Ostatnia obserwacja:** {recent_obs}\n\n"
+                        "Serwer LLM prawdopodobnie jest chwilowo niedostępny. "
+                        "Spróbuj ponownie za chwilę lub wybierz inny model."
+                    )
+
                 recovery_obs = (
                     f"\nObservation: [SYSTEM] LLM stream failed ({err_msg}). "
-                    "The server may be temporarily unavailable. "
+                    f"Retry {consecutive_stream_errors}/3. The server may be temporarily unavailable. "
                     "If this keeps failing, emit: Final Answer: [brief explanation of the problem].\nThought:"
                 )
                 prompt += recovery_obs
                 self.active_scratchpad += recovery_obs
                 continue
+
+            # Stream produced output successfully — reset the error counter.
+            if output.strip():
+                consecutive_stream_errors = 0
 
             _t_stream_end = time.monotonic()
             _total_gen = _t_stream_end - _t_stream_start

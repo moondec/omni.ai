@@ -2,6 +2,10 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.8.1] - 2026-04-18
+### Fixed
+- **Infinite retry on persistent LLM stream errors**: regression introduced in v0.7.1. The stream-error recovery path used `continue` without incrementing the step counter, so on repeated `APITimeoutError` / `RemoteProtocolError` the agent retried forever (each retry waiting the full 120 s client timeout). Added a `consecutive_stream_errors` circuit breaker: after 3 back-to-back stream failures the agent returns a rich diagnostic (last error type, last action, last observation) instead of looping. Counter resets on any successful stream.
+
 ## [0.8.0] - 2026-04-18
 ### Added
 - **Frontend modernization**: `setMinimumSize(1024, 600)` on main window prevents layout collapse; sidebar resizable (180–320 px) and collapsible; outer and content splitters expose stretch factors so the right panel grows and the console can be hidden.
