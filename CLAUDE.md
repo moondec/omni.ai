@@ -27,8 +27,19 @@ The codebase is cleanly separated into two primary layers:
 
 ## Current Project Status
 
-- **Version 0.4.1**: App-wide integration of new UI interactions (modular ChatInput), LangChain agent stabilization (cancellation flags, loop prevention), LLM performance profiling (TTFT/throughput tracking), and the full 0.4.0 LLM benchmarking suite.
-- **Benchmarks**: Replaced outdated `test_tmp/` mock scripts with fully modular benchmarking in `pcss_llm_app/benchmarks/`. The suite supports real-tool schema reflection for accurate evaluation, offering both fast mock mode and full isolated real UI testing via `LangChainAgentEngine`.
-- **Reporting**: Moved benchmark results to a standalone `BENCHMARK_RESULTS.md` with preserved historical runs safely archived in `pcss_llm_app/benchmarks/results/`.
+**Version 0.8.0** — major frontend modernization and backend robustness pass.
+
+Key subsystems added in v0.6.x–v0.8.0 (see `CHANGELOG.md` for details):
+
+- **Chat streaming** (v0.7.0): Chat mode now streams responses token-by-token via `ChatWorker.chunk_received`; unified renderer (`_render_chat_display`) across chat and agent tabs.
+- **CoT Reasoning Panel** (v0.7.0): `<think>...</think>` blocks emitted by GLM-4/Qwen3/DeepSeek are extracted client-side and shown in a collapsible "Model Reasoning (CoT)" panel below the agent display.
+- **Prompt Optimizer** (v0.7.0): "Optimize Prompt" button in both Chat and Agent tabs rewrites the current input using the active model.
+- **Checkpoint system** (v0.7.0): `core/checkpoint_manager.py` creates a restore point before every agent task — git commit if the workspace is a git repo, `.agent_checkpoints/` file snapshot otherwise. UI: "Checkpoints" button → list + restore dialog.
+- **Workspace context bootstrap** (v0.7.0): On the first agent run in a workspace, a structured `.agent_context.md` template is created from the first prompt. Internal status moved to hidden `.agent_status.md` to avoid colliding with Claude Code's `CLAUDE.md` convention.
+- **Agent safety** (v0.7.1): `llm.stream()` wrapped in try/except with recovery observation; silent `except: pass` in function_call parser replaced with logging; worker cancellation polls `AgentToolAction.event.wait()` with timeout (Stop is now responsive); action-loop tracker rewritten as per-signature dict with hard cap; termination messages now include last action + last observation.
+- **Profile discipline** (v0.7.2): Hard iteration limits in `reviewer.yaml` and `researcher.yaml`; `coder.yaml` retry rule clarified; shared behavioral rules moved to `llm_profiles/_shared.yaml` (`common_rules`); `context_window` declared in every LLM profile.
+- **Frontend modernization** (v0.8.0): `setMinimumSize(1024, 600)` on main window; sidebar and splitters resizable/collapsible; `setFixedSize` replaced with `setMinimumSize` on buttons so text no longer clips; hardcoded inline stylesheets centralised into the `THEMES` dict (new `role="danger"`, `role="destructive"` and `#debugConsole` rules). `ChatInputWidget` height 80–240px (user-resizable). Reasoning panel header always visible so the feature is discoverable.
+
+**Benchmarks**: `pcss_llm_app/benchmarks/` with mock and real UI modes; results archived in `pcss_llm_app/benchmarks/results/` and summarised in `BENCHMARK_RESULTS.md`.
 
 *Note: This file serves as the primary system brief. If you are an AI assistant placed into this repository, refer to this context to understand the app's structure and current trajectory.*

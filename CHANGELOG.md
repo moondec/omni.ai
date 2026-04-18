@@ -2,6 +2,58 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.8.0] - 2026-04-18
+### Added
+- **Frontend modernization**: `setMinimumSize(1024, 600)` on main window prevents layout collapse; sidebar resizable (180–320 px) and collapsible; outer and content splitters expose stretch factors so the right panel grows and the console can be hidden.
+- **Role-based button styles**: stop buttons use `role="danger"`, destructive actions use `role="destructive"` — colours live in `THEMES` dict and respect theme switching.
+- **Reasoning panel discoverability**: the "Model Reasoning (CoT)" header is always visible, with an arrow toggle (▶/▼) and a live character-count badge so users notice reasoning is available before any `<think>` content arrives.
+- **Debug console themed**: no more green-on-black regardless of theme; `QTextEdit#debugConsole` styles pulled from `console_bg`/`console_fg`.
+
+### Changed
+- All emoji-only buttons (`⬛ Stop`, `↻`, `📁`, `✨`, `🧠`) replaced with plain text labels — renders consistently on Windows/Linux/macOS and no longer clips inside fixed-width buttons.
+- `ChatInputWidget` height: 80–240 px (was fixed 80 px) — multi-line prompts are usable.
+- Agent tab status bar now hosts the "Debug Console" toggle, decluttering the config row.
+
+### Fixed
+- `QPushButton` widths no longer truncated: every `setFixedSize` replaced with `setMinimumSize` so longer labels ("Optimize Prompt", "Send to Agent") always fit.
+- Inline stylesheets (console, clear-history button, workspace label, stop buttons) centralised into `apply_theme()`; changing theme now updates every widget.
+
+### Documentation
+- README: Python requirement corrected to 3.11+; outdated "Tested on macOS" disclaimer replaced; file-tool list synced to actual LangChain FileManagementToolkit names (`file_delete`, `file_search`, `copy_file`, `move_file`).
+- CLAUDE.md: project brief rewritten from v0.4.1 to v0.8.0, covering streaming chat, reasoning panel, prompt optimizer, checkpoints, `.agent_context.md` bootstrap, agent safety fixes, and profile discipline.
+
+## [0.7.2] - 2026-04-17
+### Changed
+- **Profile discipline** — loop-inducing patterns removed from agent profiles:
+  - `reviewer.yaml`: per-reference cap of 2 verification attempts before marking UNVERIFIED and moving on; self-enforced loop prevention (no reliance on system warnings).
+  - `researcher.yaml`: explicit research budget (max 10 sources, 2–3 discovery rounds); `search_academic` demoted from MANDATORY to preferred-with-fallback.
+  - `coder.yaml`: retry rule clarified — at most 2 attempts per sub-problem, second must use materially different args, then switch tool or ask user.
+  - `document_writer.yaml`: `search_academic` fallbacks documented.
+- **Shared rules** (`llm_profiles/_shared.yaml`): new `common_rules` block with language/encoding, behavioral, search-language, export and anti-loop rules that used to be duplicated across 15 LLM profiles. `llm_profile_loader.py` prepends these automatically; profiles can opt out via `skip_common_rules: true`.
+- **Context window declared** in every LLM profile (was only in `bielik_11b`). Matches the tiered profiling in `agent_engine.py` and prevents silent truncation loops on long tasks.
+
+## [0.7.1] - 2026-04-17
+### Fixed
+- **Crash on LLM stream errors**: wrapped `self.llm.stream()` in a try/except. Network issues, API 500s, malformed chunks now inject a `[SYSTEM]` recovery observation instead of propagating unhandled — scratchpad is preserved, agent gets a chance to retry or emit a clean `Final Answer`.
+- **Silent parse failure** (`except: pass`) in the `function call {...}` fallback parser replaced with typed exception handling and a diagnostic log.
+- **Worker cancellation race**: `AgentToolAction.event.wait()` now polls with a 0.5 s timeout; `Stop` during tool-approval waits actually cancels instead of hanging the UI.
+- **Action loop evasion**: `action_loop_warnings` rewritten from a single int to a per-signature dict keyed by `(action, input-prefix)`. A→B→A→B patterns no longer evade the counter. Hard safety cap of `loop_threshold × 3` total interventions.
+- **"No output after loop exit"**: every termination path (thought-loop stop, action-loop stop, hard-cap stop, double-empty stop) now returns a rich message with recent actions and last observation instead of a canned one-liner.
+
+## [0.7.0] - 2026-04-17
+### Added
+- **Chat mode streaming**: `ChatWorker` now uses `stream=True` and emits `chunk_received` per delta; unified chat renderer (`_render_chat_display`) with scroll-preservation.
+- **CoT Reasoning Panel**: collapsible `🧠 Model Reasoning (CoT)` section extracts `<think>...</think>` tags from agent stream and strips them from the main display — visible content in one pane, reasoning in another.
+- **Optimize Prompt button**: both Chat and Agent tabs — rewrites the current input via the active model for better clarity and precision.
+- **Checkpoint system** (`core/checkpoint_manager.py`): creates a restore point before every agent task. Git commit if the workspace is a git repo, file snapshot in `.agent_checkpoints/` otherwise. "🔖 Checkpoints" button opens a list/diff/restore dialog.
+- **`.agent_context.md` bootstrap**: first agent run in a new workspace creates a structured project template (Goal, Tech Stack, Status, Completed, Todo, Notes) populated from the first prompt. Never overwrites an existing file.
+- **SQLite indexes** on `messages.conversation_id`, `messages.rating`, `conversations.created_at`.
+- **Plan-before-Execute**: ULTRA/LARGE-tier models (397B, DeepSeek V3, 72B+) receive a planning directive in the system prompt so they write a numbered plan in the first `Thought:` before executing — reduces round-trips on complex tasks.
+- **Tier-based few-shot**: 10 / 7 / 5 / 3 examples for ULTRA / LARGE / BASE / SMALL (was hardcoded 3 for everyone).
+
+### Changed
+- Internal status file renamed from `CLAUDE.md` (which collided with Claude Code's project-instruction convention) to `.agent_status.md`.
+
 ## [0.5.0] - 2026-04-07
 ### Added
 - **Multi-LLM Consilium Mode**: A new collaborative mode where multiple LLMs work together to solve complex tasks using the "Debate" pattern.

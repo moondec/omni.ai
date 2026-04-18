@@ -4,7 +4,7 @@
 
 A Python desktop application (GUI) for interacting with the PCSS LLM Service, built with **PySide6 (Qt)** and **LangChain**.
 
-> Tested on macOS. Need more tools and tests. But current version is promising.
+> Actively developed on macOS; Windows and Linux supported. See [CHANGELOG.md](CHANGELOG.md) for recent feature updates.
 
 ## ✨ Key Features
 
@@ -18,7 +18,7 @@ A Python desktop application (GUI) for interacting with the PCSS LLM Service, bu
 The application features a powerful Agent capable of performing complex, multi-step tasks.
 
 **File Management**
--   `list_directory`, `write_file`, `copy_file`, `move_file`, `delete_file`
+-   `list_directory`, `write_file`, `create_directory`, `copy_file`, `move_file`, `file_delete`, `file_search`
 -   `view_file` — read file content with **1-indexed line numbers** (auto-truncates to protect context limits).
 -   `replace_file_content` — **precision line-based editing**: surgically targets specific code blocks via start/end line integers instead of brittle string matching.
 -   `search_files` — cross-file pattern/string search across the workspace
@@ -100,7 +100,7 @@ Detailed historic log dumps (.md format) for each specific trace are safely arch
 
 ### Prerequisites
 -   **Anaconda** or **Miniconda** installed.
--   Python **3.10+**
+-   Python **3.11+** (Conda environment pins 3.11; some optional deps require modern typing)
 -   **Node.js / npm** — required for the Playwright MCP server (`npx`).
 -   **Pandoc** >= 3.0 ([Download](https://github.com/jgm/pandoc/releases)) — required for document conversion.
 

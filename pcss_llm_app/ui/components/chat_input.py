@@ -11,7 +11,8 @@ class ChatInputWidget(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptRichText(False)
-        self.setFixedHeight(80)
+        self.setMinimumHeight(80)
+        self.setMaximumHeight(240)
         self.setAcceptDrops(True)
         self.setCursorWidth(2)  # Make cursor clearly visible and blinking
         self.workspace_path = "" # To be set by main app for relative paths

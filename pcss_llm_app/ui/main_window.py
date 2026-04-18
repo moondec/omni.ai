@@ -234,6 +234,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"PCSS LLM Client v{__version__}")
         self.setGeometry(100, 100, 1200, 800)
+        self.setMinimumSize(1024, 600)
         
         # Set App Icon
         logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "resources", "logo.png")
@@ -316,6 +317,13 @@ class MainWindow(QMainWindow):
             "input_bg": "#001830",
             "button_bg": "#013664",
             "button_hover": "#024a88",
+            "danger_bg": "#8b2c2c",
+            "danger_hover": "#b93838",
+            "danger_fg": "#ffffff",
+            "console_bg": "#0b1a28",
+            "console_fg": "#7ee17e",
+            "destructive_bg": "#4a1a1f",
+            "destructive_fg": "#ff9494",
         },
         "Dreamweaver": {
             "name": "Dreamweaver",
@@ -333,6 +341,13 @@ class MainWindow(QMainWindow):
             "input_bg": "#ffffff",
             "button_bg": "#e0e0e0",
             "button_hover": "#d0d0d0",
+            "danger_bg": "#d32f2f",
+            "danger_hover": "#b71c1c",
+            "danger_fg": "#ffffff",
+            "console_bg": "#fafafa",
+            "console_fg": "#2e7d32",
+            "destructive_bg": "#fce4ec",
+            "destructive_fg": "#c2185b",
         }
     }
     
@@ -382,7 +397,8 @@ class MainWindow(QMainWindow):
 
         # ---- Sidebar (History) ----
         sidebar = QWidget()
-        sidebar.setFixedWidth(200)
+        sidebar.setMinimumWidth(180)
+        sidebar.setMaximumWidth(320)
         sidebar_layout = QVBoxLayout(sidebar)
         
         self.history_list = QListWidget()
@@ -394,8 +410,8 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(self.history_list)
         
         self.clear_history_btn = QPushButton("Clear All History")
+        self.clear_history_btn.setProperty("role", "destructive")
         self.clear_history_btn.clicked.connect(self.clear_history)
-        self.clear_history_btn.setStyleSheet("background-color: #fce4ec; color: #c2185b;")
         sidebar_layout.addWidget(self.clear_history_btn)
         
         # --- Model Selection (Global) ---
@@ -462,19 +478,25 @@ class MainWindow(QMainWindow):
         
         self.main_content_splitter.addWidget(self.tabs)
         
-        # Global Console
+        # Global Console — styled via apply_theme() (console_bg/console_fg)
         self.console_display = QTextEdit()
         self.console_display.setReadOnly(True)
         self.console_display.setPlaceholderText("Debug Console Log...")
-        self.console_display.setStyleSheet("background-color: #2b2b2b; color: #00ff00; font-family: monospace;")
+        self.console_display.setObjectName("debugConsole")
         self.console_display.hide()
         self.main_content_splitter.addWidget(self.console_display)
         self.main_content_splitter.setSizes([600, 150])
+        self.main_content_splitter.setCollapsible(1, True)
+        self.main_content_splitter.setStretchFactor(0, 1)
+        self.main_content_splitter.setStretchFactor(1, 0)
 
         main_layout.addWidget(self.main_content_splitter)
 
         self.outer_splitter.addWidget(right_panel)
         self.outer_splitter.setSizes([220, 980])
+        self.outer_splitter.setCollapsible(0, True)
+        self.outer_splitter.setStretchFactor(0, 0)
+        self.outer_splitter.setStretchFactor(1, 1)
         outer_layout.addWidget(self.outer_splitter)
         
         self.refresh_history()
@@ -771,15 +793,15 @@ class MainWindow(QMainWindow):
         input_layout.addWidget(self.message_input)
         
         self.chat_send_btn = QPushButton("Send")
-        self.chat_send_btn.setFixedSize(80, 80)
+        self.chat_send_btn.setMinimumSize(80, 80)
         self.chat_send_btn.clicked.connect(self.send_message)
         input_layout.addWidget(self.chat_send_btn)
-        
-        self.chat_stop_btn = QPushButton("⬛ Stop")
-        self.chat_stop_btn.setFixedSize(80, 80)
+
+        self.chat_stop_btn = QPushButton("Stop")
+        self.chat_stop_btn.setMinimumSize(80, 80)
         self.chat_stop_btn.clicked.connect(self.stop_chat)
         self.chat_stop_btn.setEnabled(False)
-        self.chat_stop_btn.setStyleSheet("QPushButton:enabled { background-color: #d32f2f; color: white; }")
+        self.chat_stop_btn.setProperty("role", "danger")
         input_layout.addWidget(self.chat_stop_btn)
         
         layout.addLayout(input_layout)
@@ -802,14 +824,14 @@ class MainWindow(QMainWindow):
         self.profile_combo.currentTextChanged.connect(self._on_profile_changed)
         config_layout.addWidget(self.profile_combo)
         
-        refresh_profiles_btn = QPushButton("↻")
-        refresh_profiles_btn.setFixedSize(40, 32)
-        refresh_profiles_btn.setToolTip("Refresh Profiles")
+        refresh_profiles_btn = QPushButton("Refresh")
+        refresh_profiles_btn.setMinimumSize(70, 32)
+        refresh_profiles_btn.setToolTip("Refresh agent profiles")
         refresh_profiles_btn.clicked.connect(self._load_agent_profiles)
         config_layout.addWidget(refresh_profiles_btn)
-        
-        open_folder_btn = QPushButton("📁")
-        open_folder_btn.setFixedSize(40, 32)
+
+        open_folder_btn = QPushButton("Folder")
+        open_folder_btn.setMinimumSize(70, 32)
         open_folder_btn.setToolTip("Open Profiles Folder")
         open_folder_btn.clicked.connect(self._open_profiles_folder)
         config_layout.addWidget(open_folder_btn)
@@ -888,12 +910,17 @@ class MainWindow(QMainWindow):
         reasoning_outer.setSpacing(2)
 
         reasoning_header = QHBoxLayout()
-        self.reasoning_toggle_btn = QPushButton("🧠 Rozumowanie modelu (CoT)")
+        self.reasoning_toggle_btn = QPushButton("▶ Model Reasoning (CoT)")
         self.reasoning_toggle_btn.setCheckable(True)
         self.reasoning_toggle_btn.setChecked(False)
-        self.reasoning_toggle_btn.setFixedHeight(24)
+        self.reasoning_toggle_btn.setToolTip("Show/hide chain-of-thought content (<think> tags)")
+        self.reasoning_toggle_btn.setMinimumHeight(24)
         self.reasoning_toggle_btn.toggled.connect(self._toggle_reasoning_body)
         reasoning_header.addWidget(self.reasoning_toggle_btn)
+
+        self.reasoning_badge = QLabel("")
+        self.reasoning_badge.setStyleSheet("color: gray; font-size: 10px; padding-left: 8px;")
+        reasoning_header.addWidget(self.reasoning_badge)
         reasoning_header.addStretch()
         reasoning_outer.addLayout(reasoning_header)
 
@@ -902,33 +929,37 @@ class MainWindow(QMainWindow):
         reasoning_body_layout.setContentsMargins(0, 0, 0, 0)
         self.reasoning_display = QTextBrowser()
         self.reasoning_display.setReadOnly(True)
-        self.reasoning_display.setMaximumHeight(200)
+        self.reasoning_display.setMinimumHeight(100)
         reasoning_body_layout.addWidget(self.reasoning_display)
         self.reasoning_body.setVisible(False)
         reasoning_outer.addWidget(self.reasoning_body)
 
-        self.reasoning_frame.setVisible(False)
+        # Frame is always visible so users discover the feature; body collapses.
+        self.reasoning_frame.setVisible(True)
         self._display_splitter.addWidget(self.reasoning_frame)
-        self._display_splitter.setSizes([1, 0])
+        self._display_splitter.setCollapsible(1, True)
+        self._display_splitter.setStretchFactor(0, 1)
+        self._display_splitter.setStretchFactor(1, 0)
+        self._display_splitter.setSizes([500, 30])
         agent_layout.addWidget(self._display_splitter)
 
-        # Agent Console Toggle
-        self.toggle_console_agent_btn = QPushButton("Show Debug Console")
-        self.toggle_console_agent_btn.setCheckable(True)
-        self.toggle_console_agent_btn.toggled.connect(self.toggle_console)
-        config_layout.addWidget(self.toggle_console_agent_btn)
-        
-        # Status Area
+        # Status / Workspace Area (Agent Console toggle also lives here to keep config row compact)
         status_layout = QHBoxLayout()
         self.agent_status_label = QLabel("Status: Idle")
         workspace_path = self.config.get_workspace_path()
         self.workspace_label = QLabel(f"Workspace: {workspace_path}")
-        self.workspace_label.setStyleSheet("color: gray; font-size: 10px;")
-        
+        self.workspace_label.setObjectName("mutedLabel")
+
         status_layout.addWidget(self.agent_status_label)
         status_layout.addStretch()
         status_layout.addWidget(self.workspace_label)
-        
+
+        self.toggle_console_agent_btn = QPushButton("Debug Console")
+        self.toggle_console_agent_btn.setCheckable(True)
+        self.toggle_console_agent_btn.setMinimumHeight(24)
+        self.toggle_console_agent_btn.toggled.connect(self.toggle_console)
+        status_layout.addWidget(self.toggle_console_agent_btn)
+
         agent_layout.addLayout(status_layout)
         
         # Input Area
@@ -942,22 +973,22 @@ class MainWindow(QMainWindow):
         
         agent_btn_col = QVBoxLayout()
         self.agent_send_btn = QPushButton("Send to Agent")
-        self.agent_send_btn.setFixedSize(120, 38)
+        self.agent_send_btn.setMinimumSize(160, 38)
         self.agent_send_btn.clicked.connect(self.send_to_agent)
         agent_btn_col.addWidget(self.agent_send_btn)
 
-        self.agent_optimize_btn = QPushButton("✨ Optimize Prompt")
-        self.agent_optimize_btn.setFixedSize(120, 38)
+        self.agent_optimize_btn = QPushButton("Optimize Prompt")
+        self.agent_optimize_btn.setMinimumSize(160, 38)
         self.agent_optimize_btn.setToolTip("Rewrite prompt using AI for better clarity and precision")
         self.agent_optimize_btn.clicked.connect(lambda: self.optimize_prompt(self.agent_input))
         agent_btn_col.addWidget(self.agent_optimize_btn)
         input_layout.addLayout(agent_btn_col)
 
-        self.agent_stop_btn = QPushButton("⬛ Stop")
-        self.agent_stop_btn.setFixedSize(80, 80)
+        self.agent_stop_btn = QPushButton("Stop")
+        self.agent_stop_btn.setMinimumSize(80, 80)
         self.agent_stop_btn.clicked.connect(self.stop_agent)
         self.agent_stop_btn.setEnabled(False)
-        self.agent_stop_btn.setStyleSheet("QPushButton:enabled { background-color: #d32f2f; color: white; }")
+        self.agent_stop_btn.setProperty("role", "danger")
         input_layout.addWidget(self.agent_stop_btn)
         
         agent_layout.addLayout(input_layout)
@@ -1180,6 +1211,30 @@ class MainWindow(QMainWindow):
                 background-color: {theme['secondary_bg']};
                 color: {theme['text_muted']};
             }}
+            /* Role-based variants */
+            QPushButton[role="danger"]:enabled {{
+                background-color: {theme['danger_bg']};
+                color: {theme['danger_fg']};
+                border: 1px solid {theme['danger_bg']};
+            }}
+            QPushButton[role="danger"]:enabled:hover {{
+                background-color: {theme['danger_hover']};
+            }}
+            QPushButton[role="destructive"] {{
+                background-color: {theme['destructive_bg']};
+                color: {theme['destructive_fg']};
+                border: 1px solid {theme['border']};
+            }}
+            QTextEdit#debugConsole {{
+                background-color: {theme['console_bg']};
+                color: {theme['console_fg']};
+                font-family: "Courier New", monospace;
+                border: 1px solid {theme['border']};
+            }}
+            QLabel#mutedLabel {{
+                color: {theme['text_muted']};
+                font-size: 10px;
+            }}
             QComboBox {{
                 background-color: {theme['button_bg']};
                 color: {theme['foreground']};
@@ -1261,7 +1316,13 @@ class MainWindow(QMainWindow):
         """
         
         self.setStyleSheet(stylesheet)
-    
+
+        # Force style re-evaluation for role-based property selectors
+        for btn in self.findChildren(QPushButton):
+            if btn.property("role"):
+                btn.style().unpolish(btn)
+                btn.style().polish(btn)
+
     def toggle_theme(self):
         """Toggle between Cobalt and Dreamweaver themes."""
         new_theme = "Dreamweaver" if self.current_theme == "Cobalt" else "Cobalt"
@@ -1751,12 +1812,21 @@ class MainWindow(QMainWindow):
         if content:
             html = markdown.markdown(content, extensions=['extra', 'nl2br'])
             self.reasoning_display.setHtml(html)
-            self.reasoning_frame.setVisible(True)
+            char_count = len(content)
+            self.reasoning_badge.setText(f"  ({char_count:,} chars of reasoning available)")
         else:
             self.reasoning_display.setHtml("")
+            self.reasoning_badge.setText("")
 
     def _toggle_reasoning_body(self, checked: bool):
         self.reasoning_body.setVisible(checked)
+        arrow = "▼" if checked else "▶"
+        self.reasoning_toggle_btn.setText(f"{arrow} Model Reasoning (CoT)")
+        if hasattr(self, '_display_splitter'):
+            if checked:
+                self._display_splitter.setSizes([400, 200])
+            else:
+                self._display_splitter.setSizes([550, 30])
 
     def optimize_prompt(self, input_widget):
         """Rewrite the current prompt for better clarity using the active model."""
