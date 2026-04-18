@@ -291,13 +291,19 @@ class MainWindow(QMainWindow):
         if not self.config.get_api_key():
             QMessageBox.warning(self, "Setup", "Please configure your API Key in Settings.")
             self.open_settings()
-        
-        # Try to load models
-        self._refresh_models()
-        
-        # Apply saved theme or default
+
+        # Apply saved theme or default — must happen BEFORE the window is shown
+        # so initial paint uses the correct colors.
         saved_theme = self.config.get("theme", "Cobalt")
         self.apply_theme(saved_theme)
+
+        # Defer _refresh_models to AFTER show() so the window appears immediately
+        # even if the PCSS API is slow/unresponsive. Previously the synchronous
+        # models.list() network call inside __init__ could hang the main window
+        # for the full client timeout (60s–10min) and the user saw only a dock icon.
+        self.model_combo.addItem("Loading models...")
+        self.model_combo.setEnabled(False)
+        QTimer.singleShot(50, self._refresh_models_after_show)
     
     # Theme definitions: Cobalt (dark) and Dreamweaver (light)
     THEMES = {
@@ -999,6 +1005,15 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Consilium Mode activated. Click 'Create Assistant' to re-initialize.", 5000)
         else:
             self.statusBar().showMessage("Solo Mode activated. Click 'Create Assistant' to re-initialize.", 5000)
+
+    def _refresh_models_after_show(self):
+        """Re-enable the combo and trigger the (potentially slow) API model list load.
+
+        Runs via QTimer.singleShot(50, ...) from __init__ so the main window
+        becomes visible before any network I/O blocks the GUI thread.
+        """
+        self.model_combo.setEnabled(True)
+        self._refresh_models()
 
     def _refresh_models(self):
         """

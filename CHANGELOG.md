@@ -2,6 +2,10 @@
 
 All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
 
+## [0.8.2] - 2026-04-18
+### Fixed
+- **Main window not appearing when PCSS API is slow/unresponsive**: `MainWindow.__init__` called `_refresh_models()` synchronously, which invokes `client.models.list()` — a blocking network request. When the server was slow the GUI thread froze before `show()` ran, so the user saw only a dock icon and no window. Fixed by deferring the model refresh to `QTimer.singleShot(50, …)` after `show()`, and by shortening `list_models()` HTTP timeout to 8 s so it fails fast instead of holding the UI indefinitely. The combobox shows "Loading models..." until the first refresh completes.
+
 ## [0.8.1] - 2026-04-18
 ### Fixed
 - **Infinite retry on persistent LLM stream errors**: regression introduced in v0.7.1. The stream-error recovery path used `continue` without incrementing the step counter, so on repeated `APITimeoutError` / `RemoteProtocolError` the agent retried forever (each retry waiting the full 120 s client timeout). Added a `consecutive_stream_errors` circuit breaker: after 3 back-to-back stream failures the agent returns a rich diagnostic (last error type, last action, last observation) instead of looping. Counter resets on any successful stream.

@@ -26,8 +26,10 @@ class PcssApiClient:
     def list_models(self):
         if not self.is_configured():
             return []
-        # No try/except here - let exceptions propagate to UI
-        models = self.client.models.list()
+        # Short timeout: UI must stay responsive even if the server is down.
+        # If the server is unreachable the call fails fast and the UI falls
+        # back to cached/default model names.
+        models = self.client.with_options(timeout=8.0).models.list()
         # Filter out non-chat models (whisper, embedding, etc.)
         chat_models = []
         for m in models.data:
