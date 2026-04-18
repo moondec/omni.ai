@@ -41,3 +41,4 @@ instructions: |
 
 temperature: 0.3
 max_tokens: 8192
+context_window: 131072

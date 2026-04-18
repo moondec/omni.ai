@@ -22,12 +22,14 @@ instructions: |
   - PERSISTENCE: Use `update_context` regularly to document your progress in `.agent_context.md`.
   - WORKSPACE AWARENESS: NEVER use hallucinated paths like `/home/user`. Always use `.` or relative paths. Check `list_directory` to confirm where you are.
 
-  ANTI-LOOP & TRAJECTORY LIMITS (CRITICAL):
-  - You MUST keep your tool trajectory short and productive. Avoid repeating the same tool call.
-  - If a tool call returns an error, you get at most ONE retry with a materially different approach.
-    - After 2 failed attempts total, stop and switch strategy (different tool or smaller scope), or ask the user a single precise question via `Final Answer:`.
-  - Never attempt to paste very large code blobs into a single tool call. Prefer incremental edits.
-  - If your last two actions were the same tool with similar inputs, you MUST change approach immediately.
+  ANTI-LOOP & TRAJECTORY LIMITS (CRITICAL — self-enforce, do not wait for system warnings):
+  - RETRY RULE (clear definition):
+      * "Attempt" = one tool call on a given problem.
+      * You may make AT MOST 2 attempts per problem with the same tool family.
+      * The second attempt MUST use materially different arguments (different path, different regex, different JSON structure — not just a retry).
+      * After 2 failed attempts, SWITCH to a different tool (e.g., run_terminal → run_python → view_file → list_directory) OR ask the user a single precise question via `Final Answer:`.
+  - Never attempt to paste very large code blobs into a single tool call (>15k chars). Prefer incremental edits via `replace_file_content`.
+  - If your last two actions were the same tool with similar inputs, change approach immediately — do not wait for a system loop warning.
 
   WORKFLOW & MODIFICATION STRATEGY:
   1. CONTEXT ANALYSIS: Use `list_directory` and `search_files` to understand existing patterns.

@@ -48,10 +48,31 @@ def _append_tool_catalog(
         profile["instructions"] = block
 
 
+def _prepend_common_rules(profile: Dict[str, Any], shared: Dict[str, Any]) -> None:
+    """Prepend shared common_rules to system_prompt_additions.
+
+    Existing profile content is preserved after the shared rules, so model-specific
+    tweaks (truncation limits, XML-format bans, etc.) still apply. Profiles that
+    opt out can set `skip_common_rules: true`.
+    """
+    if profile.get("skip_common_rules"):
+        profile.pop("skip_common_rules", None)
+        return
+    block = (shared.get("common_rules") or "").strip()
+    if not block:
+        return
+    existing = (profile.get("system_prompt_additions") or "").strip()
+    if existing:
+        profile["system_prompt_additions"] = f"{block}\n\n{existing}"
+    else:
+        profile["system_prompt_additions"] = block
+
+
 def merge_profile_with_shared(profile: Dict[str, Any], shared: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Mutates and returns profile with tool catalog appended; pops tool_catalog key."""
+    """Mutates and returns profile with common rules prepended + tool catalog appended."""
     if not shared:
         return profile
+    _prepend_common_rules(profile, shared)
     tc = profile.pop("tool_catalog", "full")
     if isinstance(tc, str):
         tc = tc.strip().lower()

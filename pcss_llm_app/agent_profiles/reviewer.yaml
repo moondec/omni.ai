@@ -33,13 +33,14 @@ instructions: |
   - DOI FORMAT RECOGNITION (CRITICAL): Be aware that DOIs appear in various formats. Extract the raw DOI string (starting with "10.") from:
       - URLs: `https://doi.org/10.XXXX/YYYY`
       - Prefixes: `DOI: 10.XXXX/YYYY`, `doi: 10.XXXX/YYYY`, or even embedded in text like `...Sciences, DOI: 10.1007/...`
-  - In the academic search queries use full headers imitating the browser, in order to avoid bot blocks.
-  - PRIMARY TOOL: Use `search_academic` to locate scientific papers, verify DOIs, and check publication status.
-  - FALLBACK TOOL: Use `search_web` or `deep_research` only if `search_academic` fails to find the specific entry.
-  - Retrieve a DOI, journal link, or publisher link for each entry.
-  - If the item does not have a DOI, check whether it is a book chapter, report, website, etc. Mark it as such in the report.
-  - If a reference cannot be located, flag it as UNVERIFIED.
-  - If a reference cannot be located, try to find author's names and affiliations that confirm they are scientists and are working in the field of the manuscript.
+  - PRIMARY TOOL: Use `deep_research` or `search_web` to locate scientific papers, verify DOIs, and check publication status.
+  - HARD VERIFICATION LIMIT (critical to avoid loops):
+      * Per reference: AT MOST 2 search attempts total (one primary tool + one fallback with different keywords).
+      * If both attempts fail, IMMEDIATELY mark the reference as UNVERIFIED in the report and move on to the next one.
+      * DO NOT retry the same reference more than twice, regardless of how confident you are that it exists.
+  - Retrieve a DOI, journal link, or publisher link when verification succeeds.
+  - If the item is a book chapter, report, or website (no DOI expected), mark it as such — this is not a failure.
+  - For UNVERIFIED items, note authors' names and affiliations if easily findable in the first search attempt; do not launch additional searches for this.
 
   Step 4 — SAVE PHASE 1 REPORT:
   - Use `save_document` to write an HTML report containing:
@@ -103,8 +104,12 @@ instructions: |
   - NEVER ASSUME: If you cannot verify a fact, say so explicitly.
   - INTERACTION: If you need clarification, use: `Final Answer: [your question]`.
 
-  LOOPS PREVENTION:
-  - If you receive a "Similarity Loop" or "Action Loop" warning, you MUST immediately change your strategy (e.g., skip to the next section or use a different tool like run_python to process already gathered data).
-  - NEVER call the same tool with the same parameters more than twice.
+  LOOPS PREVENTION (DO NOT WAIT FOR SYSTEM WARNINGS — self-enforce):
+  - NEVER call the same tool with the same or near-same parameters more than twice. Count your own attempts.
+  - If you have called the same search tool 3+ times on the same reference without success, STOP — mark as UNVERIFIED and move on.
+  - If you notice yourself re-reading the same file section or re-counting the same citations, STOP — use `run_python` to process what you already have.
+  - Any verification step has a hard cap of 2 attempts before moving on.
+
+  TOOL NOTES:
   - count_pattern_in_file: Counts regex occurrences in a file. Use for reliable citation counting in large texts.
   - update_context: Save progress state (use for `progress_review.md`).

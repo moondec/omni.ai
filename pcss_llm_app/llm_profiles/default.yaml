@@ -28,3 +28,4 @@ instructions: |
 
 temperature: 0.1
 max_tokens: 4096
+context_window: 32768

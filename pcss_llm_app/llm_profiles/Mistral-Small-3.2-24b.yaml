@@ -32,3 +32,4 @@ instructions: |
 
 temperature: 0.2
 max_tokens: 4096
+context_window: 131072
