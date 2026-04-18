@@ -520,7 +520,8 @@ Begin!"""
         action_history = []
         thought_history = []
         observation_history = []
-        action_loop_warnings = 0
+        action_loop_warnings = {}   # key: action signature → consecutive warning count
+        total_loop_warnings = 0     # cumulative across all signatures (hard safety cap)
         last_executed_tool = None
         
         i = 0
@@ -621,27 +622,50 @@ Begin!"""
             _t_stream_start = time.monotonic()
             _t_first_token = None
             _token_count = 0
-            for chunk in self.llm.stream(prompt, stop=["Observation:"]):
-                if chunk.content:
-                    # Record Time-to-First-Token
-                    if _t_first_token is None:
-                        _t_first_token = time.monotonic()
-                        _ttft = _t_first_token - _t_stream_start
-                        self._log(f"⏱️ TTFT (Time-to-First-Token): {_ttft:.2f}s")
-                    _token_count += 1
-                    output += chunk.content
-                    yield chunk.content
-                    # Break as soon as we have a parseable Action + Input pair
-                    has_react = "Action:" in output and "Action Input:" in output
-                    has_xml = "<invoke" in output
-                    
-                    if has_react or has_xml:
-                        if has_xml and "</invoke>" in output:
-                            _stream_break_reason = "active_break_xml_invoke"
-                            break
-                        elif has_react and _action_input_done_re.search(output):
-                            _stream_break_reason = "active_break_complete_action"
-                            break
+            _stream_error = None
+            try:
+                for chunk in self.llm.stream(prompt, stop=["Observation:"]):
+                    if self._is_cancelled:
+                        _stream_break_reason = "user_cancelled"
+                        break
+                    if chunk.content:
+                        # Record Time-to-First-Token
+                        if _t_first_token is None:
+                            _t_first_token = time.monotonic()
+                            _ttft = _t_first_token - _t_stream_start
+                            self._log(f"⏱️ TTFT (Time-to-First-Token): {_ttft:.2f}s")
+                        _token_count += 1
+                        output += chunk.content
+                        yield chunk.content
+                        # Break as soon as we have a parseable Action + Input pair
+                        has_react = "Action:" in output and "Action Input:" in output
+                        has_xml = "<invoke" in output
+
+                        if has_react or has_xml:
+                            if has_xml and "</invoke>" in output:
+                                _stream_break_reason = "active_break_xml_invoke"
+                                break
+                            elif has_react and _action_input_done_re.search(output):
+                                _stream_break_reason = "active_break_complete_action"
+                                break
+            except Exception as stream_exc:
+                _stream_error = stream_exc
+                _stream_break_reason = f"stream_exception:{type(stream_exc).__name__}"
+                self._log(f"❌ LLM stream error: {type(stream_exc).__name__}: {stream_exc}")
+
+            # If stream failed before producing any output, inject a recovery observation
+            # instead of crashing — this preserves scratchpad and gives the agent a chance
+            # to recover or the user a clean error message.
+            if _stream_error is not None and not output.strip():
+                err_msg = f"{type(_stream_error).__name__}: {_stream_error}"[:300]
+                recovery_obs = (
+                    f"\nObservation: [SYSTEM] LLM stream failed ({err_msg}). "
+                    "The server may be temporarily unavailable. "
+                    "If this keeps failing, emit: Final Answer: [brief explanation of the problem].\nThought:"
+                )
+                prompt += recovery_obs
+                self.active_scratchpad += recovery_obs
+                continue
 
             _t_stream_end = time.monotonic()
             _total_gen = _t_stream_end - _t_stream_start
@@ -674,8 +698,15 @@ Begin!"""
             
             # Strict stop only after 5 consecutive identical thoughts
             if len(thought_history) >= 4 and all(current_thought == t for t in thought_history[-4:]):
-                 self._log("⚠️ Thought Loop detected! Agent is repeating itself 5 times.")
-                 return "Agent stopped: Repetitive thought process detected. The task seems completed or the agent is stuck."
+                self._log("⚠️ Thought Loop detected! Agent is repeating itself 5 times.")
+                stuck_thought = current_thought[:300]
+                recent_obs = observation_history[-1][:200] if observation_history else "(brak)"
+                return (
+                    "Agent zatrzymany: wykryto pętlę myśli (5 identycznych 'Thought:' z rzędu).\n\n"
+                    f"**Powtarzająca się myśl:** {stuck_thought}\n\n"
+                    f"**Ostatnia obserwacja:** {recent_obs}\n\n"
+                    "Prawdopodobnie zadanie jest ukończone lub agent utknął. Sprecyzuj pytanie lub podaj dodatkowy kontekst."
+                )
             
             # Warning on 3rd identical thought
             if len(thought_history) >= 2 and current_thought == thought_history[-1] and current_thought == thought_history[-2]:
@@ -870,8 +901,9 @@ Begin!"""
                              action = func_data["name"]
                              args = func_data.get("arguments", {})
                              action_input = json.dumps(args) if isinstance(args, dict) else str(args)
-                             match = True 
-                     except Exception: pass
+                             match = True
+                     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as fc_err:
+                         self._log(f"⚙️ function_call fallback parse failed: {type(fc_err).__name__}: {fc_err}")
 
             # Fallback 3: Python code block style (common for Qwen3)
             if not match:
@@ -1198,11 +1230,29 @@ Begin!"""
                 loop_threshold = 5 if is_large_model else 3
 
                 if is_identical_loop or is_similarity_loop:
-                    # First time: intervene with an explicit instruction instead of immediately stopping.
-                    # This helps weaker models recover from accidental repeats of idempotent actions.
-                    if action_loop_warnings < loop_threshold:
-                        action_loop_warnings += 1
-                        self._log(f"⚠️ Action Loop detected! Injecting intervention (warning {action_loop_warnings}/{loop_threshold}).")
+                    # Per-signature tracking: A→B→A→B no longer evades the counter,
+                    # because each (action, input-prefix) pair has its own counter.
+                    sig = (action, str(action_input)[:80])
+                    sig_count = action_loop_warnings.get(sig, 0) + 1
+                    action_loop_warnings[sig] = sig_count
+                    total_loop_warnings += 1
+
+                    # Hard safety cap: if we've intervened too many times total across
+                    # all signatures, the agent is clearly confused — stop for good.
+                    hard_cap = loop_threshold * 3
+                    if total_loop_warnings >= hard_cap:
+                        self._log(f"⚠️ Action Loop HARD CAP reached ({total_loop_warnings} total interventions). Stopping.")
+                        recent_actions = ", ".join(f"{a[0]}({str(a[1])[:30]})" for a in action_history[-5:])
+                        recent_obs = observation_history[-1][:200] if observation_history else "(none)"
+                        return (
+                            f"Agent zatrzymany: wykryto złożoną pętlę akcji (łącznie {total_loop_warnings} interwencji).\n\n"
+                            f"**Ostatnie akcje:** {recent_actions}\n"
+                            f"**Ostatnia obserwacja:** {recent_obs}\n\n"
+                            "Spróbuj fundamentalnie innego podejścia lub podaj więcej kontekstu."
+                        )
+
+                    if sig_count < loop_threshold:
+                        self._log(f"⚠️ Action Loop detected! Intervention for '{action}' ({sig_count}/{loop_threshold}, total {total_loop_warnings}).")
                         observation = (
                             "SYSTEM INTERVENTION: You are repeating the same (or highly similar) tool action. "
                             "STOP repeating it. Do NOT call the same tool with similar input again. "
@@ -1215,8 +1265,16 @@ Begin!"""
                         self.active_scratchpad += obs_text
                         continue
 
-                    self._log("⚠️ Action Loop detected! Stopping agent after intervention.")
-                    return f"Agent stopped: Repetitive action loop detected even after {loop_threshold} system interventions. Please try a fundamentally different approach or ask the user for help."
+                    # Per-signature threshold exceeded — stop with rich context.
+                    self._log(f"⚠️ Action Loop: signature '{action}' exceeded threshold. Stopping.")
+                    recent_actions = ", ".join(f"{a[0]}({str(a[1])[:30]})" for a in action_history[-5:])
+                    recent_obs = observation_history[-1][:200] if observation_history else "(none)"
+                    return (
+                        f"Agent zatrzymany: pętla akcji '{action}' (próba {sig_count} po {loop_threshold} interwencjach).\n\n"
+                        f"**Ostatnie akcje:** {recent_actions}\n"
+                        f"**Ostatnia obserwacja:** {recent_obs}\n\n"
+                        "Wypróbuj inne narzędzie lub inne argumenty."
+                    )
                 
                 action_history.append(current_action)
 
@@ -1416,7 +1474,14 @@ Begin!"""
                         continue
                     else:
                         self._empty_response_count = 0
-                        return "Error: Agent produced empty response."
+                        last_action = action_history[-1] if action_history else ("(none)", "")
+                        recent_obs = observation_history[-1][:200] if observation_history else "(brak)"
+                        return (
+                            "Agent zatrzymany: model zwrócił dwie puste odpowiedzi z rzędu.\n\n"
+                            f"**Ostatnia akcja:** {last_action[0]}({str(last_action[1])[:60]})\n"
+                            f"**Ostatnia obserwacja:** {recent_obs}\n\n"
+                            "Serwer mógł mieć chwilową awarię lub kontekst jest zbyt duży. Spróbuj ponownie lub uprość zadanie."
+                        )
 
                 # ----------------------------------------------------------------
                 # Format correction: the model produced a natural-language response

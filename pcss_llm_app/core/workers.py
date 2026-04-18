@@ -137,6 +137,9 @@ class AgentWorker(QThread):
             if hasattr(agent_gen, '__next__'):
                 while True:
                     try:
+                        if self._is_cancelled:
+                            self.cancelled.emit()
+                            return
                         chunk = next(agent_gen)
                         if self._is_cancelled:
                             self.cancelled.emit()
@@ -144,7 +147,13 @@ class AgentWorker(QThread):
                         if chunk:
                             if type(chunk).__name__ == "AgentToolAction":
                                 self.tool_action_requested.emit(chunk)
-                                chunk.event.wait()
+                                # Poll the event with a short timeout so cancellation is responsive
+                                # instead of blocking forever on event.wait()
+                                while not chunk.event.wait(timeout=0.5):
+                                    if self._is_cancelled:
+                                        chunk.event.set()  # unblock whoever is waiting on approval
+                                        self.cancelled.emit()
+                                        return
                             else:
                                 self.chunk_received.emit(chunk)
                     except StopIteration as e:
