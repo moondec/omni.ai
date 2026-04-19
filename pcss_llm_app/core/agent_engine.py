@@ -681,9 +681,6 @@ Begin!"""
                 consecutive_stream_errors += 1
                 err_msg = f"{type(_stream_error).__name__}: {_stream_error}"[:300]
 
-                # --- Rate-limit detection with exponential backoff ---
-                # OpenRouter free-tier models return HTTP 429 on rate limit.
-                # Instead of immediately consuming a circuit-breaker slot, wait and retry.
                 _is_rate_limit = (
                     "429" in err_msg
                     or "rate limit" in err_msg.lower()
@@ -691,28 +688,84 @@ Begin!"""
                     or "too many requests" in err_msg.lower()
                     or "RateLimitError" in err_msg
                 )
+
                 if _is_rate_limit:
-                    # Exponential backoff: 5s → 10s → 20s (do not count toward circuit breaker)
-                    _backoff_slot = min(consecutive_stream_errors, 3)  # cap at 3
-                    _wait_secs = 5 * (2 ** (_backoff_slot - 1))  # 5, 10, 20
-                    self._log(
-                        f"⏳ Rate limited (429) by OpenRouter. Retry {consecutive_stream_errors}/3 "
-                        f"— waiting {_wait_secs}s before retrying..."
+                    # Detect the daily quota exhaustion
+                    _err_lower = err_msg.lower()
+                    _is_daily_limit = (
+                        "per-day" in _err_lower
+                        or "per_day" in _err_lower
+                        or "daily" in _err_lower
+                        or "requests per day" in _err_lower
                     )
-                    # Yield a status chunk so the UI shows something during the wait
-                    yield f"\n[Rate limit — retrying in {_wait_secs}s...]\n"
+
+                    if not hasattr(self, "_consecutive_rl_errors"):
+                        self._consecutive_rl_errors = 0
+                    self._consecutive_rl_errors += 1
+
+                    if _is_daily_limit:
+                        # Daily limit hit — waiting 5s WON'T help, stop now
+                        self._log(
+                            f"🚫 Daily free-tier limit exhausted for model '{self.model}'. "
+                            "Stopping agent — please switch to a different model."
+                        )
+                        yield (
+                            f"\n⚠️ **Dzienny limit darmowych żądań wyczerpany** dla modelu `{self.model}`.\n\n"
+                            "OpenRouter nie zaakceptuje kolejnych żądań do północy UTC. "
+                            "**Zmień model** na inny (np. `nvidia/llama-3.1-nemotron-70b-instruct` "
+                            "lub inny darmowy model z inną pulą limitów) i utwórz nowego asystenta.\n"
+                        )
+                        return (
+                            f"Agent zatrzymany: dzienny limit darmowych żądań wyczerpany "
+                            f"dla modelu {self.model}.\n\n"
+                            "Zmień model w panelu bocznym i kliknij 'Create Assistant' aby wznowić pracę."
+                        )
+
+                    # Per-minute limit — exponential backoff: 5s → 10s → 20s
+                    _backoff_slot = min(self._consecutive_rl_errors, 3)
+                    _wait_secs = 5 * (2 ** (_backoff_slot - 1))  # 5, 10, 20
+
+                    if self._consecutive_rl_errors > 3:
+                        # 3+ consecutive per-minute limits → daily cap likely hit indirectly
+                        self._log(
+                            f"🚫 {self._consecutive_rl_errors} kolejnych limitów 429 z rzędu "
+                            f"dla '{self.model}'. Przerywam — zmień model."
+                        )
+                        yield (
+                            f"\n⚠️ **Limit żądań (429) wystąpił {self._consecutive_rl_errors} razy z rzędu** "
+                            f"dla modelu `{self.model}`.\n\n"
+                            "Prawdopodobnie wyczerpałeś dzienny lub minutowy darmowy limit. "
+                            "**Zmień model** na inny i utwórz nowego asystenta.\n"
+                        )
+                        return (
+                            f"Agent zatrzymany po {self._consecutive_rl_errors} kolejnych błędach 429 "
+                            f"dla modelu {self.model}.\n\n"
+                            "Zmień model w panelu bocznym i kliknij 'Create Assistant'."
+                        )
+
+                    self._log(
+                        f"⏳ Rate limited (429 per-min) — retry {self._consecutive_rl_errors}/3, "
+                        f"waiting {_wait_secs}s..."
+                    )
+                    yield f"\n[Rate limit per-min — retry {self._consecutive_rl_errors}/3, czekam {_wait_secs}s...]\n"
                     import time as _time_mod
                     _time_mod.sleep(_wait_secs)
                     # Do NOT consume a circuit-breaker slot for rate limits
                     consecutive_stream_errors = max(0, consecutive_stream_errors - 1)
                     recovery_obs = (
-                        f"\nObservation: [SYSTEM] Request was rate-limited (429). "
-                        f"Waited {_wait_secs}s and will retry automatically. Continue from where you left off.\nThought:"
+                        f"\nObservation: [SYSTEM] Request was rate-limited (429 per-min). "
+                        f"Waited {_wait_secs}s. Continue from where you left off.\nThought:"
                     )
                     prompt += recovery_obs
                     self.active_scratchpad += recovery_obs
                     continue
-                # --- end rate-limit backoff ---
+                # --- end rate-limit block ---
+
+                # Reset rate-limit counter on non-rate-limit stream errors
+                if hasattr(self, "_consecutive_rl_errors"):
+                    self._consecutive_rl_errors = 0
+
+
 
                 if consecutive_stream_errors >= 3:
                     self._log(f"⛔ Circuit breaker: {consecutive_stream_errors} consecutive stream errors — stopping.")

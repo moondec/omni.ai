@@ -141,12 +141,32 @@ class CheckpointsDialog(QDialog):
                                  "Check the debug console for details.")
 
 
+class _ClickOpensPopupFilter(QObject):
+    """Event filter that shows combo popup on any mouse click in the line edit.
+
+    Qt's editable QComboBox + QCompleter does NOT automatically show the full
+    list on focus/click — the popup only appears after the user starts typing.
+    This filter fixes that by calling showPopup() on every MouseButtonPress
+    inside the embedded line edit.
+    """
+    def __init__(self, combo: QComboBox):
+        super().__init__(combo)   # combo is parent → auto-deleted with it
+        self._combo = combo
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.MouseButtonPress:
+            # Small delay via singleShot keeps the normal click handling intact
+            # (selection, cursor placement) and avoids double-popup issues.
+            QTimer.singleShot(0, self._combo.showPopup)
+        return False  # Never swallow the event
+
+
 def _make_searchable_combo() -> QComboBox:
-    """Create an editable QComboBox with smart search filtering.
+    """Create an editable QComboBox with click-to-expand + type-to-filter.
 
     Behaviour:
-    - Click / focus  -> full item list appears immediately
-    - Start typing   -> list narrows to entries *containing* the typed text
+    - Click anywhere in the field  -> full list appears immediately
+    - Start typing                 -> list narrows to entries *containing* the text
     - Case-insensitive, MatchContains
     - NoInsert: typing does NOT add new items
     """
@@ -154,11 +174,19 @@ def _make_searchable_combo() -> QComboBox:
     combo.setEditable(True)
     combo.setInsertPolicy(QComboBox.NoInsert)
     combo.lineEdit().setPlaceholderText("Click or type to filter...")
+
+    # Completer — UnfilteredPopupCompletion so clicking an empty field
+    # still shows everything (belt-and-suspenders alongside the event filter).
     c = QCompleter([])
     c.setFilterMode(Qt.MatchContains)
     c.setCaseSensitivity(Qt.CaseInsensitive)
     c.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
     combo.setCompleter(c)
+
+    # Install the event filter on the embedded line edit so clicking opens popup
+    f = _ClickOpensPopupFilter(combo)
+    combo.lineEdit().installEventFilter(f)
+
     return combo
 
 
@@ -166,6 +194,8 @@ def _attach_completer(combo: QComboBox, items: list) -> None:
     """Replace the combo's completer with a fresh one built from *items*.
 
     Call this after combo.addItems() so the popup reflects the new data.
+    The event filter installed by _make_searchable_combo is preserved on the
+    line edit and doesn't need to be re-installed.
     """
     c = QCompleter(items)
     c.setFilterMode(Qt.MatchContains)
