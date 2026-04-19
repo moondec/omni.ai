@@ -1581,22 +1581,66 @@ class PythonREPL:
         self.root_dir = os.path.abspath(root_dir)
         self.max_chars = max_chars
 
+        # Cache optional module imports once at startup — NOT inside run_python().
+        # Calling matplotlib.use('Agg') inside run_python() each time was the root
+        # cause of 10-minute hangs: Qt has already initialized a display backend and
+        # the 'Agg' switch would deadlock in certain thread contexts.
+        import math, json, datetime as dt, collections, itertools
+        self._base_modules: dict = dict(math=math, json=json, datetime=dt,
+                                        collections=collections, itertools=itertools)
+        for alias, pkg in [('np', 'numpy'), ('pd', 'pandas')]:
+            try:
+                import importlib
+                self._base_modules[alias] = importlib.import_module(pkg)
+            except ImportError:
+                self._base_modules[alias] = None
+
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as _plt
+            _root = os.path.realpath(self.root_dir)
+            _orig_savefig = _plt.savefig
+            def _safe_savefig(*args, **kwargs):
+                if args and isinstance(args[0], (str, bytes, os.PathLike)):
+                    path = str(args[0])
+                    if not os.path.isabs(path):
+                        args = (os.path.join(_root, path),) + args[1:]
+                return _orig_savefig(*args, **kwargs)
+            _plt.savefig = _safe_savefig
+            self._base_modules['plt'] = _plt
+            self._base_modules['matplotlib'] = _plt
+        except ImportError:
+            self._base_modules['plt'] = None
+            self._base_modules['matplotlib'] = None
+
+        for name, pkg in [('docx', 'docx'), ('openpyxl', 'openpyxl'), ('pypdf', 'pypdf')]:
+            try:
+                import importlib as _il
+                self._base_modules[name] = _il.import_module(pkg)
+            except ImportError:
+                self._base_modules[name] = None
+
     def run_python(self, code: str) -> str:
         """
         Executes Python code and returns the standard output.
+        A hard 30-second timeout prevents blocking I/O or infinite loops
+        from hanging the agent UI indefinitely.
         Args:
             code: The Python code to execute.
         """
+        import threading
+
         # --- Hardened REPL Sandbox ---
-        # Block dangerous builtins that can escape the workspace.
         blocked_builtins = {'open', 'eval', 'compile',
                             'breakpoint', 'input', 'memoryview'}
-        safe_builtins = {k: v for k, v in __builtins__.items()
-                         if k not in blocked_builtins} if isinstance(__builtins__, dict) else {
-            k: getattr(__builtins__, k) for k in dir(__builtins__)
-            if k not in blocked_builtins and not k.startswith('_')
-        }
-        # Provide safe file I/O restricted to workspace
+        safe_builtins = (
+            {k: v for k, v in __builtins__.items() if k not in blocked_builtins}
+            if isinstance(__builtins__, dict)
+            else {k: getattr(__builtins__, k)
+                  for k in dir(__builtins__)
+                  if k not in blocked_builtins and not k.startswith('_')}
+        )
         root = os.path.realpath(self.root_dir)
 
         def _safe_open(path, mode='r', *args, **kwargs):
@@ -1605,84 +1649,50 @@ class PythonREPL:
                 raise PermissionError(f"Access denied: '{path}' is outside the workspace.")
             return open(resolved, mode, *args, **kwargs)
 
-        # A minimal os-like namespace — no os.system, no subprocess, no chdir
-        import math, json, datetime as dt, collections, itertools
-        try:
-            import numpy as np_mod
-        except ImportError:
-            np_mod = None
-        try:
-            import pandas as pd_mod
-        except ImportError:
-            pd_mod = None
-        try:
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt_mod
-            
-            # Monkey-patch savefig to ensure files are saved in root_dir
-            _orig_savefig = plt_mod.savefig
-            def _safe_savefig(*args, **kwargs):
-                if args and isinstance(args[0], (str, bytes, os.PathLike)):
-                    path = str(args[0])
-                    if not os.path.isabs(path):
-                        # Prepend root_dir if it's a relative path
-                        args = (os.path.join(root, path),) + args[1:]
-                return _orig_savefig(*args, **kwargs)
-            plt_mod.savefig = _safe_savefig
-
-        except ImportError:
-            plt_mod = None
-
-        try:
-            import docx as docx_mod
-        except ImportError:
-            docx_mod = None
-        try:
-            import openpyxl as openpyxl_mod
-        except ImportError:
-            openpyxl_mod = None
-        try:
-            import pypdf as pypdf_mod
-        except ImportError:
-            pypdf_mod = None
-
         sandbox_globals = {
             '__builtins__': safe_builtins,
             'open': _safe_open,
-            'math': math,
-            'json': json,
-            'datetime': dt,
-            'collections': collections,
-            'itertools': itertools,
-            'np': np_mod,
-            'pd': pd_mod,
-            'plt': plt_mod,
-            'matplotlib': plt_mod,
-            'docx': docx_mod,
-            'openpyxl': openpyxl_mod,
-            'pypdf': pypdf_mod,
+            **self._base_modules,
         }
 
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            try:
-                exec(code, sandbox_globals)  # noqa: S102
-            except Exception as e:
-                return f"Error executing Python: {str(e)}"
+        exec_error: list = [None]
+
+        def _exec():
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                try:
+                    exec(code, sandbox_globals)  # noqa: S102
+                except Exception as exc:
+                    exec_error[0] = f"Error executing Python: {exc}"
+
+        t = threading.Thread(target=_exec, daemon=True)
+        t.start()
+        t.join(timeout=30)
+
+        if t.is_alive():
+            return (
+                "Error: run_python timed out after 30 seconds. "
+                "The code may contain an infinite loop or a blocking I/O call. "
+                "Use run_terminal for long-running scripts instead."
+            )
+
+        if exec_error[0]:
+            return exec_error[0]
 
         output = stdout.getvalue()
         err = stderr.getvalue()
         if err:
             output += f"\n[stderr]:\n{err}"
-        
+
         final_output = output if output else "Code executed successfully (no output)."
-        
+
         if len(final_output) > self.max_chars:
             half = self.max_chars // 2
-            final_output = final_output[:half] + f"\n... [Output truncated from {len(final_output)} to {self.max_chars} chars] ...\n" + final_output[-half:]
-            
+            final_output = (final_output[:half]
+                            + f"\n... [Output truncated from {len(final_output)} to {self.max_chars} chars] ...\n"
+                            + final_output[-half:])
+
         return final_output
 
     def get_tools(self):
@@ -1690,7 +1700,7 @@ class PythonREPL:
             StructuredTool.from_function(
                 func=self.run_python,
                 name="run_python",
-                description="Executes Python code in a local environment. Useful for data processing, math, or complex logic. Returns standard output."
+                description="Executes Python code in a local environment. Returns stdout. Max execution: 30s. For long-running scripts use run_terminal."
             )
         ]
 class ViewFileSchema(BaseModel):
