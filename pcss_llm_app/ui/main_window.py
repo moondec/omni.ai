@@ -8,11 +8,11 @@ import subprocess
 from PySide6.QtCore import Qt, QSize, QTimer, QThread, Signal, QObject, QEvent, QDir, QFileInfo
 from PySide6.QtGui import QAction, QIcon, QTextCursor, QPixmap
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-    QTextEdit, QTextBrowser, QLineEdit, QPushButton, QLabel, 
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QTextEdit, QTextBrowser, QLineEdit, QPushButton, QLabel,
     QComboBox, QSplitter, QFrame, QScrollArea, QSizePolicy,
     QApplication, QTabWidget, QFileDialog, QMessageBox, QDialog, QFormLayout,
-    QListWidget, QMenu, QTreeView, QPlainTextEdit, QFileSystemModel
+    QListWidget, QMenu, QTreeView, QPlainTextEdit, QFileSystemModel, QCompleter
 )
 import datetime
 import markdown
@@ -141,6 +141,39 @@ class CheckpointsDialog(QDialog):
                                  "Check the debug console for details.")
 
 
+def _make_searchable_combo() -> QComboBox:
+    """Create an editable QComboBox with smart search filtering.
+
+    Behaviour:
+    - Click / focus  -> full item list appears immediately
+    - Start typing   -> list narrows to entries *containing* the typed text
+    - Case-insensitive, MatchContains
+    - NoInsert: typing does NOT add new items
+    """
+    combo = QComboBox()
+    combo.setEditable(True)
+    combo.setInsertPolicy(QComboBox.NoInsert)
+    combo.lineEdit().setPlaceholderText("Click or type to filter...")
+    c = QCompleter([])
+    c.setFilterMode(Qt.MatchContains)
+    c.setCaseSensitivity(Qt.CaseInsensitive)
+    c.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+    combo.setCompleter(c)
+    return combo
+
+
+def _attach_completer(combo: QComboBox, items: list) -> None:
+    """Replace the combo's completer with a fresh one built from *items*.
+
+    Call this after combo.addItems() so the popup reflects the new data.
+    """
+    c = QCompleter(items)
+    c.setFilterMode(Qt.MatchContains)
+    c.setCaseSensitivity(Qt.CaseInsensitive)
+    c.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+    combo.setCompleter(c)
+
+
 class AgentLogSignal(QObject):
     log_message = Signal(str)
 
@@ -172,15 +205,21 @@ class SettingsDialog(QDialog):
         workspace_layout.addWidget(browse_btn)
         settings_dlg_layout.addRow("Workspace:", workspace_layout)
 
-        # Model Selection
-        self.model_combo = QComboBox()
-        if self.available_models:
-            self.model_combo.addItems(self.available_models)
-        else:
-            self.model_combo.addItems(["bielik_11b", "DeepSeek-V3.1-vLLM"]) # Default fallback
-            
+        # Model Selection — editable with click-to-expand and type-to-filter
+        self.model_combo = _make_searchable_combo()
+        items = self.available_models or ["bielik_11b", "DeepSeek-V3.1-vLLM"]
+        self.model_combo.addItems(items)
+        _attach_completer(self.model_combo, items)
         current_model = self.config.get("model", "bielik_11b")
-        self.model_combo.setCurrentText(current_model)
+        # Try to restore saved model; also try the bare ID (without emoji prefix)
+        if not self.model_combo.findText(current_model) >= 0:
+            # Maybe displayed with 🆓 prefix — scan for it
+            for i in range(self.model_combo.count()):
+                if self.model_combo.itemText(i).endswith(current_model):
+                    self.model_combo.setCurrentIndex(i)
+                    break
+        else:
+            self.model_combo.setCurrentText(current_model)
         settings_dlg_layout.addRow("Default Model:", self.model_combo)
 
         # Base URL
@@ -435,7 +474,7 @@ class MainWindow(QMainWindow):
         
         model_group_layout.addLayout(model_header)
         
-        self.model_combo = QComboBox()
+        self.model_combo = self._make_searchable_combo()
         self.model_combo.currentTextChanged.connect(self.on_model_changed)
         model_group_layout.addWidget(self.model_combo)
         
@@ -873,18 +912,18 @@ class MainWindow(QMainWindow):
         consilium_grid.setContentsMargins(0, 0, 0, 0)
         
         consilium_grid.addWidget(QLabel("Executor:"))
-        self.consilium_executor_combo = QComboBox()
+        self.consilium_executor_combo = self._make_searchable_combo()
         consilium_grid.addWidget(self.consilium_executor_combo)
-        
+
         consilium_grid.addWidget(QLabel("Reviewer:"))
-        self.consilium_reviewer_combo = QComboBox()
+        self.consilium_reviewer_combo = self._make_searchable_combo()
         consilium_grid.addWidget(self.consilium_reviewer_combo)
-        
+
         consilium_grid.addWidget(QLabel("Skeptic:"))
-        self.consilium_skeptic_combo = QComboBox()
+        self.consilium_skeptic_combo = self._make_searchable_combo()
         consilium_grid.addWidget(self.consilium_skeptic_combo)
-        
-        # We will populate these comboboxes in _refresh_models
+
+        # Populated in _refresh_models
         
         self.consilium_controls.setVisible(False)
         self.consilium_layout.addWidget(self.consilium_controls)
@@ -1006,6 +1045,16 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("Solo Mode activated. Click 'Create Assistant' to re-initialize.", 5000)
 
+    @staticmethod
+    def _make_searchable_combo() -> QComboBox:
+        """Delegate to module-level helper (kept for legacy call-sites)."""
+        return _make_searchable_combo()
+
+    @staticmethod
+    def _attach_completer(combo: QComboBox, items: list) -> None:
+        """Delegate to module-level helper (kept for legacy call-sites)."""
+        _attach_completer(combo, items)
+
     def _refresh_models_after_show(self):
         """Re-enable the combo and trigger the (potentially slow) API model list load.
 
@@ -1018,122 +1067,136 @@ class MainWindow(QMainWindow):
     def _refresh_models(self):
         """
         Refresh available models from API.
-        Fully dynamic - adapts to any changes in API model offerings.
+        Fully dynamic — adapts to any changes in API model offerings.
+        Adds 🆓 prefix to free-tier models, sorts alphabetically.
         """
         if self.api.is_configured():
-            self.model_combo.blockSignals(True) # Prevent triggering change reset during update
-            
+            self.model_combo.blockSignals(True)  # Prevent triggering change reset during update
+
             try:
-                # 1. Fetch available models from API (single source of truth)
-                fetched_models = self.api.list_models()
-                
-                # 2. Optional: Filter out known problematic models
-                KNOWN_BAD_MODELS = []  # Empty for now - add model IDs here if needed
-                
-                final_models = [m for m in fetched_models if m not in KNOWN_BAD_MODELS]
-                
-                # Check if we got any models
-                if not final_models:
+                # 1. Fetch full model metadata (pricing + sorting)
+                models_full = self.api.list_models_full()
+
+                # 2. Build display list: free models get 🆓 prefix
+                # _model_display_map: display_label -> real model id
+                self._model_display_map = {}
+                display_labels = []
+                for m in models_full:
+                    label = ("🆓 " if m["is_free"] else "") + m["id"]
+                    self._model_display_map[label] = m["id"]
+                    display_labels.append(label)
+
+                # Also keep bare IDs as aliases (for saved config restoring)
+                for m in models_full:
+                    self._model_display_map[m["id"]] = m["id"]
+
+                # Cache plain IDs for other consumers (consilium combos etc.)
+                final_models = [m["id"] for m in models_full]
+                self.available_models = final_models
+
+                if not display_labels:
                     raise ValueError("No models available from API")
-                
-                # 3. Update UI with fetched models
+
+                # 3. Update main model combo with display labels
                 self.model_combo.clear()
-                self.model_combo.addItems(final_models)
-                
-                # Consilium Combos
+                self.model_combo.addItems(display_labels)
+                self._attach_completer(self.model_combo, display_labels)
+
+                # 4. Consilium combos — also get 🆓 labels + fresh completers
                 for combo in [self.consilium_executor_combo, self.consilium_reviewer_combo, self.consilium_skeptic_combo]:
-                    if hasattr(self, 'consilium_executor_combo'): # Check if initialized
+                    if hasattr(self, "consilium_executor_combo"):
                         combo.clear()
-                        combo.addItems(final_models)
-                
-                # 4. Smart model selection with fallback
+                        combo.addItems(display_labels)
+                        self._attach_completer(combo, display_labels)
+
+                # 5. Smart model selection with fallback
                 saved_model = self.config.get("model")
                 selected_model = None
-                
+
+                def _select_by_real_id(real_id):
+                    """Find and select the display label matching real_id."""
+                    for i, label in enumerate(display_labels):
+                        if self._model_display_map.get(label) == real_id:
+                            self.model_combo.setCurrentIndex(i)
+                            return True
+                    return False
+
                 if saved_model and saved_model in final_models:
-                    # Saved model is available - restore it
-                    index = self.model_combo.findText(saved_model)
-                    if index >= 0:
-                        self.model_combo.setCurrentIndex(index)
+                    if _select_by_real_id(saved_model):
                         selected_model = saved_model
                         self.append_log(f"✓ Restored model: {saved_model}")
                 else:
-                    # Saved model not available - use smart fallback
                     if saved_model:
                         self.append_log(f"⚠ Saved model '{saved_model}' no longer available")
-                    
-                    # Preferred fallback order
+
                     PREFERRED_MODELS = ["bielik_11b", "DeepSeek-V3.1-vLLM"]
-                    
                     for preferred in PREFERRED_MODELS:
                         if preferred in final_models:
-                            index = self.model_combo.findText(preferred)
-                            if index >= 0:
-                                self.model_combo.setCurrentIndex(index)
+                            if _select_by_real_id(preferred):
                                 selected_model = preferred
                                 self.append_log(f"→ Selected fallback model: {preferred}")
                                 break
-                    
-                    # If no preferred model found, use first available
-                    if not selected_model and len(final_models) > 0:
+
+                    if not selected_model and display_labels:
                         self.model_combo.setCurrentIndex(0)
                         selected_model = final_models[0]
                         self.append_log(f"→ Selected first available model: {selected_model}")
-                    
-                    # Save the new selection
+
                     if selected_model:
                         self.config.set("model", selected_model)
-                
-                # Default Consilium selections if available
+
+                # 6. Default Consilium selections
                 def _set_consilium_default(combo, preferred):
                     idx = combo.findText(preferred)
                     if idx >= 0:
                         combo.setCurrentIndex(idx)
                     elif combo.count() > 0:
                         combo.setCurrentIndex(0)
-                        
-                if hasattr(self, 'consilium_executor_combo'):
+
+                if hasattr(self, "consilium_executor_combo"):
                     _set_consilium_default(self.consilium_executor_combo, "Qwen3.5-397B-A17B")
                     _set_consilium_default(self.consilium_reviewer_combo, "DeepSeek-V3.1-vLLM")
                     _set_consilium_default(self.consilium_skeptic_combo, "GLM-4.7")
-                
-                # 5. Success feedback
-                current_model = self.model_combo.currentText()
+
+                # 7. Count free vs paid
+                free_count = sum(1 for m in models_full if m["is_free"])
+                paid_count = len(models_full) - free_count
+                current_model = self._model_display_map.get(self.model_combo.currentText(), self.model_combo.currentText())
                 self.statusBar().showMessage(
-                    f"Models refreshed ({len(final_models)} available) - Using: {current_model}", 
-                    3000
+                    f"Models refreshed: {len(models_full)} total (🆓 {free_count} free, {paid_count} paid) — Using: {current_model}",
+                    5000
                 )
-                
+
             except Exception as e:
-                # Handle API errors gracefully
                 self.append_log(f"❌ Model refresh failed: {str(e)}")
-                
-                # Emergency fallback - populate with common models
                 self.model_combo.clear()
                 emergency_models = ["bielik_11b", "DeepSeek-V3.1-vLLM"]
                 self.model_combo.addItems(emergency_models)
                 self.model_combo.setCurrentIndex(0)
-                
-                # Show error to user
-                err_msg = f"Model refresh failed: {str(e)}"
-                self.statusBar().showMessage(err_msg, 10000)
-                
+                self.statusBar().showMessage(f"Model refresh failed: {str(e)}", 10000)
+
             finally:
                 self.model_combo.blockSignals(False)
 
     def on_model_changed(self, text):
         if not text:
             return
-            
-        # Save selected model to config
-        self.config.set("model", text)
-        self.append_log(f"Model changed to: {text}")
-        
+        # Strip 🆓 display prefix to get the real model ID
+        real_id = getattr(self, "_model_display_map", {}).get(text, text)
+        # Save real model ID (no emoji) to config
+        self.config.set("model", real_id)
+        self.append_log(f"Model changed to: {real_id}")
+
         # Update status bar with current model
-        self.statusBar().showMessage(f"Using model: {text}", 5000)
-        self.agent_display.append(f"<b>System:</b> Model changed to {text}. Please re-initialize Assistant.<br>")
-        self.agent_engine = None # Force re-creation with new model
+        self.statusBar().showMessage(f"Using model: {real_id}", 5000)
+        self.agent_display.append(f"<b>System:</b> Model changed to {real_id}. Please re-initialize Assistant.<br>")
+        self.agent_engine = None  # Force re-creation with new model
         self.agent_status_label.setText("Model Changed")
+
+    def _current_model(self) -> str:
+        """Return the real model ID from the main combo (strips 🆓 display prefix)."""
+        text = self.model_combo.currentText()
+        return getattr(self, "_model_display_map", {}).get(text, text)
 
     def open_settings(self):
         # Get current models from main combo
@@ -1159,7 +1222,7 @@ class MainWindow(QMainWindow):
                     self._update_file_browser_root(new_workspace)
             
             # Log the current selected model for user confirmation
-            current_model = self.model_combo.currentText()
+            current_model = self._current_model()
             self.append_log(f"Settings saved. Current model: {current_model}")
 
     def apply_theme(self, theme_name: str):
@@ -1371,7 +1434,7 @@ class MainWindow(QMainWindow):
 
         self._add_to_prompt_history(text)
 
-        model = self.model_combo.currentText()
+        model = self._current_model()
         # print(f"DEBUG: Sending message with model: {model}")
         if not self.current_conversation_id:
             title = text[:30] + "..."
@@ -1560,7 +1623,7 @@ class MainWindow(QMainWindow):
             return
 
         workspace = self.config.get_workspace_path()
-        model = self.model_combo.currentText()
+        model = self._current_model()
         
         # Determine LLM-specific operational rules and limits
         llm_rules, max_tokens, system_prompt_additions, context_window = self._get_llm_profile_data(model)
@@ -1593,9 +1656,10 @@ class MainWindow(QMainWindow):
             
             if is_consilium:
                 # Initialize Consilium Orchestrator
-                ex_model = self.consilium_executor_combo.currentText()
-                rv_model = self.consilium_reviewer_combo.currentText()
-                sk_model = self.consilium_skeptic_combo.currentText()
+                _dm = getattr(self, "_model_display_map", {})
+                ex_model = _dm.get(self.consilium_executor_combo.currentText(), self.consilium_executor_combo.currentText())
+                rv_model = _dm.get(self.consilium_reviewer_combo.currentText(), self.consilium_reviewer_combo.currentText())
+                sk_model = _dm.get(self.consilium_skeptic_combo.currentText(), self.consilium_skeptic_combo.currentText())
                 
                 self.agent_engine = ConsiliumOrchestrator(
                     api_key=api_key,
@@ -1692,7 +1756,7 @@ class MainWindow(QMainWindow):
         
         # Persistence
         if not self.current_agent_conversation_id:
-             model = self.model_combo.currentText()
+             model = self._current_model()
              profile = self.profile_combo.currentText()
              agent_name = self.agent_name_input.text().strip()
              title = f"Agent: {text[:20]}..."
@@ -1864,7 +1928,7 @@ class MainWindow(QMainWindow):
             },
             {"role": "user", "content": text}
         ]
-        model = self.model_combo.currentText()
+        model = self._current_model()
         worker = ChatWorker(self.api, model, messages)
 
         def on_done(result):
@@ -2154,7 +2218,7 @@ class MainWindow(QMainWindow):
         if path:
             data = {
                 "meta": {
-                    "model": self.model_combo.currentText(),
+                    "model": self._current_model(),
                     "date": str(datetime.datetime.now())
                 },
                 "messages": self.chat_history

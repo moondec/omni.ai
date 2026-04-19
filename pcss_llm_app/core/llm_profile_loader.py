@@ -128,6 +128,8 @@ _FAMILY_MAP: List[Tuple[str, str]] = [
     ("llama",              "openrouter-llama"),
     # Google Gemma
     ("gemma",              "openrouter-gemma"),
+    # Elephant (OpenRouter proprietary)
+    ("elephant",           "openrouter-elephant"),
     # DeepSeek
     ("deepseek",           "DeepSeek-V3.1-vLLM"),
     # Bielik

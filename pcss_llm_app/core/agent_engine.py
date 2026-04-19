@@ -78,8 +78,9 @@ def get_model_profile(model_name: str) -> ModelProfile:
         "mistral-large",
         "mistral-small-3",    # mistral-small-3.2-24b
         "mixtral",
+        "elephant",           # openrouter/elephant-alpha (100B)
     ]):
-        return ModelProfile(2, "LARGE", 131_072, 40_000, 300, 150)
+        return ModelProfile(2, "LARGE", 262_144, 40_000, 300, 150)
 
     # Tier 3: BASE (Standard Medium Models — known families)
     if any(kw in m_lower for kw in [

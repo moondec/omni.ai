@@ -24,20 +24,44 @@ class PcssApiClient:
         return self.client is not None
 
     def list_models(self):
+        """Return sorted list of chat model IDs available on the server."""
+        return [m["id"] for m in self.list_models_full()]
+
+    def list_models_full(self):
+        """Return rich model list: [{"id": ..., "is_free": bool, "pricing": {...}}, ...]
+
+        Models are sorted alphabetically (provider/name). Free-tier models are
+        detected either from the API pricing data (cost == 0) or by the ':free'
+        suffix common on OpenRouter.
+        """
         if not self.is_configured():
             return []
-        # Short timeout: UI must stay responsive even if the server is down.
-        # If the server is unreachable the call fails fast and the UI falls
-        # back to cached/default model names.
         models = self.client.with_options(timeout=8.0).models.list()
-        # Filter out non-chat models (whisper, embedding, etc.)
-        chat_models = []
+
+        SKIP_KEYWORDS = ("whisper", "embedding", "dall", "tts")
+        result = []
         for m in models.data:
             mid = m.id.lower()
-            if "whisper" in mid or "embedding" in mid or "dall" in mid or "tts" in mid:
+            if any(kw in mid for kw in SKIP_KEYWORDS):
                 continue
-            chat_models.append(m.id)
-        return chat_models
+
+            # Detect free tier: ':free' suffix OR pricing data with zero costs
+            is_free = mid.endswith(":free")
+            pricing = getattr(m, "pricing", None)
+            if pricing and not is_free:
+                try:
+                    prompt_cost = float(getattr(pricing, "prompt", 1) or 1)
+                    completion_cost = float(getattr(pricing, "completion", 1) or 1)
+                    if prompt_cost == 0 and completion_cost == 0:
+                        is_free = True
+                except (TypeError, ValueError):
+                    pass
+
+            result.append({"id": m.id, "is_free": is_free, "pricing": pricing})
+
+        # Sort alphabetically by model ID (provider/name)
+        result.sort(key=lambda x: x["id"].lower())
+        return result
 
     def chat_completion(self, model, messages, **kwargs):
         """
