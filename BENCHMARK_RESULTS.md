@@ -1,6 +1,6 @@
 # PCSS Benchmark Results
 
-This file contains cumulative benchmark run results. Detailed logs per run are kept in `pcss_llm_app/benchmarks/results/`.
+This file contains cumulative benchmark run results. Detailed logs per run are kept in `omni_agent/benchmarks/results/`.
 For a detailed description of the tasks being tested, see **[`BENCHMARK_TASKS.md`](BENCHMARK_TASKS.md)**.
 
 ---

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 # Constants for Keyring
-SERVICE_NAME = "pcss_llm_app"
+SERVICE_NAME = "omni_agent"
 USERNAME = "api_key"
 
 class ConfigManager:

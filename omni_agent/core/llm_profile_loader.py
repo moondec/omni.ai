@@ -1,7 +1,7 @@
 """
 Load and merge per-model LLM profiles with shared fragments (e.g. tool catalog).
 
-Profiles live in pcss_llm_app/llm_profiles/*.yaml; shared text in _shared.yaml.
+Profiles live in omni_agent/llm_profiles/*.yaml; shared text in _shared.yaml.
 """
 from __future__ import annotations
 

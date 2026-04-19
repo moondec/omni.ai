@@ -10,14 +10,14 @@ import argparse
 from typing import Dict, List, Any
 
 # Local imports
-from pcss_llm_app.config import ConfigManager
-from pcss_llm_app.core.api_client import PcssApiClient
-from pcss_llm_app.benchmarks.tasks import CHAT_TASKS
-from pcss_llm_app.benchmarks import reporter
+from omni_agent.config import ConfigManager
+from omni_agent.core.api_client import OmniApiClient
+from omni_agent.benchmarks.tasks import CHAT_TASKS
+from omni_agent.benchmarks import reporter
 
 def run_chat_benchmark(models: List[str]):
     config = ConfigManager()
-    api_client = PcssApiClient(config)
+    api_client = OmniApiClient(config)
     
     if not api_client.is_configured():
         print("ERROR: API Client not configured. Ensure PCSS_API_KEY is set or stored in keyring.")
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     
     if args.list_models:
         config = ConfigManager()
-        client = PcssApiClient(config)
+        client = OmniApiClient(config)
         print("Dostępne modele:", ", ".join(client.list_models()))
         sys.exit(0)
     

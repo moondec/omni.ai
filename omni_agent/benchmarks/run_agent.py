@@ -14,22 +14,22 @@ import shutil
 from typing import Dict, List, Any
 
 # Local imports
-from pcss_llm_app.config import ConfigManager
-from pcss_llm_app.core.api_client import PcssApiClient
-from pcss_llm_app.core.agent_engine import LangChainAgentEngine
-from pcss_llm_app.benchmarks.tasks import AGENT_TASKS
-from pcss_llm_app.benchmarks import reporter
+from omni_agent.config import ConfigManager
+from omni_agent.core.api_client import OmniApiClient
+from omni_agent.core.agent_engine import LangChainAgentEngine
+from omni_agent.benchmarks.tasks import AGENT_TASKS
+from omni_agent.benchmarks import reporter
 
 # To extract schemas from real tools
 from langchain_core.utils.function_calling import convert_to_openai_function
-from pcss_llm_app.core.tools import (
+from omni_agent.core.tools import (
     DocumentTools, WebSearchTools, SearchTools, 
     TerminalTool, ViewFileTool, ChartTools, PythonREPL, CountPatternTool
 )
 
 class MockAgentBenchmarkRunner:
     """Runs agent tasks using native OpenAI function calling with mocked execution."""
-    def __init__(self, api_client: PcssApiClient, config: ConfigManager):
+    def __init__(self, api_client: OmniApiClient, config: ConfigManager):
         self.api_client = api_client
         self.config = config
         self.schemas = self._generate_real_tool_schemas()
@@ -130,7 +130,7 @@ class MockAgentBenchmarkRunner:
 
 class RealAgentBenchmarkRunner:
     """Runs agent using the actual LangChainAgentEngine on a sandboxed directory."""
-    def __init__(self, api_client: PcssApiClient, config: ConfigManager):
+    def __init__(self, api_client: OmniApiClient, config: ConfigManager):
         self.api_client = api_client
         self.config = config
         
@@ -206,7 +206,7 @@ class RealAgentBenchmarkRunner:
 
 def run_agent_benchmark(models: List[str], mode: str = "mock"):
     config = ConfigManager()
-    api_client = PcssApiClient(config)
+    api_client = OmniApiClient(config)
     
     if not api_client.is_configured():
         print("ERROR: API Client not configured.")
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     
     if args.list_models:
         config = ConfigManager()
-        client = PcssApiClient(config)
+        client = OmniApiClient(config)
         print("Dostępne modele:", ", ".join(client.list_models()))
         sys.exit(0)
     

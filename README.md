@@ -1,4 +1,4 @@
-# PCSS LLM Client
+# omni.ai
 
 <img src="resources/logo.png" align="right" width="240" />
 
@@ -45,7 +45,7 @@ The application features a powerful Agent capable of performing complex, multi-s
 
 ### 3. 🎙️ Audio Transcription & Dictation
 -   **Configurable Transcription**: Choose your preferred Whisper model (e.g., `whisper-large-v3-turbo:0.8b`) in Settings to use with the `transcribe_audio` tool.
--   **System-wide Dictation App**: A standalone utility (`pcss_dictation.py`) that runs in the tray and allows you to dictate text into **any** application via a global hotkey (`Left Ctrl + Space`).
+-   **System-wide Dictation App**: A standalone utility (`voice_typing.py`) that runs in the tray and allows you to dictate text into **any** application via a global hotkey (`Left Ctrl + Space`).
 -   **Secure Keys**: Both apps share a secure connection to PCSS via the system Keyring.
 
 ### 4. 💬 Chat vs. 🤖 Agent (Important!)
@@ -80,21 +80,21 @@ The application is designed for full data continuity and flexible session manage
 
 ### 7. 🏋️ Benchmarking Suite
 
-The repository includes a comprehensive, modular benchmark suite designed to evaluate the PCSS model's chat fluency and autonomous capabilities. The agent benchmarks extract the exact tool schema dynamically from the application (e.g. `pcss_llm_app.core.tools`), ensuring test accuracy.
+The repository includes a comprehensive, modular benchmark suite designed to evaluate the PCSS model's chat fluency and autonomous capabilities. The agent benchmarks extract the exact tool schema dynamically from the application (e.g. `omni_agent.core.tools`), ensuring test accuracy.
 
 **Available Commands (run from root directory):**
-- **List Models**: `python -m pcss_llm_app.benchmarks.run_chat --list-models`
+- **List Models**: `python -m omni_agent.benchmarks.run_chat --list-models`
   - *(Dynamically fetches the current list of available PCSS models without running benchmarks).*
-- **Chat Benchmark**: `python -m pcss_llm_app.benchmarks.run_chat --models bielik_11b,Qwen3.5-397B-A17B-GPTQ-Int4`
-- **Agent Benchmark (Mock)**: `python -m pcss_llm_app.benchmarks.run_agent --models bielik_11b --mode mock`
+- **Chat Benchmark**: `python -m omni_agent.benchmarks.run_chat --models bielik_11b,Qwen3.5-397B-A17B-GPTQ-Int4`
+- **Agent Benchmark (Mock)**: `python -m omni_agent.benchmarks.run_agent --models bielik_11b --mode mock`
   - *(Evaluates schema understanding using fast OpenAI native function-calling).*
-- **Agent Benchmark (Real)**: `python -m pcss_llm_app.benchmarks.run_agent --models bielik_11b --mode real`
+- **Agent Benchmark (Real)**: `python -m omni_agent.benchmarks.run_agent --models bielik_11b --mode real`
   - *(Spawns the real `LangChainAgentEngine` inside an isolated temporary proxy directory to verify format syntax and sequential thought cycles).*
 
 **Viewing Results:**
 Every benchmark execution generates an aggregated markdown summary located in the root file: **[`BENCHMARK_RESULTS.md`](BENCHMARK_RESULTS.md)**.
 Detailed descriptions of each test case can be found in **[`BENCHMARK_TASKS.md`](BENCHMARK_TASKS.md)**.
-Detailed historic log dumps (.md format) for each specific trace are safely archived in `pcss_llm_app/benchmarks/results/`.
+Detailed historic log dumps (.md format) for each specific trace are safely archived in `omni_agent/benchmarks/results/`.
 
 ## 🛠️ Installation
 
@@ -108,7 +108,7 @@ Detailed historic log dumps (.md format) for each specific trace are safely arch
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/moondec/PCSS-frontend-LLM.git
+    git clone https://github.com/moondec/omni.ai.git
     cd Bielik
     ```
 
@@ -139,7 +139,7 @@ Recommended if you prefer not to use Conda or encounter installation issues.
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/moondec/PCSS-frontend-LLM.git
+    git clone https://github.com/moondec/omni.ai.git
     cd Bielik
     ```
 
@@ -234,13 +234,13 @@ Recommended if you prefer not to use Conda or encounter installation issues.
 - **venv (Windows)**: `venv\Scripts\activate`
 
 ```bash
-python pcss_llm_app/main.py
+python omni_agent/main.py
 ```
 
 ### 3. Run Dictation Utility (Standalone)
 To use the global "Voice-to-Text" feature in any application (Terminal, VSCode, etc.):
 ```bash
-python pcss_dictation.py
+python voice_typing.py
 ```
 - **Hotkey**: Hold `Left Ctrl + Space` to record. Release to transcribe and type.
 - **Permissions**: On macOS, you must grant "Accessibility" permissions to the Terminal/Python in System Settings.

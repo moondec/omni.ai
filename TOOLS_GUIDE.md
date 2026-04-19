@@ -1,6 +1,6 @@
 # Agent Tools Guide
 
-This document describes the tools available to the Autonomous Agent in the PCSS LLM Client. The agent automatically selects the best tool for the job.
+This document describes the tools available to the Autonomous Agent in the omni.ai. The agent automatically selects the best tool for the job.
 
 > [!IMPORTANT]
 > **Workspace Sandboxing:** For security, the agent is strictly confined to the directory defined in Settings. It cannot read or write files outside this path. Absolute paths and traversal attempts are automatically blocked.

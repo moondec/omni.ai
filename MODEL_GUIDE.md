@@ -52,7 +52,7 @@ This document provides a summary of models available in the application, categor
 
 ## 🏗️ Model Capacity Profiles (Tiers) / Profile Wydajnościowe (Tiers)
 
-The PCSS LLM App automatically detects the reasoning capacity of each model and applies a **Tiered Capacity Profile**. This ensures that high-capacity models can ingest massive amounts of data while smaller models are protected from "context drowning" through aggressive truncation and tighter observation windows.
+The omni.ai automatically detects the reasoning capacity of each model and applies a **Tiered Capacity Profile**. This ensures that high-capacity models can ingest massive amounts of data while smaller models are protected from "context drowning" through aggressive truncation and tighter observation windows.
 
 *Aplikacja PCSS LLM automatycznie wykrywa zdolności rozumowania każdego modelu i nakłada **Profil Wydajnościowy (Tier)**. Zapewnia to, że potężne modele mogą przetwarzać ogromne ilości danych, podczas gdy mniejsze są chronione przed "utonięciem w kontekście" poprzez agresywne przycinanie odpowiedzi i mniejsze okna obserwacji.*
 

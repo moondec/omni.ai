@@ -1,0 +1,1236 @@
+{
+    "metadata": {
+        "mode": "agent_mock",
+        "models_tested": [
+            "DeepSeek-V3.1-vLLM",
+            "DeepSeek-V3.1-vLLM-2",
+            "Mistral-Small-3.2:24b",
+            "Qwen2.5:72b",
+            "bielik_11b",
+            "gpt-oss_120b",
+            "llama3.3:70b",
+            "Nanonets-OCR-s",
+            "Qwen3-Coder-Next",
+            "MiniMax-M2.5",
+            "Qwen3-VL-235B-A22B-Instruct",
+            "GLM-4.7",
+            "Qwen3.5-397B-A17B",
+            "Qwen3.5-397B-A17B-GPTQ-Int4"
+        ],
+        "total_tasks": 5
+    },
+    "model_metrics": {
+        "DeepSeek-V3.1-vLLM": {
+            "total_tasks": 5,
+            "successful_tasks": 0,
+            "total_time_ms": 65251.73115730286,
+            "total_tool_acc": 0.0,
+            "success_rate": 0.0,
+            "tool_accuracy": 0.0,
+            "avg_response_time_ms": 13050.346231460571
+        },
+        "DeepSeek-V3.1-vLLM-2": {
+            "total_tasks": 5,
+            "successful_tasks": 0,
+            "total_time_ms": 40543.2014465332,
+            "total_tool_acc": 0.0,
+            "success_rate": 0.0,
+            "tool_accuracy": 0.0,
+            "avg_response_time_ms": 8108.640289306641
+        },
+        "Mistral-Small-3.2:24b": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 7146.6968059539795,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 1429.339361190796
+        },
+        "Qwen2.5:72b": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 13248.583316802979,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 2649.7166633605957
+        },
+        "bielik_11b": {
+            "total_tasks": 5,
+            "successful_tasks": 0,
+            "total_time_ms": 36804.77786064148,
+            "total_tool_acc": 0.0,
+            "success_rate": 0.0,
+            "tool_accuracy": 0.0,
+            "avg_response_time_ms": 7360.955572128296
+        },
+        "gpt-oss_120b": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 42177.26016044617,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 8435.452032089233
+        },
+        "llama3.3:70b": {
+            "total_tasks": 5,
+            "successful_tasks": 4,
+            "total_time_ms": 8036.176443099976,
+            "total_tool_acc": 4.0,
+            "success_rate": 0.8,
+            "tool_accuracy": 0.8,
+            "avg_response_time_ms": 1607.2352886199951
+        },
+        "Nanonets-OCR-s": {
+            "total_tasks": 5,
+            "successful_tasks": 0,
+            "total_time_ms": 3909.510612487793,
+            "total_tool_acc": 0.0,
+            "success_rate": 0.0,
+            "tool_accuracy": 0.0,
+            "avg_response_time_ms": 781.9021224975586
+        },
+        "Qwen3-Coder-Next": {
+            "total_tasks": 5,
+            "successful_tasks": 4,
+            "total_time_ms": 3378.7760734558105,
+            "total_tool_acc": 4.0,
+            "success_rate": 0.8,
+            "tool_accuracy": 0.8,
+            "avg_response_time_ms": 675.7552146911621
+        },
+        "MiniMax-M2.5": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 11472.413778305054,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 2294.4827556610107
+        },
+        "Qwen3-VL-235B-A22B-Instruct": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 9014.347791671753,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 1802.8695583343506
+        },
+        "GLM-4.7": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 26003.467559814453,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 5200.693511962891
+        },
+        "Qwen3.5-397B-A17B": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 14436.156749725342,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 2887.2313499450684
+        },
+        "Qwen3.5-397B-A17B-GPTQ-Int4": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 14846.689939498901,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 2969.3379878997803
+        }
+    },
+    "task_results": {
+        "DeepSeek-V3.1-vLLM": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 14287.421226501465,
+                "tokens": 467,
+                "called_tools": [],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 3769.4499492645264,
+                "tokens": 183,
+                "called_tools": [],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 10630.896091461182,
+                "tokens": 388,
+                "called_tools": [],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 30551.805019378662,
+                "tokens": 891,
+                "called_tools": [],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 6012.1588706970215,
+                "tokens": 225,
+                "called_tools": [],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "DeepSeek-V3.1-vLLM-2": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 9318.071126937866,
+                "tokens": 348,
+                "called_tools": [],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 523.5183238983154,
+                "tokens": 102,
+                "called_tools": [],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 10240.55790901184,
+                "tokens": 368,
+                "called_tools": [],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 16223.574161529541,
+                "tokens": 521,
+                "called_tools": [],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 4237.47992515564,
+                "tokens": 198,
+                "called_tools": [],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Mistral-Small-3.2:24b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 571.401834487915,
+                "tokens": 2831,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 882.3928833007812,
+                "tokens": 2834,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 374.7727870941162,
+                "tokens": 2828,
+                "called_tools": [
+                    "view_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 4852.845191955566,
+                "tokens": 3012,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 465.2841091156006,
+                "tokens": 2805,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Qwen2.5:72b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 725.0680923461914,
+                "tokens": 2888,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 1182.373285293579,
+                "tokens": 2902,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 2076.749801635742,
+                "tokens": 2966,
+                "called_tools": [
+                    "view_file",
+                    "count_pattern_in_file",
+                    "run_terminal"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 8539.103984832764,
+                "tokens": 3256,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 725.2881526947021,
+                "tokens": 2869,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "bielik_11b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 8513.60011100769,
+                "tokens": 861,
+                "called_tools": [],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 3805.5057525634766,
+                "tokens": 449,
+                "called_tools": [],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 9801.27477645874,
+                "tokens": 985,
+                "called_tools": [],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 8700.752973556519,
+                "tokens": 870,
+                "called_tools": [],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 5983.644247055054,
+                "tokens": 624,
+                "called_tools": [],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "gpt-oss_120b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 30061.481952667236,
+                "tokens": 2031,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 1023.961067199707,
+                "tokens": 1978,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1766.704797744751,
+                "tokens": 2052,
+                "called_tools": [
+                    "view_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 7829.758167266846,
+                "tokens": 2500,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1495.354175567627,
+                "tokens": 2001,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "llama3.3:70b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 888.1208896636963,
+                "tokens": 3604,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 920.6268787384033,
+                "tokens": 3593,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 914.147138595581,
+                "tokens": 3617,
+                "called_tools": [
+                    "count_pattern_in_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 4513.988733291626,
+                "tokens": 3785,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 799.292802810669,
+                "tokens": 3589,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Nanonets-OCR-s": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1515.8939361572266,
+                "tokens": 422,
+                "called_tools": [],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 109.79700088500977,
+                "tokens": 123,
+                "called_tools": [],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1092.6389694213867,
+                "tokens": 356,
+                "called_tools": [],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 506.4718723297119,
+                "tokens": 209,
+                "called_tools": [],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 684.708833694458,
+                "tokens": 237,
+                "called_tools": [],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Qwen3-Coder-Next": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 410.0069999694824,
+                "tokens": 3482,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 510.6627941131592,
+                "tokens": 3494,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 307.0330619812012,
+                "tokens": 3489,
+                "called_tools": [
+                    "read_docx"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 1761.7130279541016,
+                "tokens": 3720,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 389.3601894378662,
+                "tokens": 3475,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "MiniMax-M2.5": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1435.534954071045,
+                "tokens": 2938,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 1124.101161956787,
+                "tokens": 2899,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1512.6748085021973,
+                "tokens": 2968,
+                "called_tools": [
+                    "view_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 5889.13893699646,
+                "tokens": 3402,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1510.9639167785645,
+                "tokens": 2924,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Qwen3-VL-235B-A22B-Instruct": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 712.2139930725098,
+                "tokens": 2887,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 845.0927734375,
+                "tokens": 2891,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1918.8728332519531,
+                "tokens": 2968,
+                "called_tools": [
+                    "view_file",
+                    "count_pattern_in_file",
+                    "run_terminal"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 4603.187084197998,
+                "tokens": 3101,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 934.981107711792,
+                "tokens": 2883,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "GLM-4.7": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 2740.888833999634,
+                "tokens": 2964,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 2298.4108924865723,
+                "tokens": 2934,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 3526.61395072937,
+                "tokens": 3017,
+                "called_tools": [
+                    "view_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 13148.891925811768,
+                "tokens": 3500,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 4288.661956787109,
+                "tokens": 3026,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Qwen3.5-397B-A17B": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1834.7930908203125,
+                "tokens": 3109,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 2259.6521377563477,
+                "tokens": 3132,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1650.41184425354,
+                "tokens": 3100,
+                "called_tools": [
+                    "view_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 6856.551885604858,
+                "tokens": 3582,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1834.7477912902832,
+                "tokens": 3088,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ],
+        "Qwen3.5-397B-A17B-GPTQ-Int4": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1946.3460445404053,
+                "tokens": 3109,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 2229.8879623413086,
+                "tokens": 3144,
+                "called_tools": [
+                    "run_python"
+                ],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1660.181999206543,
+                "tokens": 3100,
+                "called_tools": [
+                    "view_file"
+                ],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 1.0,
+                "duration_ms": 7188.650131225586,
+                "tokens": 3615,
+                "called_tools": [
+                    "save_document"
+                ],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 1821.6238021850586,
+                "tokens": 3089,
+                "called_tools": [
+                    "search_web"
+                ],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ]
+    }
+}

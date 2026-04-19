@@ -1,4 +1,4 @@
-# PCSS LLM App - AI Assistant Context
+# omni.ai - AI Assistant Context
 
 ## Project Overview
 
@@ -13,8 +13,8 @@ It offers two main modes:
 
 The codebase is cleanly separated into two primary layers:
 
-- **`pcss_llm_app/ui/`**: Manages all PySide6 rendering. Includes `main_window.py` (tabs, input, interactions) and features like an integrated file tree (`QFileSystemModel`) and a code editor with `syntax_highlighter.py` (Monokai style).
-- **`pcss_llm_app/core/`**: The brain of the application. Contains the SQLite `database.py`, `api_client.py` for PCSS network requests, and the autonomous `agent_engine.py` using ReAct prompting.
+- **`omni_agent/ui/`**: Manages all PySide6 rendering. Includes `main_window.py` (tabs, input, interactions) and features like an integrated file tree (`QFileSystemModel`) and a code editor with `syntax_highlighter.py` (Monokai style).
+- **`omni_agent/core/`**: The brain of the application. Contains the SQLite `database.py`, `api_client.py` for PCSS network requests, and the autonomous `agent_engine.py` using ReAct prompting.
 - **Tools Array (`core/tools.py` & `core/mcp_tools.py`)**: Massive suite of integrations including DuckDuckGo search, file operations, Playwright MCP browser automation, Python sandboxes, document OCR (Nanonets), and PDF/DOCX/XLSX readers.
 - **`agent_profiles/`**: YAML files defining agent personas (e.g., Coder, Writer, and the newly added "Reviewer" for academic papers).
 
@@ -40,6 +40,6 @@ Key subsystems added in v0.6.x–v0.8.0 (see `CHANGELOG.md` for details):
 - **Profile discipline** (v0.7.2): Hard iteration limits in `reviewer.yaml` and `researcher.yaml`; `coder.yaml` retry rule clarified; shared behavioral rules moved to `llm_profiles/_shared.yaml` (`common_rules`); `context_window` declared in every LLM profile.
 - **Frontend modernization** (v0.8.0): `setMinimumSize(1024, 600)` on main window; sidebar and splitters resizable/collapsible; `setFixedSize` replaced with `setMinimumSize` on buttons so text no longer clips; hardcoded inline stylesheets centralised into the `THEMES` dict (new `role="danger"`, `role="destructive"` and `#debugConsole` rules). `ChatInputWidget` height 80–240px (user-resizable). Reasoning panel header always visible so the feature is discoverable.
 
-**Benchmarks**: `pcss_llm_app/benchmarks/` with mock and real UI modes; results archived in `pcss_llm_app/benchmarks/results/` and summarised in `BENCHMARK_RESULTS.md`.
+**Benchmarks**: `omni_agent/benchmarks/` with mock and real UI modes; results archived in `omni_agent/benchmarks/results/` and summarised in `BENCHMARK_RESULTS.md`.
 
 *Note: This file serves as the primary system brief. If you are an AI assistant placed into this repository, refer to this context to understand the app's structure and current trajectory.*

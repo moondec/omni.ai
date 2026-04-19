@@ -2,7 +2,7 @@
 import os
 import unittest
 
-from pcss_llm_app.core.llm_profile_loader import load_llm_profile, merge_profile_with_shared
+from omni_agent.core.llm_profile_loader import load_llm_profile, merge_profile_with_shared
 
 
 class TestLlmProfileLoader(unittest.TestCase):

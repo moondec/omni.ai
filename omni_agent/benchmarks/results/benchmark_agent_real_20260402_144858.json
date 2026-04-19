@@ -1,0 +1,297 @@
+{
+    "metadata": {
+        "mode": "agent_real",
+        "models_tested": [
+            "MiniMax-M2.5",
+            "Qwen3-VL-235B-A22B-Instruct",
+            "GLM-4.7",
+            "Qwen3.5-397B-A17B",
+            "Qwen3.5-397B-A17B-GPTQ-Int4"
+        ],
+        "total_tasks": 5
+    },
+    "model_metrics": {
+        "MiniMax-M2.5": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 104946.44904136658,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 20989.289808273315
+        },
+        "Qwen3-VL-235B-A22B-Instruct": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 69727.1819114685,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 13945.436382293701
+        },
+        "GLM-4.7": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 154636.3182067871,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 30927.263641357422
+        },
+        "Qwen3.5-397B-A17B": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 163367.42496490479,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 32673.484992980957
+        },
+        "Qwen3.5-397B-A17B-GPTQ-Int4": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 51521.52109146118,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 10304.304218292236
+        }
+    },
+    "task_results": {
+        "MiniMax-M2.5": [
+            {
+                "task_id": "agent_001",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 9195.61219215393,
+                "tokens": 0,
+                "response_preview": "<think>Użytkownik pyta o zwycięzcę nagrody Nobla z fizyki w minionym roku. Aktualna data to 2026-04-02, więc \"miniony rok\" to 2025. Muszę wyszukać informację o laureacie nagrody Nobla z fizyki za 2025"
+            },
+            {
+                "task_id": "agent_002",
+                "category": "filesystem",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 5797.674894332886,
+                "tokens": 0,
+                "response_preview": "<think>Użytkownik chce, abym utworzył nowy plik o nazwie 'hello.txt' i zapisał w nim tekst 'Witaj świecie'. Użyję narzędzia write_file do tego zadania.\n</think>\n\nAction: write_file\nAction Input: {\"fil"
+            },
+            {
+                "task_id": "agent_003",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 7400.864839553833,
+                "tokens": 0,
+                "response_preview": "<think>The user wants me to calculate the exact value of (15.7 + 27.2) * 3.14 - 14 using Python.\n</think>\n\nAction: run_python\nAction Input: \"result = (15.7 + 27.2) * 3.14 - 14\\nprint(result)\"\n\nObserva"
+            },
+            {
+                "task_id": "agent_004",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 78768.36895942688,
+                "tokens": 0,
+                "response_preview": "<think>Użytkownik chce, żebym sprawdził aktualną pogodę w Warszawie i zapisał podsumowanie do pliku. Najpierw muszę wyszukać informacje o pogodzie w Warszawie.\n</think>\n\nAction: search_web\nAction Inpu"
+            },
+            {
+                "task_id": "agent_005",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 3783.928155899048,
+                "tokens": 0,
+                "response_preview": "<think>Użytkownik chce, żebym użył terminala do wyświetlenia informacji o systemie operacyjnym i wersji jądra. Mogę użyć polecenia `uname -a` dla systemów Unix/Linux lub `ver` dla Windows. \n\nNajpierw "
+            }
+        ],
+        "Qwen3-VL-235B-A22B-Instruct": [
+            {
+                "task_id": "agent_001",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 13322.426795959473,
+                "tokens": 0,
+                "response_preview": "Wyszukam informacji na temat laureatów Nagrody Nobla z fizyki w minionym roku (2025), korzystając z narzędzia do wyszukiwania informacji naukowych.\nAction: search_academic\nAction Input: {\"query\": \"Nob"
+            },
+            {
+                "task_id": "agent_002",
+                "category": "filesystem",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 2864.919900894165,
+                "tokens": 0,
+                "response_preview": "Tworzę nowy plik 'hello.txt' i zapisuję w nim tekst 'Witaj świecie'.\nAction: write_file\nAction Input: {\"file_path\": \"hello.txt\", \"text\": \"Witaj świecie\"}\n\nObservation: Successfully saved file: hello.t"
+            },
+            {
+                "task_id": "agent_003",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 15806.409120559692,
+                "tokens": 0,
+                "response_preview": "Potrzebuję obliczyć wartość wyrażenia `(15.7 + 27.2) * 3.14 - 14` za pomocą Pythona. Użyję narzędzia `run_python`, aby wykonać obliczenia.\nAction: run_python\nAction Input: \n``\nObservation: Error execu"
+            },
+            {
+                "task_id": "agent_004",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 36294.6891784668,
+                "tokens": 0,
+                "response_preview": "Najpierw muszę znaleźć aktualne informacje o pogodzie w Warszawie, używając wyszukiwarki internetowej. Następnie zapiszę podsumowanie do pliku `pogoda.txt`.\nAction: search_web\nAction Input: {\"query\": "
+            },
+            {
+                "task_id": "agent_005",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 1438.736915588379,
+                "tokens": 0,
+                "response_preview": "Action: run_terminal\nAction Input: \"uname -a\"\n\nObservation: Darwin e6-wmiis-201.au.poznan.pl 24.6.0 Darwin Kernel Version 24.6.0: Wed Oct 15 21:12:08 PDT 2025; root:xnu-11417.140.69.703.14~1/RELEASE_A"
+            }
+        ],
+        "GLM-4.7": [
+            {
+                "task_id": "agent_001",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 16368.639945983887,
+                "tokens": 0,
+                "response_preview": "ki.</think>Action: search_news\nAction Input: {\"query\": \"Nobel Prize physics 2025 winner laureat Nagrody Nobla z fizyki 2025\"}\n\nObservation: News search error: https://duckduckgo.com/news.js?l=pl-pl&o="
+            },
+            {
+                "task_id": "agent_002",
+                "category": "filesystem",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 12906.499862670898,
+                "tokens": 0,
+                "response_preview": "ku.</think>Action: write_file\nAction Input: {\"file_path\": \"hello.txt\", \"text\": \"Witaj świecie\"}\n\nObservation: Successfully saved file: hello.txt\nThought:ne.</think>Final Answer: Pomyślnie utworzyłem p"
+            },
+            {
+                "task_id": "agent_003",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 10974.233150482178,
+                "tokens": 0,
+                "response_preview": "n`.</think>Action: run_python\nAction Input: {\"code\": \"result = (15.7 + 27.2) * 3.14 - 14\\nprint(f\\\"Wynik: {result}\\\")\"}\n\nObservation: Wynik: 120.70599999999999\n\nThought:wi.</think>Wynik obliczenia (15"
+            },
+            {
+                "task_id": "agent_004",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 97584.54704284668,
+                "tokens": 0,
+                "response_preview": "ie.</think>Action: search_web\nAction Input: {\"query\": \"pogoda Warszawa dzisiaj aktualna\"}\n\nObservation: SEARCH RESULTS:\n\n[1] Warszawa pogoda dziś – Pogoda w INTERIA.PL – prognoza pogody …\n    URL: htt"
+            },
+            {
+                "task_id": "agent_005",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 16802.398204803467,
+                "tokens": 0,
+                "response_preview": "we.</think>Thought: Użytkownik prosi o użycie terminala do wypisania nazwy systemu operacyjnego i wersji jądra. Użyję komendy `uname -a`, która wyświetla szczegółowe informacje o systemie.\n\nAction: ru"
+            }
+        ],
+        "Qwen3.5-397B-A17B": [
+            {
+                "task_id": "agent_001",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 18592.035055160522,
+                "tokens": 0,
+                "response_preview": "h.\n</think>\n\nThought: Użytkownik pyta o laureata Nagrody Nobla z fizyki z minionego roku (2025). Skorzystam z narzędzia search_web, aby znaleźć tę informację.\n\nAction: search_web\nAction Input: {\"query"
+            },
+            {
+                "task_id": "agent_002",
+                "category": "filesystem",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 8297.699928283691,
+                "tokens": 0,
+                "response_preview": "p.\n</think>\n\nThought: Muszę utworzyć nowy plik tekstowy o nazwie 'hello.txt' z zawartością 'Witaj świecie'. Użyję narzędzia write_file do tego zadania.\n\nAction: write_file\nAction Input: {\"file_path\": "
+            },
+            {
+                "task_id": "agent_003",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 12981.405019760132,
+                "tokens": 0,
+                "response_preview": "s.\n</think>\n\nThought: Użyję narzędzia run_python aby obliczyć dokładną wartość wyrażenia matematycznego (15.7 + 27.2) * 3.14 - 14.\n\nAction: run_python\nAction Input: {\"code\": \"result = (15.7 + 27.2) * "
+            },
+            {
+                "task_id": "agent_004",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 104232.8519821167,
+                "tokens": 0,
+                "response_preview": "w.\n</think>\n\nThought: Muszę wyszukać informacje o aktualnej pogodzie w Warszawie, a następnie zapisać podsumowanie do pliku. Zacznę od wyszukiwania w internecie.\n\nAction: search_web\nAction Input: {\"qu"
+            },
+            {
+                "task_id": "agent_005",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 19263.43297958374,
+                "tokens": 0,
+                "response_preview": "l.\n</think>\n\nThought: Użyję narzędzia run_terminal, aby wykonać polecenie uname -a, które wyświetli informacje o systemie operacyjnym i wersji jądra.\n\nAction: run_terminal\nAction Input: {\"command\": \"u"
+            }
+        ],
+        "Qwen3.5-397B-A17B-GPTQ-Int4": [
+            {
+                "task_id": "agent_001",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 16847.509145736694,
+                "tokens": 0,
+                "response_preview": "5.\n</think>\n\nThought: Użytkownik pyta o laureata Nagrody Nobla z fizyki z minionego roku (2025). Muszę wyszukać tę informację w internecie.\n\nAction: search_web\nAction Input: {\"query\": \"Nobel Prize Phy"
+            },
+            {
+                "task_id": "agent_002",
+                "category": "filesystem",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 3397.6008892059326,
+                "tokens": 0,
+                "response_preview": "e.\n</think>\n\nThought: Użyję narzędzia write_file, aby utworzyć nowy plik 'hello.txt' z podanym tekstem.\n\nAction: write_file\nAction Input: {\"file_path\": \"hello.txt\", \"text\": \"Witaj świecie\"}\n\nObservati"
+            },
+            {
+                "task_id": "agent_003",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 6044.768810272217,
+                "tokens": 0,
+                "response_preview": "s.\n</think>\n\nThought: Użyję narzędzia run_python aby obliczyć dokładną wartość wyrażenia matematycznego (15.7 + 27.2) * 3.14 - 14.\n\nAction: run_python\nAction Input: {\"code\": \"result = (15.7 + 27.2) * "
+            },
+            {
+                "task_id": "agent_004",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 20483.342170715332,
+                "tokens": 0,
+                "response_preview": "h.\n</think>\n\nThought: Najpierw wyszukam aktualne informacje o pogodzie w Warszawie za pomocą wyszukiwarki internetowej.\n\nAction: search_web\nAction Input: {\"query\": \"aktualna pogoda Warszawa dzisiaj\"}\n"
+            },
+            {
+                "task_id": "agent_005",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 4748.300075531006,
+                "tokens": 0,
+                "response_preview": "d.\n</think>\n\nThought: Użyję polecenia terminala `uname -a`, aby wyświetlić informacje o systemie operacyjnym i wersji jądra.\n\nAction: run_terminal\nAction Input: {\"command\": \"uname -a\"}\n\nObservation: D"
+            }
+        ]
+    }
+}

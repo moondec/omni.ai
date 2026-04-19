@@ -4,13 +4,13 @@ import datetime
 from pathlib import Path
 
 def get_project_root() -> Path:
-    """Gets the absolute path to the project root (the directory containing pcss_llm_app)."""
+    """Gets the absolute path to the project root (the directory containing omni_agent)."""
     return Path(__file__).resolve().parent.parent.parent
 
 def save_json_results(results_data: dict, prefix: str = "benchmark") -> str:
     """Saves the full JSON results in the benchmarks/results/ archive directory."""
     root = get_project_root()
-    results_dir = root / "pcss_llm_app" / "benchmarks" / "results"
+    results_dir = root / "omni_agent" / "benchmarks" / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -25,7 +25,7 @@ def save_json_results(results_data: dict, prefix: str = "benchmark") -> str:
 def save_md_results(markdown_content: str, prefix: str = "benchmark") -> str:
     """Saves a detailed markdown report for a specific run in the benchmarks/results/ archive directory."""
     root = get_project_root()
-    results_dir = root / "pcss_llm_app" / "benchmarks" / "results"
+    results_dir = root / "omni_agent" / "benchmarks" / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -46,7 +46,7 @@ def append_to_benchmark_results(markdown_fragment: str):
     if not filepath.exists():
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("# PCSS Benchmark Results\n\n")
-            f.write("This file contains cumulative benchmark run results. Detailed logs per run are kept in `pcss_llm_app/benchmarks/results/`.\n\n")
+            f.write("This file contains cumulative benchmark run results. Detailed logs per run are kept in `omni_agent/benchmarks/results/`.\n\n")
             f.write("---\n")
             
     with open(filepath, "a", encoding="utf-8") as f:

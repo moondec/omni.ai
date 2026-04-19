@@ -14,8 +14,8 @@ from __future__ import annotations
 import os
 from typing import List, Optional, Set
 
-from pcss_llm_app.core.agent_engine import LangChainAgentEngine
-from pcss_llm_app.core.llm_profile_loader import load_llm_profile
+from omni_agent.core.agent_engine import LangChainAgentEngine
+from omni_agent.core.llm_profile_loader import load_llm_profile
 
 # ── Default Team ──────────────────────────────────────────────────────────
 DEFAULT_CONSILIUM_TEAM = {

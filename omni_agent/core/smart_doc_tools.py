@@ -42,7 +42,7 @@ except ImportError:
     DOCLING_AVAILABLE = False
 
 # Re-use workspace sandbox from the main tools module
-from pcss_llm_app.core.tools import _safe_path, _WorkspaceMixin
+from omni_agent.core.tools import _safe_path, _WorkspaceMixin
 
 
 # ---------------------------------------------------------------------------

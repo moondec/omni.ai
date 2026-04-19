@@ -18,19 +18,19 @@ import datetime
 import markdown
 import time
 
-from pcss_llm_app.config import ConfigManager
-from pcss_llm_app import __version__
-from pcss_llm_app.core.api_client import PcssApiClient
-from pcss_llm_app.core.database import DatabaseManager
+from omni_agent.config import ConfigManager
+from omni_agent import __version__
+from omni_agent.core.api_client import OmniApiClient
+from omni_agent.core.database import DatabaseManager
 
-from pcss_llm_app.core.file_manager import FileManager
-from pcss_llm_app.core.agent_engine import LangChainAgentEngine
-from pcss_llm_app.core.consilium import ConsiliumOrchestrator
-from pcss_llm_app.core.llm_profile_loader import load_llm_profile
-from pcss_llm_app.core.workers import ChatWorker, AgentWorker, ConsiliumWorker
-from pcss_llm_app.ui.components.chat_input import ChatInputWidget
-from pcss_llm_app.ui.syntax_highlighter import PygmentsSyntaxHighlighter
-from pcss_llm_app import __version__
+from omni_agent.core.file_manager import FileManager
+from omni_agent.core.agent_engine import LangChainAgentEngine
+from omni_agent.core.consilium import ConsiliumOrchestrator
+from omni_agent.core.llm_profile_loader import load_llm_profile
+from omni_agent.core.workers import ChatWorker, AgentWorker, ConsiliumWorker
+from omni_agent.ui.components.chat_input import ChatInputWidget
+from omni_agent.ui.syntax_highlighter import PygmentsSyntaxHighlighter
+from omni_agent import __version__
 
 # Safe LangChain Message Imports
 try:
@@ -253,8 +253,19 @@ class SettingsDialog(QDialog):
         settings_dlg_layout.addRow("Default Model:", self.model_combo)
 
         # Base URL
-        self.base_url_input = QLineEdit(self.config.get_base_url())
-        self.base_url_input.setPlaceholderText("https://llm.hpc.pcss.pl/v1")
+        self.base_url_input = QComboBox()
+        self.base_url_input.setEditable(True)
+        common_urls = [
+            "https://llm.hpc.pcss.pl/v1",
+            "https://openrouter.ai/api/v1",
+            "http://127.0.0.1:1234/v1",
+            "http://127.0.0.1:11434/v1",
+            "http://127.0.0.1:8000/v1",
+            "https://api.openai.com/v1"
+        ]
+        self.base_url_input.addItems(common_urls)
+        self.base_url_input.setCurrentText(self.config.get_base_url())
+        self.base_url_input.lineEdit().setPlaceholderText("https://openrouter.ai/api/v1")
         settings_dlg_layout.addRow("LLM Server URL:", self.base_url_input)
 
         # Transcription Model
@@ -288,7 +299,7 @@ class SettingsDialog(QDialog):
         if selected_model:
             self.config.set("model", selected_model)
 
-        base_url = self.base_url_input.text().strip()
+        base_url = self.base_url_input.currentText().strip()
         if base_url:
             self.config.set_base_url(base_url)
             
@@ -301,7 +312,7 @@ class SettingsDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"PCSS LLM Client v{__version__}")
+        self.setWindowTitle(f"omni.ai v{__version__}")
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumSize(1024, 600)
         
@@ -312,7 +323,7 @@ class MainWindow(QMainWindow):
 
         # Main Layout      
         self.config = ConfigManager()
-        self.api = PcssApiClient(self.config)
+        self.api = OmniApiClient(self.config)
         self.db = DatabaseManager()
         
         self.current_conversation_id = None
@@ -1238,7 +1249,7 @@ class MainWindow(QMainWindow):
         dlg = SettingsDialog(self.config, self, available_models=current_models)
         if dlg.exec():
             # Re-initialize API client
-            self.api = PcssApiClient(self.config)
+            self.api = OmniApiClient(self.config)
             # Refresh models (this will also restore the saved selection)
             self._refresh_models()
             
@@ -1662,7 +1673,7 @@ class MainWindow(QMainWindow):
             self.agent_status_label.setText("Initializing Agent...")
             # Tier-based few-shot limit: stronger models benefit from more examples
             try:
-                from pcss_llm_app.core.agent_engine import get_model_profile
+                from omni_agent.core.agent_engine import get_model_profile
                 _tier = get_model_profile(model).tier
             except Exception:
                 _tier = 4
@@ -1756,7 +1767,7 @@ class MainWindow(QMainWindow):
                 "Initialize the Agent first (Create Assistant) so the workspace path is known."
             )
             return
-        from pcss_llm_app.core.checkpoint_manager import CheckpointManager
+        from omni_agent.core.checkpoint_manager import CheckpointManager
         cm = self.agent_engine.checkpoint_manager
         dlg = CheckpointsDialog(cm, parent=self)
         dlg.exec()

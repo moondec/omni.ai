@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Bielik (PCSS LLM Client) project will be documented in this file.
+All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
 ## [0.8.2] - 2026-04-18
 ### Fixed
@@ -106,10 +106,10 @@ All notable changes to the Bielik (PCSS LLM Client) project will be documented i
 
 ### Added
 
-- **Benchmark Integration**: Integrated `benchmark_pcss.py` and `benchmark_agents_pcss.py` from `test_tmp/` into the main `pcss_llm_app/benchmarks/` module.
+- **Benchmark Integration**: Integrated `benchmark_pcss.py` and `benchmark_agents_pcss.py` from `test_tmp/` into the main `omni_agent/benchmarks/` module.
   - **Mock & Real Modes**: Agent benchmark now supports testing via fast OpenAI native function calling (mock mode) or full `LangChainAgentEngine` execution in a temporary sandboxed workspace (real mode).
-  - **Tool Schema Reflection**: Benchmark tasks use the exact OpenAI function schemas generated recursively from the active `pcss_llm_app.core.tools` library.
-- **Reporting System**: Standalone `BENCHMARK_RESULTS.md` table added, and detailed historical runs are archived as Markdown files in `pcss_llm_app/benchmarks/results/`.
+  - **Tool Schema Reflection**: Benchmark tasks use the exact OpenAI function schemas generated recursively from the active `omni_agent.core.tools` library.
+- **Reporting System**: Standalone `BENCHMARK_RESULTS.md` table added, and detailed historical runs are archived as Markdown files in `omni_agent/benchmarks/results/`.
 
 ## [0.3.0] - 2026-04-01
 
@@ -188,7 +188,7 @@ All notable changes to the Bielik (PCSS LLM Client) project will be documented i
 
 ### Added
 
-- Initial release of the PCSS LLM Client.
+- Initial release of the omni.ai.
 - Basic chat interface with Bielik model.
 - Tool integration for file management and document creation.
 - Settings management for API keys and workspace paths.

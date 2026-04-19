@@ -1,0 +1,59 @@
+{
+    "metadata": {
+        "mode": "agent_real",
+        "models_tested": [
+            "DeepSeek-V3.1-vLLM-2"
+        ],
+        "total_tasks": 5
+    },
+    "model_metrics": {
+        "DeepSeek-V3.1-vLLM-2": {
+            "total_tasks": 5,
+            "successful_tasks": 0,
+            "total_time_ms": 0,
+            "total_tool_acc": 0.0,
+            "success_rate": 0.0,
+            "tool_accuracy": 0.0,
+            "avg_response_time_ms": 0.0
+        }
+    },
+    "task_results": {
+        "DeepSeek-V3.1-vLLM-2": [
+            {
+                "task_id": "agent_001",
+                "category": "search",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "error": "object of type 'generator' has no len()"
+            },
+            {
+                "task_id": "agent_002",
+                "category": "filesystem",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "error": "'generator' object is not subscriptable"
+            },
+            {
+                "task_id": "agent_003",
+                "category": "computation",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "error": "object of type 'generator' has no len()"
+            },
+            {
+                "task_id": "agent_004",
+                "category": "workflow",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "error": "'generator' object is not subscriptable"
+            },
+            {
+                "task_id": "agent_005",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "error": "object of type 'generator' has no len()"
+            }
+        ]
+    }
+}

@@ -1,0 +1,74 @@
+{
+    "metadata": {
+        "mode": "agent_real",
+        "models_tested": [
+            "bielik_11b"
+        ],
+        "total_tasks": 5
+    },
+    "model_metrics": {
+        "bielik_11b": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 196116.57428741455,
+            "total_tool_acc": 5.0,
+            "success_rate": 1.0,
+            "tool_accuracy": 1.0,
+            "avg_response_time_ms": 39223.31485748291
+        }
+    },
+    "task_results": {
+        "bielik_11b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 23420.700073242188,
+                "tokens": 0,
+                "response_preview": "Action: search_web\nAction Input: {\"query\": \"Alexander Fleming penicylina rok odkrycia\"}\n\n\nObservation: SEARCH RESULTS:\n\n[1] Alexander Fleming – Wikipedia, wolna encyklope…\n    URL: https://pl.wikipedi",
+                "error": null
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 11223.739862442017,
+                "tokens": 0,
+                "response_preview": "Aby wykonać to zadanie, muszę użyć narzędzia `run_python` do obliczenia wartości 17 do potęgi 123, przekonwertowania wyniku na ciąg znaków i policzenia, ile razy występuje w nim cyfra '7'.\n\nAction: ru",
+                "error": null
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 46646.06785774231,
+                "tokens": 0,
+                "response_preview": " \nOkay, let's break down the user's question. They want to read the contents of the file 'CLAUDE.md' in the current directory, count how many times the word 'PCSS' appears (case-insensitive), and then",
+                "error": null
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 28625.922203063965,
+                "tokens": 0,
+                "response_preview": "\n \nThe user wants to create a professional PDF report named 'AI_Safety.pdf' using the `save_document` tool. The content should include an H1 heading, a bullet list of three key principles, and a short",
+                "error": null
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": true,
+                "tool_accuracy": 1.0,
+                "duration_ms": 86200.14429092407,
+                "tokens": 0,
+                "response_preview": " \nOkay, let's break down the user's question. They want to find the current director of PCSS (Poznańskie Centrum Superkomputerowo-Sieciowe) and then determine the university where this person obtained",
+                "error": null
+            }
+        ]
+    }
+}

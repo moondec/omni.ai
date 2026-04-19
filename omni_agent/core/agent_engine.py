@@ -37,8 +37,8 @@ except ImportError:
         FileManagementToolkit = None 
 
 # Local tool imports
-from pcss_llm_app.core.checkpoint_manager import CheckpointManager
-from pcss_llm_app.core.tools import (
+from omni_agent.core.checkpoint_manager import CheckpointManager
+from omni_agent.core.tools import (
     DocumentTools, OCRTools, CountPatternTool, FolderTools, 
     PandocTools, VisionTools, WebSearchTools, ChartTools, 
     PythonREPL, SearchTools, ViewFileTool, ReplaceFileContentTool, 
@@ -46,7 +46,7 @@ from pcss_llm_app.core.tools import (
 )
 
 try:
-    from pcss_llm_app.core.mcp_tools import PlaywrightMCPTools
+    from omni_agent.core.mcp_tools import PlaywrightMCPTools
 except ImportError:
     PlaywrightMCPTools = None
 
@@ -171,7 +171,7 @@ class LangChainAgentEngine:
             self.log_callback(message)
         # --- Persistent file logger ---
         # Writes every message to agent_debug.log in the APPLICATION directory
-        # (next to pcss_llm_app/), NOT in the user's workspace.
+        # (next to omni_agent/), NOT in the user's workspace.
         try:
             app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
             log_path = os.path.join(app_dir, "agent_debug.log")
@@ -332,7 +332,7 @@ class LangChainAgentEngine:
         # Add Smart Document Tools (Docling-powered, optional)
         # Requires: pip install docling pillow
         try:
-            from pcss_llm_app.core.smart_doc_tools import SmartDocumentTools, DOCLING_AVAILABLE
+            from omni_agent.core.smart_doc_tools import SmartDocumentTools, DOCLING_AVAILABLE
             if DOCLING_AVAILABLE:
                 smart_doc = SmartDocumentTools(
                     root_dir=str(self.workspace_path),

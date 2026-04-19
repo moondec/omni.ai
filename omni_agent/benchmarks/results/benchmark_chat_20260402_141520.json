@@ -1,0 +1,112 @@
+{
+    "metadata": {
+        "mode": "chat",
+        "models_tested": [
+            "bielik_11b",
+            "Qwen3.5-397B-A17B-GPTQ-Int4"
+        ],
+        "total_tasks": 5
+    },
+    "model_metrics": {
+        "bielik_11b": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 23274.749994277954,
+            "total_tokens": 2126,
+            "success_rate": 1.0,
+            "avg_response_time_ms": 4654.949998855591
+        },
+        "Qwen3.5-397B-A17B-GPTQ-Int4": {
+            "total_tasks": 5,
+            "successful_tasks": 5,
+            "total_time_ms": 54737.847566604614,
+            "total_tokens": 5398,
+            "success_rate": 1.0,
+            "avg_response_time_ms": 10947.569513320923
+        }
+    },
+    "task_results": {
+        "bielik_11b": [
+            {
+                "task_id": "chat_001",
+                "category": "logic",
+                "success": true,
+                "duration_ms": 5170.402050018311,
+                "tokens": 454,
+                "response_preview": "Jeśli wszystkie koty mają ogony, a Mruczek jest kotem, to możemy stwierdzić, że **Mruczek ma ogon**.\n\nUzasadnienie:\n1. **Założenie ogólne**: Wszystkie koty mają ogony.\n2. **Indywidualny przypadek**: M"
+            },
+            {
+                "task_id": "chat_002",
+                "category": "math",
+                "success": true,
+                "duration_ms": 3887.331008911133,
+                "tokens": 356,
+                "response_preview": "Aby rozwiązać równanie \\(2x + 5 = 15\\), należy krok po kroku odizolować zmienną \\(x\\).\n\n1. **Odejmij 5 od obu stron równania:**\n\n   \\[\n   2x + 5 - 5 = 15 - 5\n   \\]\n\n   Co upraszcza się do:\n\n   \\[\n   2"
+            },
+            {
+                "task_id": "chat_003",
+                "category": "code",
+                "success": true,
+                "duration_ms": 6415.4651165008545,
+                "tokens": 570,
+                "response_preview": "Oto funkcja w Pythonie, która sprawdza, czy podany ciąg znaków jest palindromem:\n\n```python\ndef is_palindrome(s):\n    # Usuń spacje i przekonwertuj na małe litery\n    s = s.replace(' ', '').lower()\n  "
+            },
+            {
+                "task_id": "chat_004",
+                "category": "creative",
+                "success": true,
+                "duration_ms": 1347.7280139923096,
+                "tokens": 154,
+                "response_preview": "AI to mądrość, co ludzką pracę zastąpi,\nWiedzę gromadzi, błędy szybko poprawi.\nRozwiązuje zadania, gdzie człowiek się pogubi,\nPrzyszłość buduje, wciąż się ucząc i ulepszając. \n\n(Rymy: parzyste, żeński"
+            },
+            {
+                "task_id": "chat_005",
+                "category": "language",
+                "success": true,
+                "duration_ms": 6453.823804855347,
+                "tokens": 592,
+                "response_preview": "Oto przetłumaczone zdanie na język polski:\n\n**\"Szybki brązowy lis przeskakuje nad leniwym psem\"**\n\nTo zdanie jest popularne z kilku powodów:\n\n1. **Zawiera wszystkie litery alfabetu angielskiego**: Zda"
+            }
+        ],
+        "Qwen3.5-397B-A17B-GPTQ-Int4": [
+            {
+                "task_id": "chat_001",
+                "category": "logic",
+                "success": true,
+                "duration_ms": 9137.286901473999,
+                "tokens": 913,
+                "response_preview": "\n\nMożemy powiedzieć, że **Mruczek ma ogon**.\n\n**Uzasadnienie:** Wynika to z logicznego wnioskowania (sylogizmu). Skoro zgodnie z założeniem wszystkie koty mają ogony, a Mruczek należy do grupy kotów, "
+            },
+            {
+                "task_id": "chat_002",
+                "category": "math",
+                "success": true,
+                "duration_ms": 5199.254751205444,
+                "tokens": 515,
+                "response_preview": "\n\nOto rozwiązanie równania krok po kroku:\n\n$$2x + 5 = 15$$\n\n1.  Odejmujemy 5 od obu stron równania:\n    $$2x = 15 - 5$$\n    $$2x = 10$$\n\n2.  Dzielimy obie strony przez 2:\n    $$x = \\frac{10}{2}$$\n    "
+            },
+            {
+                "task_id": "chat_003",
+                "category": "code",
+                "success": true,
+                "duration_ms": 8874.51171875,
+                "tokens": 877,
+                "response_preview": "\n\nOto kilka wersji funkcji w Pythonie sprawdzających, czy ciąg znaków jest palindromem — od najprostszej po bardziej zaawansowaną, z obsługą wielkości liter, spacji i znaków specjalnych.\n\n---\n\n### 1. "
+            },
+            {
+                "task_id": "chat_004",
+                "category": "creative",
+                "success": true,
+                "duration_ms": 10132.381200790405,
+                "tokens": 1001,
+                "response_preview": "\n\nSztuczna inteligencja to wielki skarb,\nDla rozwoju świata cenny dar.\nPracy ludzkiej odciąża trud,\nPrzynosząc postęp i wiedzy cud."
+            },
+            {
+                "task_id": "chat_005",
+                "category": "language",
+                "success": false,
+                "error": "'NoneType' object is not subscriptable"
+            }
+        ]
+    }
+}

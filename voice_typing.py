@@ -175,12 +175,12 @@ class DictationApp(QObject):
         # 1. Try environment variable
         self.api_key = os.environ.get("PCSS_API_KEY")
         
-        # 2. Try Keyring (shared with main pcss_llm_app)
+        # 2. Try Keyring (shared with main omni_agent)
         if not self.api_key:
             try:
                 import keyring
-                # Priority: Try to match exactly what pcss_llm_app uses (lowercase)
-                self.api_key = keyring.get_password("pcss_llm_app", "api_key")
+                # Priority: Try to match exactly what omni_agent uses (lowercase)
+                self.api_key = keyring.get_password("omni_agent", "api_key")
                 if not self.api_key:
                      # Fallback to uppercase just in case legacy or different system
                      self.api_key = keyring.get_password("PCSS_LLM_APP", "api_key")

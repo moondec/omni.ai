@@ -1,7 +1,7 @@
 from openai import OpenAI
-from pcss_llm_app.config import ConfigManager
+from omni_agent.config import ConfigManager
 
-class PcssApiClient:
+class OmniApiClient:
     """
     Wrapper around OpenAI client for PCSS LLM Service
     """
