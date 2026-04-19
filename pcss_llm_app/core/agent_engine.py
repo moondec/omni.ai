@@ -61,21 +61,38 @@ class ModelProfile:
 
 def get_model_profile(model_name: str) -> ModelProfile:
     m_lower = model_name.lower()
-    
+
     # Tier 1: ULTRA (Massive MoE / High-Cap Agents)
-    if any(kw in m_lower for kw in ["397b", "deepseek-v3", "671b"]):
+    if any(kw in m_lower for kw in ["397b", "deepseek-v3", "671b", "deepseek-r1"]):
         return ModelProfile(1, "ULTRA", 256_000, 60_000, 500, 200)
-    
-    # Tier 2: LARGE (High-Quality Medium-Large Models)
-    if any(kw in m_lower for kw in ["glm-4.7", "minimax-m2.5", "gpt-oss-120b", "72b", "70b", "235b"]):
-        return ModelProfile(2, "LARGE", 128_000, 40_000, 300, 150)
-    
-    # Tier 3: BASE (Standard Medium Models)
-    if any(kw in m_lower for kw in ["qwen", "glm", "minimax", "gpt-4o", "claude-3"]):
-        # Generic catch-all for high-cap families if specific size not found
+
+    # Tier 2: LARGE (High-Quality 70B+ or known large models)
+    # Covers OpenRouter families: llama-70b, nemotron-70b, gemma-31b, qwen-72b, etc.
+    if any(kw in m_lower for kw in [
+        "glm-4.7", "minimax-m2.5", "gpt-oss-120b",
+        "72b", "70b", "235b",
+        "nemotron",           # llama-3.1-nemotron-70b
+        "llama-3.3",          # llama-3.3-70b
+        "gemma-4-31b",        # gemma-4-31b-it:free (31B)
+        "gemma-3-27b",        # gemma-3-27b-it
+        "mistral-large",
+        "mistral-small-3",    # mistral-small-3.2-24b
+        "mixtral",
+    ]):
+        return ModelProfile(2, "LARGE", 131_072, 40_000, 300, 150)
+
+    # Tier 3: BASE (Standard Medium Models — known families)
+    if any(kw in m_lower for kw in [
+        "qwen", "glm", "minimax",
+        "gpt-4o", "claude-3",
+        "llama",              # llama-3.1-8b, llama-3.2-3b, etc.
+        "gemma",              # smaller gemma variants
+        "mistral",
+        "phi-4", "phi-3",
+    ]):
         return ModelProfile(3, "BASE", 64_000, 20_000, 150, 80)
-    
-    # Tier 4: SMALL (Compact Models)
+
+    # Tier 4: SMALL (Compact / Unknown Models)
     return ModelProfile(4, "SMALL", 16_000, 8_000, 50, 20)
 
 class LangChainAgentEngine:
@@ -663,6 +680,39 @@ Begin!"""
                 consecutive_stream_errors += 1
                 err_msg = f"{type(_stream_error).__name__}: {_stream_error}"[:300]
 
+                # --- Rate-limit detection with exponential backoff ---
+                # OpenRouter free-tier models return HTTP 429 on rate limit.
+                # Instead of immediately consuming a circuit-breaker slot, wait and retry.
+                _is_rate_limit = (
+                    "429" in err_msg
+                    or "rate limit" in err_msg.lower()
+                    or "ratelimit" in err_msg.lower()
+                    or "too many requests" in err_msg.lower()
+                    or "RateLimitError" in err_msg
+                )
+                if _is_rate_limit:
+                    # Exponential backoff: 5s → 10s → 20s (do not count toward circuit breaker)
+                    _backoff_slot = min(consecutive_stream_errors, 3)  # cap at 3
+                    _wait_secs = 5 * (2 ** (_backoff_slot - 1))  # 5, 10, 20
+                    self._log(
+                        f"⏳ Rate limited (429) by OpenRouter. Retry {consecutive_stream_errors}/3 "
+                        f"— waiting {_wait_secs}s before retrying..."
+                    )
+                    # Yield a status chunk so the UI shows something during the wait
+                    yield f"\n[Rate limit — retrying in {_wait_secs}s...]\n"
+                    import time as _time_mod
+                    _time_mod.sleep(_wait_secs)
+                    # Do NOT consume a circuit-breaker slot for rate limits
+                    consecutive_stream_errors = max(0, consecutive_stream_errors - 1)
+                    recovery_obs = (
+                        f"\nObservation: [SYSTEM] Request was rate-limited (429). "
+                        f"Waited {_wait_secs}s and will retry automatically. Continue from where you left off.\nThought:"
+                    )
+                    prompt += recovery_obs
+                    self.active_scratchpad += recovery_obs
+                    continue
+                # --- end rate-limit backoff ---
+
                 if consecutive_stream_errors >= 3:
                     self._log(f"⛔ Circuit breaker: {consecutive_stream_errors} consecutive stream errors — stopping.")
                     last_action = action_history[-1] if action_history else ("(none)", "")
@@ -1006,6 +1056,14 @@ Begin!"""
                 if hasattr(match, 'group'):
                     action = match.group(1).strip()
                     action_input = match.group(2).strip()
+
+                # Backtick / markdown sanitizer for the action name.
+                # Some models (e.g. nvidia/llama-3.1-nemotron) wrap tool names in
+                # backticks: `view_file` → the raw string contains the backtick chars
+                # and the tool lookup fails with "tool not found".
+                # Strip all leading/trailing backticks, asterisks, spaces.
+                if action:
+                    action = action.strip().strip('`').strip('*').strip()
                 
                 # Safe Sanitization: stripping markdown wrappers only if they encompass the whole input
                 action_input = action_input.strip()
