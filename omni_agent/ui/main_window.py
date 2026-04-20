@@ -2270,18 +2270,12 @@ class MainWindow(QMainWindow):
             {
                 "role": "system",
                 "content": (
-                    "Jesteś ekspertem od inżynierii promptów dla dużych modeli językowych (LLM).\n"
-                    "Twój JEDYNY cel to przepisanie prompta użytkownika na lepszą wersję.\n\n"
-                    "ZASADY BEZWZGLĖDNE:\n"
-                    "- NIE wykonuj zadania opisanego w prompcie.\n"
-                    "- NIE odpowiadaj na pytania zawarte w prompcie.\n"
-                    "- NIE pisz kodu, dokumentów, analiz ani żadnych treści tematycznych.\n"
-                    "- Zwróć WYŁĄCZNIE przepisaną wersję prompta — bez wstępu, komentarza, cudzysłowu.\n\n"
-                    "CEL PRZEPISANIA:\n"
-                    "- Więcej konkretów i kontekstu (wypełnij luki logiczne).\n"
-                    "- Wyraźny format oczekiwanego wyniku (np. lista, JSON, kod, raport).\n"
-                    "- Zachowaj język oryginalu (polski → polski, angielski → angielski).\n"
-                    "- Zachowaj intencję autora."
+                    "Jesteś niemym systemem do inżynierii promptów. Twój JEDYNY cel to przepisanie prompta na profesjonalną, "
+                    "bogatą w kontekst i precyzyjną wersję dla LLM.\n\n"
+                    "REGOŁY KRYTYCZNE:\n"
+                    "1. ZWRÓĆ WYNIK TYLKO W TAGACH <optimized> ... </optimized>\n"
+                    "2. NIE odpowiadaj na pytania i NIE wykonuj zadania.\n"
+                    "3. NIE wpisuj żadnych wyjaśnień, powitań ani oryginalnego tekstu poza tagami."
                 )
             },
             {"role": "user", "content": f"Przepisz ten prompt:\n\n{text}"}
@@ -2298,8 +2292,20 @@ class MainWindow(QMainWindow):
                     btn.setText(label)
 
         def on_done(result):
+            import re
             optimized = result.strip()
-            if not optimized:
+            
+            # Wymuś ekstrakcję tylko ze środka tagów by odciąć wstępy ("Oto Twój prompt:", itp)
+            match = re.search(r'<optimized>(.*?)</optimized>', optimized, re.DOTALL | re.IGNORECASE)
+            if match:
+                optimized = match.group(1).strip()
+            else:
+                # Fallback: usunięcie markdown klocków i prefiksów na wszelki wypadek
+                optimized = re.sub(r'^```[\w]*\n', '', optimized)
+                optimized = re.sub(r'\n```$', '', optimized)
+                optimized = re.sub(r'(?i)^(Oto|Poniżej).*?:\s*\n', '', optimized).strip()
+
+            if not optimized or len(optimized) < 5:
                 # API returned empty — restore original instead of clearing the field
                 self.append_log("[optimize_prompt] WARNING: empty result from API, restoring original.")
                 input_widget.setPlainText(original_text)
