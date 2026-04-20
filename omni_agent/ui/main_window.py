@@ -388,67 +388,67 @@ class MainWindow(QMainWindow):
     # Theme definitions: Cobalt (dark) and Dreamweaver (light)
     THEMES = {
         "Cobalt": {
-            # ── Obsidian Atelier — deep obsidian, warm gold accent ──────────
+            # ── Graphite Studio — warm graphite, gold accent ─────────────────
             "name": "Cobalt",
             "type": "dark",
-            "background":     "#0E0E11",
-            "secondary_bg":   "#161619",
-            "input_bg":       "#0A0A0D",
-            "doc_bg":         "#0A0A0D",
-            "sidebar_bg":     "#0C0C0F",
+            "background":     "#1E1E22",
+            "secondary_bg":   "#26262C",
+            "input_bg":       "#191920",
+            "doc_bg":         "#191920",
+            "sidebar_bg":     "#1B1B1F",
             "foreground":     "#E8E8E2",
-            "text_muted":     "#6A6A6E",
-            "border":         "#252528",
-            "border_strong":  "#38383E",
+            "text_muted":     "#7A7A80",
+            "border":         "#333338",
+            "border_strong":  "#48484F",
             "accent":         "#C9A84C",
             "accent_hover":   "#DEAD6B",
             "accent_dim":     "#7A6230",
             "tab_indicator":  "#C9A84C",
             "input_focus":    "#C9A84C",
-            "selection_bg":   "#2D2A1A",
+            "selection_bg":   "#38341C",
             "success":        "#5CB87A",
             "error":          "#D05A52",
             "warning":        "#C9A84C",
-            "button_bg":      "#1C1C20",
-            "button_hover":   "#242428",
+            "button_bg":      "#28282E",
+            "button_hover":   "#323238",
             "button_fg":      "#E8E8E2",
-            "button_border":  "#2E2E34",
+            "button_border":  "#3A3A42",
             # Message bubbles
-            "msg_user_bg":    "#14120A",
+            "msg_user_bg":    "#221F10",
             "msg_user_border":"#C9A84C",
             "msg_user_label": "#C9A84C",
-            "msg_ai_bg":      "#111113",
-            "msg_ai_border":  "#252528",
-            "msg_ai_label":   "#525258",
-            "msg_agent_bg":   "#13110A",
+            "msg_ai_bg":      "#1C1C22",
+            "msg_ai_border":  "#333338",
+            "msg_ai_label":   "#606068",
+            "msg_agent_bg":   "#201E10",
             "msg_agent_border":"#C9A84C",
             "msg_agent_label":"#C9A84C",
-            "msg_system_bg":  "#0E0E11",
-            "msg_system_fg":  "#44444A",
+            "msg_system_bg":  "#1E1E22",
+            "msg_system_fg":  "#55555C",
             # Code
-            "code_bg":        "#080809",
-            "code_border":    "#252528",
+            "code_bg":        "#141418",
+            "code_border":    "#333338",
             "code_fg":        "#C9A84C",
-            "code_pre_fg":    "#B0B0B8",
+            "code_pre_fg":    "#B8B8C0",
             # Role buttons
-            "danger_bg":      "#2A1414",
-            "danger_hover":   "#381A1A",
+            "danger_bg":      "#38181A",
+            "danger_hover":   "#451E20",
             "danger_fg":      "#E06060",
-            "danger_border":  "#4E2020",
-            "destructive_bg": "#2A1414",
+            "danger_border":  "#5E2828",
+            "destructive_bg": "#38181A",
             "destructive_fg": "#E06060",
             # Console
-            "console_bg":     "#060608",
+            "console_bg":     "#141418",
             "console_fg":     "#50C878",
             # Scrollbar
-            "scrollbar_track": "#0E0E11",
-            "scrollbar_handle":"#282830",
+            "scrollbar_track": "#1E1E22",
+            "scrollbar_handle":"#3A3A42",
             "scrollbar_hover": "#C9A84C",
             # Tree / splitter
-            "tree_bg":        "#0C0C0F",
-            "tree_hover":     "#1C1C20",
-            "tree_selected":  "#2A2716",
-            "splitter":       "#1A1A1E",
+            "tree_bg":        "#1B1B1F",
+            "tree_hover":     "#28282E",
+            "tree_selected":  "#35301A",
+            "splitter":       "#2A2A30",
         },
         "Dreamweaver": {
             # ── Warm Daylight — ivory paper, amber accent ───────────────────
@@ -1744,16 +1744,8 @@ class MainWindow(QMainWindow):
 
     def append_log(self, message: str):
         self.log_buffer.append(message)
-        
-        # Log to file in the APPLICATION directory (not workspace)
-        try:
-            app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-            log_path = os.path.join(app_dir, "agent_debug.log")
-            with open(log_path, "a", encoding="utf-8") as f:
-                ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                f.write(f"[{ts}] {message}\n")
-        except Exception:
-            pass
+        # Note: file logging is handled exclusively by agent_engine._log()
+        # to avoid duplicate entries in agent_debug.log.
 
     def send_message(self):
         text = self.message_input.toPlainText().strip()
