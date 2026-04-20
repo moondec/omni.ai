@@ -2239,13 +2239,7 @@ class MainWindow(QMainWindow):
     def optimize_prompt(self, input_widget):
         """Rewrite the current prompt for better clarity using the active model."""
         text = input_widget.toPlainText().strip()
-        self.append_log(
-            f"[optimize_prompt] called. text_len={len(text)} "
-            f"readOnly={input_widget.isReadOnly()} "
-            f"worker={'set' if self._optimize_worker else 'None'}"
-        )
         if not text or len(text) < 5:
-            self.append_log("[optimize_prompt] BLOCKED: text too short")
             return
 
         # Prevent double-clicks while optimization is in progress
@@ -2294,6 +2288,7 @@ class MainWindow(QMainWindow):
         ]
         model = self._current_model()
         worker = ChatWorker(self.api, model, messages)
+        worker.log_message.connect(self.append_log)
 
         def _restore_buttons():
             for attr, label in _btn_labels.items():
@@ -2303,7 +2298,15 @@ class MainWindow(QMainWindow):
                     btn.setText(label)
 
         def on_done(result):
-            input_widget.setPlainText(result.strip())
+            optimized = result.strip()
+            if not optimized:
+                # API returned empty — restore original instead of clearing the field
+                self.append_log("[optimize_prompt] WARNING: empty result from API, restoring original.")
+                input_widget.setPlainText(original_text)
+                self.statusBar().showMessage("⚠️ Optimization returned empty result. Original prompt restored.", 4000)
+            else:
+                input_widget.setPlainText(optimized)
+                self.statusBar().showMessage("✨ Prompt optimized.", 3000)
             input_widget.setReadOnly(False)
             if hasattr(input_widget, "restore_cursor_blink"):
                 input_widget.restore_cursor_blink()
@@ -2314,11 +2317,13 @@ class MainWindow(QMainWindow):
             _restore_buttons()
             self._optimize_worker = None
 
-        def on_error(_err):
+        def on_error(err):
+            self.append_log(f"[optimize_prompt] ERROR: {err}")
             input_widget.setPlainText(original_text)
             input_widget.setReadOnly(False)
             if hasattr(input_widget, "restore_cursor_blink"):
                 input_widget.restore_cursor_blink()
+            self.statusBar().showMessage(f"❌ Optimization failed: {err[:80]}", 5000)
             _restore_buttons()
             self._optimize_worker = None
 
