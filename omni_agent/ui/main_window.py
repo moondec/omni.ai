@@ -388,52 +388,130 @@ class MainWindow(QMainWindow):
     # Theme definitions: Cobalt (dark) and Dreamweaver (light)
     THEMES = {
         "Cobalt": {
+            # ── Obsidian Atelier — deep obsidian, warm gold accent ──────────
             "name": "Cobalt",
             "type": "dark",
-            "background": "#002240",
-            "foreground": "#ffffff",
-            "secondary_bg": "#013664",
-            "border": "#1e4a6d",
-            "accent": "#7aa6da",
-            "accent_hover": "#5a8fca",
-            "text_muted": "#969896",
-            "success": "#b9ca4a",
-            "error": "#d54e53",
-            "warning": "#e7c547",
-            "input_bg": "#001830",
-            "button_bg": "#013664",
-            "button_hover": "#024a88",
-            "danger_bg": "#8b2c2c",
-            "danger_hover": "#b93838",
-            "danger_fg": "#ffffff",
-            "console_bg": "#0b1a28",
-            "console_fg": "#7ee17e",
-            "destructive_bg": "#4a1a1f",
-            "destructive_fg": "#ff9494",
+            "background":     "#0E0E11",
+            "secondary_bg":   "#161619",
+            "input_bg":       "#0A0A0D",
+            "doc_bg":         "#0A0A0D",
+            "sidebar_bg":     "#0C0C0F",
+            "foreground":     "#E8E8E2",
+            "text_muted":     "#6A6A6E",
+            "border":         "#252528",
+            "border_strong":  "#38383E",
+            "accent":         "#C9A84C",
+            "accent_hover":   "#DEAD6B",
+            "accent_dim":     "#7A6230",
+            "tab_indicator":  "#C9A84C",
+            "input_focus":    "#C9A84C",
+            "selection_bg":   "#2D2A1A",
+            "success":        "#5CB87A",
+            "error":          "#D05A52",
+            "warning":        "#C9A84C",
+            "button_bg":      "#1C1C20",
+            "button_hover":   "#242428",
+            "button_fg":      "#E8E8E2",
+            "button_border":  "#2E2E34",
+            # Message bubbles
+            "msg_user_bg":    "#14120A",
+            "msg_user_border":"#C9A84C",
+            "msg_user_label": "#C9A84C",
+            "msg_ai_bg":      "#111113",
+            "msg_ai_border":  "#252528",
+            "msg_ai_label":   "#525258",
+            "msg_agent_bg":   "#13110A",
+            "msg_agent_border":"#C9A84C",
+            "msg_agent_label":"#C9A84C",
+            "msg_system_bg":  "#0E0E11",
+            "msg_system_fg":  "#44444A",
+            # Code
+            "code_bg":        "#080809",
+            "code_border":    "#252528",
+            "code_fg":        "#C9A84C",
+            "code_pre_fg":    "#B0B0B8",
+            # Role buttons
+            "danger_bg":      "#2A1414",
+            "danger_hover":   "#381A1A",
+            "danger_fg":      "#E06060",
+            "danger_border":  "#4E2020",
+            "destructive_bg": "#2A1414",
+            "destructive_fg": "#E06060",
+            # Console
+            "console_bg":     "#060608",
+            "console_fg":     "#50C878",
+            # Scrollbar
+            "scrollbar_track": "#0E0E11",
+            "scrollbar_handle":"#282830",
+            "scrollbar_hover": "#C9A84C",
+            # Tree / splitter
+            "tree_bg":        "#0C0C0F",
+            "tree_hover":     "#1C1C20",
+            "tree_selected":  "#2A2716",
+            "splitter":       "#1A1A1E",
         },
         "Dreamweaver": {
+            # ── Warm Daylight — ivory paper, amber accent ───────────────────
             "name": "Dreamweaver",
             "type": "light",
-            "background": "#ffffff",
-            "foreground": "#000000",
-            "secondary_bg": "#f5f5f5",
-            "border": "#cccccc",
-            "accent": "#0066cc",
-            "accent_hover": "#0052a3",
-            "text_muted": "#666666",
-            "success": "#228b22",
-            "error": "#cc0000",
-            "warning": "#ff8c00",
-            "input_bg": "#ffffff",
-            "button_bg": "#e0e0e0",
-            "button_hover": "#d0d0d0",
-            "danger_bg": "#d32f2f",
-            "danger_hover": "#b71c1c",
-            "danger_fg": "#ffffff",
-            "console_bg": "#fafafa",
-            "console_fg": "#2e7d32",
-            "destructive_bg": "#fce4ec",
-            "destructive_fg": "#c2185b",
+            "background":     "#F5F4EF",
+            "secondary_bg":   "#ECEAE4",
+            "input_bg":       "#FAF9F5",
+            "doc_bg":         "#FAF9F5",
+            "sidebar_bg":     "#EEEDE7",
+            "foreground":     "#1C1C1E",
+            "text_muted":     "#8A8A8C",
+            "border":         "#D8D5CC",
+            "border_strong":  "#B8B5AC",
+            "accent":         "#8B6914",
+            "accent_hover":   "#6A500E",
+            "accent_dim":     "#C9A84C",
+            "tab_indicator":  "#8B6914",
+            "input_focus":    "#8B6914",
+            "selection_bg":   "#EEE0BE",
+            "success":        "#2E7D4F",
+            "error":          "#B02C2C",
+            "warning":        "#8B6914",
+            "button_bg":      "#E8E6E0",
+            "button_hover":   "#DEDAD2",
+            "button_fg":      "#1C1C1E",
+            "button_border":  "#CCCAC2",
+            # Message bubbles
+            "msg_user_bg":    "#FDF8EE",
+            "msg_user_border":"#8B6914",
+            "msg_user_label": "#8B6914",
+            "msg_ai_bg":      "#F5F4EF",
+            "msg_ai_border":  "#D8D5CC",
+            "msg_ai_label":   "#9A9A9C",
+            "msg_agent_bg":   "#FEF8EC",
+            "msg_agent_border":"#8B6914",
+            "msg_agent_label":"#8B6914",
+            "msg_system_bg":  "#ECEAE4",
+            "msg_system_fg":  "#9A9A9C",
+            # Code
+            "code_bg":        "#ECEAE4",
+            "code_border":    "#D8D5CC",
+            "code_fg":        "#8B6914",
+            "code_pre_fg":    "#3A3A3E",
+            # Role buttons
+            "danger_bg":      "#FFE8E8",
+            "danger_hover":   "#FFDCDC",
+            "danger_fg":      "#B02C2C",
+            "danger_border":  "#E0A0A0",
+            "destructive_bg": "#FFE8E8",
+            "destructive_fg": "#B02C2C",
+            # Console
+            "console_bg":     "#EEEDE7",
+            "console_fg":     "#2E7D4F",
+            # Scrollbar
+            "scrollbar_track": "#ECEAE4",
+            "scrollbar_handle":"#C0BDB4",
+            "scrollbar_hover": "#8B6914",
+            # Tree / splitter
+            "tree_bg":        "#EEEDE7",
+            "tree_hover":     "#E0DED6",
+            "tree_selected":  "#E8DFB8",
+            "splitter":       "#D8D5CC",
         }
     }
     
@@ -1266,75 +1344,191 @@ class MainWindow(QMainWindow):
             current_model = self._current_model()
             self.append_log(f"Settings saved. Current model: {current_model}")
 
+    def _doc_stylesheet(self, theme: dict) -> str:
+        """CSS applied to QTextBrowser document content (HTML messages, not widget chrome)."""
+        return f"""
+            body {{
+                font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+                font-size: 13px;
+                color: {theme['foreground']};
+                background-color: {theme['doc_bg']};
+                margin: 6px 8px;
+                line-height: 1.65;
+            }}
+            p {{ margin: 0 0 6px 0; }}
+            a {{ color: {theme['accent']}; text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+            code {{
+                font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+                font-size: 11.5px;
+                background-color: {theme['code_bg']};
+                color: {theme['code_fg']};
+                padding: 1px 5px;
+                border-radius: 3px;
+            }}
+            pre {{
+                font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+                font-size: 11.5px;
+                background-color: {theme['code_bg']};
+                color: {theme['code_pre_fg']};
+                border: 1px solid {theme['code_border']};
+                border-radius: 5px;
+                padding: 10px 14px;
+                margin: 8px 0;
+                white-space: pre-wrap;
+            }}
+            pre code {{ background: transparent; padding: 0; border-radius: 0; color: inherit; }}
+            blockquote {{
+                border-left: 3px solid {theme['border_strong']};
+                padding-left: 12px;
+                margin: 6px 0;
+                color: {theme['text_muted']};
+            }}
+            h1 {{ font-size: 17px; font-weight: 700; margin: 14px 0 6px 0; color: {theme['foreground']}; }}
+            h2 {{ font-size: 14px; font-weight: 700; margin: 12px 0 5px 0; color: {theme['foreground']}; }}
+            h3 {{ font-size: 13px; font-weight: 600; margin: 10px 0 4px 0; color: {theme['foreground']}; }}
+            ul, ol {{ padding-left: 20px; margin: 4px 0; }}
+            li {{ margin: 2px 0; }}
+            table {{ border-collapse: collapse; margin: 8px 0; width: 100%; }}
+            th {{ background-color: {theme['secondary_bg']}; color: {theme['accent']};
+                  padding: 5px 10px; border: 1px solid {theme['border']}; text-align: left;
+                  font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }}
+            td {{ padding: 5px 10px; border: 1px solid {theme['border']}; color: {theme['foreground']}; }}
+        """
+
+    def _message_html(self, role: str, text: str) -> str:
+        """Return a styled HTML bubble for a chat/agent message."""
+        theme = self.THEMES.get(self.current_theme, self.THEMES['Cobalt'])
+        m_html = markdown.markdown(text, extensions=['extra', 'nl2br'])
+
+        if role in ("User",):
+            return (
+                f'<div style="margin:8px 0 10px 0; padding:9px 14px;'
+                f' background-color:{theme["msg_user_bg"]};'
+                f' border-left:3px solid {theme["msg_user_border"]};">'
+                f'<div style="color:{theme["msg_user_label"]}; font-size:10px;'
+                f' font-weight:700; letter-spacing:0.07em; margin-bottom:5px;">YOU</div>'
+                f'<div>{m_html}</div>'
+                f'</div>'
+            )
+        elif role in ("AI", "Assistant"):
+            return (
+                f'<div style="margin:8px 0 10px 0; padding:9px 14px;'
+                f' background-color:{theme["msg_ai_bg"]};'
+                f' border-left:3px solid {theme["msg_ai_border"]};">'
+                f'<div style="color:{theme["msg_ai_label"]}; font-size:10px;'
+                f' font-weight:700; letter-spacing:0.07em; margin-bottom:5px;">ASSISTANT</div>'
+                f'<div>{m_html}</div>'
+                f'</div>'
+            )
+        elif role in ("Agent",):
+            return (
+                f'<div style="margin:8px 0 10px 0; padding:9px 14px;'
+                f' background-color:{theme["msg_agent_bg"]};'
+                f' border-left:3px solid {theme["msg_agent_border"]};">'
+                f'<div style="color:{theme["msg_agent_label"]}; font-size:10px;'
+                f' font-weight:700; letter-spacing:0.07em; margin-bottom:5px;">AGENT</div>'
+                f'<div>{m_html}</div>'
+                f'</div>'
+            )
+        else:
+            # System / status message — subtle, centred
+            return (
+                f'<div style="margin:4px 0; padding:5px 12px;'
+                f' background-color:{theme["msg_system_bg"]};">'
+                f'<span style="color:{theme["msg_system_fg"]}; font-size:11px;'
+                f' font-style:italic;">{m_html}</span>'
+                f'</div>'
+            )
+
+    def _apply_doc_stylesheets(self, theme: dict) -> None:
+        """Push the document CSS into every QTextBrowser that shows chat content."""
+        css = self._doc_stylesheet(theme)
+        for attr in ('chat_display', 'agent_display', 'reasoning_display'):
+            widget = getattr(self, attr, None)
+            if widget is not None:
+                widget.document().setDefaultStyleSheet(css)
+
     def apply_theme(self, theme_name: str):
         """Apply a theme to the application."""
         if theme_name not in self.THEMES:
             theme_name = "Cobalt"
-        
+
         theme = self.THEMES[theme_name]
-        
-        # Only set and save if the theme actually changed to avoid clobbering config on startup
+
         if self.current_theme != theme_name:
             self.current_theme = theme_name
             self.config.set("theme", theme_name)
-        
-        # Update theme toggle button text
+
         if hasattr(self, 'theme_btn'):
-            other_theme = "Dreamweaver" if theme_name == "Cobalt" else "Cobalt"
-            self.theme_btn.setText(f"🎨 {other_theme}")
-        
-        # Build comprehensive stylesheet
+            other = "Daylight" if theme_name == "Cobalt" else "Obsidian"
+            self.theme_btn.setText(f"◐ {other}")
+
+        # ── Qt Stylesheet ────────────────────────────────────────────────────
         stylesheet = f"""
+            /* ── Base ── */
             QMainWindow, QWidget {{
                 background-color: {theme['background']};
                 color: {theme['foreground']};
+                font-size: 13px;
             }}
-            QLabel {{
-                color: {theme['foreground']};
-            }}
-            QTextEdit, QTextBrowser, QLineEdit {{
+            QLabel {{ color: {theme['foreground']}; }}
+
+            /* ── Text inputs ── */
+            QTextEdit, QTextBrowser, QPlainTextEdit {{
                 background-color: {theme['input_bg']};
                 color: {theme['foreground']};
                 border: 1px solid {theme['border']};
-                border-radius: 4px;
-                padding: 4px;
+                border-radius: 6px;
+                padding: 5px 7px;
+                selection-background-color: {theme['selection_bg']};
+                selection-color: {theme['foreground']};
             }}
-            QListWidget {{
-                background-color: {theme['secondary_bg']};
+            QTextEdit:focus, QPlainTextEdit:focus {{
+                border-color: {theme['input_focus']};
+            }}
+            QLineEdit {{
+                background-color: {theme['input_bg']};
                 color: {theme['foreground']};
                 border: 1px solid {theme['border']};
-                border-radius: 4px;
+                border-radius: 6px;
+                padding: 4px 8px;
+                selection-background-color: {theme['selection_bg']};
             }}
-            QListWidget::item:selected {{
-                background-color: {theme['accent']};
-                color: {theme['background']};
-            }}
-            QListWidget::item:hover {{
-                background-color: {theme['accent_hover']};
-            }}
+            QLineEdit:focus {{ border-color: {theme['input_focus']}; }}
+
+            /* ── Buttons ── */
             QPushButton {{
                 background-color: {theme['button_bg']};
-                color: {theme['foreground']};
-                border: 1px solid {theme['border']};
-                border-radius: 4px;
-                padding: 6px 12px;
-                min-height: 24px;
+                color: {theme['button_fg']};
+                border: 1px solid {theme['button_border']};
+                border-radius: 6px;
+                padding: 5px 14px;
+                min-height: 26px;
+                font-weight: 500;
             }}
             QPushButton:hover {{
                 background-color: {theme['button_hover']};
+                border-color: {theme['border_strong']};
             }}
             QPushButton:pressed {{
-                background-color: {theme['accent']};
+                background-color: {theme['accent_dim']};
+                border-color: {theme['accent']};
+            }}
+            QPushButton:checked {{
+                background-color: {theme['accent_dim']};
+                border-color: {theme['accent']};
+                color: {theme['accent']};
             }}
             QPushButton:disabled {{
-                background-color: {theme['secondary_bg']};
+                background-color: {theme['button_bg']};
                 color: {theme['text_muted']};
+                border-color: {theme['border']};
             }}
-            /* Role-based variants */
             QPushButton[role="danger"]:enabled {{
                 background-color: {theme['danger_bg']};
                 color: {theme['danger_fg']};
-                border: 1px solid {theme['danger_bg']};
+                border: 1px solid {theme['danger_border']};
             }}
             QPushButton[role="danger"]:enabled:hover {{
                 background-color: {theme['danger_hover']};
@@ -1344,99 +1538,192 @@ class MainWindow(QMainWindow):
                 color: {theme['destructive_fg']};
                 border: 1px solid {theme['border']};
             }}
+
+            /* ── List ── */
+            QListWidget {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['foreground']};
+                border: 1px solid {theme['border']};
+                border-radius: 6px;
+                outline: none;
+            }}
+            QListWidget::item {{
+                padding: 5px 8px;
+                border-radius: 4px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {theme['tree_selected']};
+                color: {theme['foreground']};
+            }}
+            QListWidget::item:hover {{
+                background-color: {theme['tree_hover']};
+            }}
+
+            /* ── ComboBox ── */
+            QComboBox {{
+                background-color: {theme['button_bg']};
+                color: {theme['button_fg']};
+                border: 1px solid {theme['button_border']};
+                border-radius: 6px;
+                padding: 4px 10px;
+                min-height: 24px;
+            }}
+            QComboBox:focus {{ border-color: {theme['input_focus']}; }}
+            QComboBox::drop-down {{ border: none; width: 18px; }}
+            QComboBox QAbstractItemView {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['foreground']};
+                border: 1px solid {theme['border_strong']};
+                selection-background-color: {theme['tree_selected']};
+                selection-color: {theme['foreground']};
+                padding: 4px;
+            }}
+
+            /* ── Tabs — underline style, no boxes ── */
+            QTabWidget::pane {{
+                border: none;
+                border-top: 1px solid {theme['border']};
+                background-color: {theme['background']};
+            }}
+            QTabBar::tab {{
+                background-color: transparent;
+                color: {theme['text_muted']};
+                padding: 8px 20px;
+                border: none;
+                border-bottom: 2px solid transparent;
+                font-weight: 500;
+                margin-right: 2px;
+            }}
+            QTabBar::tab:selected {{
+                color: {theme['accent']};
+                border-bottom: 2px solid {theme['tab_indicator']};
+            }}
+            QTabBar::tab:hover:!selected {{
+                color: {theme['foreground']};
+                background-color: {theme['secondary_bg']};
+            }}
+
+            /* ── Scrollbars — slim, minimal ── */
+            QScrollBar:vertical {{
+                background-color: {theme['scrollbar_track']};
+                width: 6px;
+                margin: 0;
+                border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {theme['scrollbar_handle']};
+                border-radius: 3px;
+                min-height: 24px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {theme['scrollbar_hover']};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+            QScrollBar:horizontal {{
+                background-color: {theme['scrollbar_track']};
+                height: 6px;
+                margin: 0;
+                border: none;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: {theme['scrollbar_handle']};
+                border-radius: 3px;
+                min-width: 24px;
+            }}
+            QScrollBar::handle:horizontal:hover {{ background-color: {theme['scrollbar_hover']}; }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+
+            /* ── Splitter ── */
+            QSplitter::handle {{ background-color: {theme['splitter']}; }}
+            QSplitter::handle:horizontal {{ width: 1px; }}
+            QSplitter::handle:vertical {{ height: 1px; }}
+
+            /* ── Tree view (file browser) ── */
+            QTreeView {{
+                background-color: {theme['tree_bg']};
+                color: {theme['foreground']};
+                border: none;
+                outline: none;
+            }}
+            QTreeView::item {{ padding: 3px 4px; border-radius: 3px; }}
+            QTreeView::item:selected {{ background-color: {theme['tree_selected']}; }}
+            QTreeView::item:hover {{ background-color: {theme['tree_hover']}; }}
+            QTreeView::branch {{ background-color: {theme['tree_bg']}; }}
+
+            /* ── CheckBox ── */
+            QCheckBox {{ spacing: 7px; color: {theme['foreground']}; }}
+            QCheckBox::indicator {{
+                width: 15px; height: 15px;
+                border: 1px solid {theme['border_strong']};
+                border-radius: 3px;
+                background-color: {theme['input_bg']};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {theme['accent']};
+                border-color: {theme['accent']};
+            }}
+
+            /* ── Menus ── */
+            QMenuBar {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['foreground']};
+                padding: 0;
+                border-bottom: 1px solid {theme['border']};
+            }}
+            QMenuBar::item {{ padding: 4px 10px; border-radius: 3px; }}
+            QMenuBar::item:selected {{ background-color: {theme['secondary_bg']}; color: {theme['accent']}; }}
+            QMenu {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['foreground']};
+                border: 1px solid {theme['border_strong']};
+                padding: 4px;
+                border-radius: 6px;
+            }}
+            QMenu::item {{ padding: 5px 20px 5px 12px; border-radius: 4px; }}
+            QMenu::item:selected {{ background-color: {theme['tree_selected']}; }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {theme['border']};
+                margin: 3px 6px;
+            }}
+
+            /* ── Tooltips ── */
+            QToolTip {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['foreground']};
+                border: 1px solid {theme['border_strong']};
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+            }}
+
+            /* ── Status bar ── */
+            QStatusBar {{
+                background-color: {theme['secondary_bg']};
+                color: {theme['text_muted']};
+                border-top: 1px solid {theme['border']};
+                font-size: 11px;
+            }}
+
+            /* ── Named elements ── */
             QTextEdit#debugConsole {{
                 background-color: {theme['console_bg']};
                 color: {theme['console_fg']};
-                font-family: "Courier New", monospace;
+                font-family: "JetBrains Mono", "Fira Code", "Consolas", "Courier New", monospace;
+                font-size: 11px;
                 border: 1px solid {theme['border']};
+                border-radius: 4px;
             }}
             QLabel#mutedLabel {{
                 color: {theme['text_muted']};
                 font-size: 10px;
             }}
-            QComboBox {{
-                background-color: {theme['button_bg']};
-                color: {theme['foreground']};
-                border: 1px solid {theme['border']};
-                border-radius: 4px;
-                padding: 4px 8px;
-            }}
-            QComboBox::drop-down {{
-                border: none;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {theme['secondary_bg']};
-                color: {theme['foreground']};
-                selection-background-color: {theme['accent']};
-            }}
-            QTabWidget::pane {{
-                border: 1px solid {theme['border']};
-                background-color: {theme['background']};
-            }}
-            QTabBar::tab {{
-                background-color: {theme['secondary_bg']};
-                color: {theme['foreground']};
-                padding: 8px 16px;
-                border: 1px solid {theme['border']};
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }}
-            QTabBar::tab:selected {{
-                background-color: {theme['accent']};
-                color: {theme['background']};
-            }}
-            QMenuBar {{
-                background-color: {theme['secondary_bg']};
-                color: {theme['foreground']};
-            }}
-            QMenuBar::item:selected {{
-                background-color: {theme['accent']};
-            }}
-            QMenu {{
-                background-color: {theme['secondary_bg']};
-                color: {theme['foreground']};
-                border: 1px solid {theme['border']};
-            }}
-            QMenu::item:selected {{
-                background-color: {theme['accent']};
-            }}
-            QScrollBar:vertical {{
-                background-color: {theme['secondary_bg']};
-                width: 12px;
-                border-radius: 6px;
-            }}
-            QScrollBar::handle:vertical {{
-                background-color: {theme['border']};
-                border-radius: 6px;
-                min-height: 20px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background-color: {theme['accent']};
-            }}
-            /* Table Formatting */
-            table {{
-                border-collapse: collapse;
-                margin: 10px 0;
-                border: 1px solid {theme['border']};
-            }}
-            th {{
-                background-color: {theme['secondary_bg']};
-                color: {theme['accent']};
-                font-weight: bold;
-                padding: 6px;
-                border: 1px solid {theme['border']};
-            }}
-            td {{
-                padding: 6px;
-                border: 1px solid {theme['border']};
-                color: {theme['foreground']};
-            }}
         """
-        
-        self.setStyleSheet(stylesheet)
 
-        # Force style re-evaluation for role-based property selectors
+        self.setStyleSheet(stylesheet)
+        self._apply_doc_stylesheets(theme)
+
+        # Re-polish role-based buttons so property selectors take effect immediately
         for btn in self.findChildren(QPushButton):
             if btn.property("role"):
                 btn.style().unpolish(btn)
@@ -1557,16 +1844,21 @@ class MainWindow(QMainWindow):
 
         html_parts = []
         for display_role, content in getattr(self, '_chat_messages', []):
-            m_html = markdown.markdown(content, extensions=['extra', 'nl2br'])
-            html_parts.append(f"<b>{display_role}:</b> {m_html}<br>")
+            html_parts.append(self._message_html(display_role, content))
 
         current_stream = getattr(self, 'current_chat_stream', '')
         if current_stream:
-            stream_html = markdown.markdown(current_stream, extensions=['extra', 'nl2br'])
-            html_parts.append(f"<b>AI:</b> {stream_html}<br>")
+            html_parts.append(self._message_html("AI", current_stream))
+
+        theme = self.THEMES.get(self.current_theme, self.THEMES['Cobalt'])
+        full_html = (
+            f'<html><body style="background-color:{theme["doc_bg"]};">'
+            + "".join(html_parts)
+            + "</body></html>"
+        )
 
         self.chat_display.setUpdatesEnabled(False)
-        self.chat_display.setHtml("".join(html_parts))
+        self.chat_display.setHtml(full_html)
         self.chat_display.setUpdatesEnabled(True)
 
         if was_at_bottom or current_stream:
@@ -1872,23 +2164,21 @@ class MainWindow(QMainWindow):
         if not hasattr(self, '_cached_history_html') or getattr(self, '_cached_history_len', -1) != len(self.agent_history):
             html_parts = []
             for msg in self.agent_history:
-                m_html = markdown.markdown(msg.content, extensions=['extra', 'nl2br'])
                 role = "User" if isinstance(msg, HumanMessage) else "Agent"
-                html_parts.append(f"<b>{role}:</b> {m_html}<br>")
+                html_parts.append(self._message_html(role, msg.content))
             self._cached_history_html = html_parts
             self._cached_history_len = len(self.agent_history)
-            
+
         html_parts = list(self._cached_history_html)
-            
+
         if hasattr(self, 'agent_worker') and self.agent_worker:
-            # Cache user prompt
             if not hasattr(self, '_cached_user_prompt_html') or getattr(self, '_cached_user_prompt_text', "") != worker_text:
-                self._cached_user_prompt_html = markdown.markdown(worker_text, extensions=['extra', 'nl2br'])
+                self._cached_user_prompt_html = self._message_html("User", worker_text)
                 self._cached_user_prompt_text = worker_text
-            html_parts.append(f"<b>User:</b> {self._cached_user_prompt_html}<br>")
-            
+            html_parts.append(self._cached_user_prompt_html)
+
         if current_stream_text:
-            # Extract <think> reasoning content → route to reasoning panel
+            # Extract <think> reasoning → reasoning panel
             think_matches = re.findall(r'<think>(.*?)</think>', current_stream_text, re.DOTALL)
             if think_matches:
                 new_reasoning = "\n\n---\n\n".join(think_matches)
@@ -1896,19 +2186,25 @@ class MainWindow(QMainWindow):
                     self._accumulated_reasoning = new_reasoning
                     self._update_reasoning_panel(new_reasoning)
 
-            # Strip think tags from main display
             stream_for_display = re.sub(r'<think>.*?</think>\s*', '', current_stream_text, flags=re.DOTALL)
             stream_for_display = re.sub(r'<think>[^<]*$', '', stream_for_display)
             stream_for_display = stream_for_display.strip()
 
             if stream_for_display:
                 if not hasattr(self, '_cached_stream_html') or getattr(self, '_cached_stream_text', "") != stream_for_display:
-                    self._cached_stream_html = markdown.markdown(stream_for_display, extensions=['extra', 'nl2br'])
+                    self._cached_stream_html = self._message_html("Agent", stream_for_display)
                     self._cached_stream_text = stream_for_display
-                html_parts.append(f"<b>Agent:</b> {self._cached_stream_html}<br>")
-            
+                html_parts.append(self._cached_stream_html)
+
+        theme = self.THEMES.get(self.current_theme, self.THEMES['Cobalt'])
+        full_html = (
+            f'<html><body style="background-color:{theme["doc_bg"]};">'
+            + "".join(html_parts)
+            + "</body></html>"
+        )
+
         self.agent_display.setUpdatesEnabled(False)
-        self.agent_display.setHtml("".join(html_parts))
+        self.agent_display.setHtml(full_html)
         
         # Store state to prevent redundant renders
         self._last_render_state_key = current_state_key
