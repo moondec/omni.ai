@@ -2,6 +2,23 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.9.0] - 2026-04-20
+
+### Added
+- **Proactive context compression (60% threshold)**: New pre-emptive trim stage in `agent_engine.py` that removes the oldest ~25% of observation blocks when the prompt exceeds 60% of the context-window limit — before TTFT starts to grow exponentially. The existing reactive overflow guard (at 100%) is preserved as a safety net. Both stages log diagnostic messages (`🗜️ Proactive compression at XX%`).
+- **`run_terminal` configurable timeout**: `TerminalSchema` gains a `timeout: int` field (default 15 s). The LLM can now specify `timeout: 120` (or higher) for long-running processes such as Playwright browser automation, test suites, and slow build scripts. The process is hard-killed after the timeout; the error message now reports the actual timeout value used.
+
+### Changed
+- **Stagnation hard-stop**: The repeated-observation detector in `agent_engine.py` is replaced with a counter (`_stagnation_count`). On each identical observation the agent receives a progressive warning (*"repetition 1/3 — 2 more before termination"*). After **3 consecutive identical observations** the engine returns a rich diagnostic (last tool, observation excerpt) and terminates cleanly instead of looping indefinitely. The counter resets on every new (distinct) observation.
+- **Eliminated duplicate log entries**: `main_window.append_log()` no longer writes to `agent_debug.log`. All file logging is now exclusively handled by `agent_engine._log()` (format: `[HH:MM:SS][model_name] message`). This halves the size of the debug log — previously every event was recorded twice (once from the engine, once from the UI callback).
+
+### UI / Frontend
+- **Obsidian Atelier theme** (`Cobalt`): complete palette rewrite — deep `#0E0E11` obsidian base, `#C9A84C` warm-gold accent replacing the generic navy-blue aesthetic. All color tokens keyed: `doc_bg`, `border_strong`, `selection_bg`, `button_border`, `scrollbar_*`, `tree_*`, message-bubble backgrounds/borders, `code_bg`/`code_fg`, `splitter`.
+- **Warm Daylight theme** (`Dreamweaver`): ivory `#F5F4EF` paper with `#8B6914` amber accent for WCAG-compliant contrast on light backgrounds.
+- **Styled message bubbles**: user, AI, agent and system messages each have distinct `background`, `border-left` and label colour derived from the active theme palette.
+- **QSS redesign** (`apply_theme`): tabs use underline-only style (2 px solid accent on selected, no box borders); scrollbars slimmed to 6 px, no arrows, gold on hover; buttons use 6 px radius, `font-weight: 500`, correct `:checked` state.
+- **Graphite adjustment**: Cobalt `background` softened from pure obsidian `#0A0A0D` to graphite `#1E1E22` for reduced eye strain without losing the dark aesthetic.
+
 ## [0.8.2] - 2026-04-18
 ### Fixed
 - **Main window not appearing when PCSS API is slow/unresponsive**: `MainWindow.__init__` called `_refresh_models()` synchronously, which invokes `client.models.list()` — a blocking network request. When the server was slow the GUI thread froze before `show()` ran, so the user saw only a dock icon and no window. Fixed by deferring the model refresh to `QTimer.singleShot(50, …)` after `show()`, and by shortening `list_models()` HTTP timeout to 8 s so it fails fast instead of holding the UI indefinitely. The combobox shows "Loading models..." until the first refresh completes.
