@@ -1141,7 +1141,7 @@ class MainWindow(QMainWindow):
         self.agent_send_btn.clicked.connect(self.send_to_agent)
         agent_btn_col.addWidget(self.agent_send_btn)
 
-        self.agent_optimize_btn = QPushButton("Optimize Prompt")
+        self.agent_optimize_btn = QPushButton("✨ Optimize Prompt")
         self.agent_optimize_btn.setMinimumSize(160, 38)
         self.agent_optimize_btn.setToolTip("Rewrite prompt using AI for better clarity and precision")
         self.agent_optimize_btn.clicked.connect(lambda: self.optimize_prompt(self.agent_input))
@@ -2239,39 +2239,87 @@ class MainWindow(QMainWindow):
     def optimize_prompt(self, input_widget):
         """Rewrite the current prompt for better clarity using the active model."""
         text = input_widget.toPlainText().strip()
+        self.append_log(
+            f"[optimize_prompt] called. text_len={len(text)} "
+            f"readOnly={input_widget.isReadOnly()} "
+            f"worker={'set' if self._optimize_worker else 'None'}"
+        )
         if not text or len(text) < 5:
+            self.append_log("[optimize_prompt] BLOCKED: text too short")
+            return
+
+        # Prevent double-clicks while optimization is in progress
+        if self._optimize_worker is not None:
+            return
+
+        # If the input is locked (agent is currently working), inform the user
+        if input_widget.isReadOnly():
+            self.statusBar().showMessage("⚠️ Wait for the agent to finish before optimizing the prompt.", 3000)
             return
 
         original_text = text
         input_widget.setReadOnly(True)
         input_widget.setPlainText("⏳ Optymalizuję prompt...")
 
+        # Disable both Optimize buttons while the request is in-flight
+        _btn_labels = {
+            "chat_optimize_btn": "✨ Optimize Prompt",
+            "agent_optimize_btn": "✨ Optimize Prompt",
+        }
+        for attr, _label in _btn_labels.items():
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setEnabled(False)
+                btn.setText("⏳ Optymalizuję...")
+
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "Jesteś ekspertem od inżynierii promptów dla modeli językowych. "
-                    "Przepisz poniższy prompt tak, aby był bardziej precyzyjny, konkretny i skuteczny. "
-                    "Zachowaj intencję użytkownika. Zwróć WYŁĄCZNIE przepisany prompt, bez komentarzy."
+                    "Jesteś ekspertem od inżynierii promptów dla dużych modeli językowych (LLM).\n"
+                    "Twój JEDYNY cel to przepisanie prompta użytkownika na lepszą wersję.\n\n"
+                    "ZASADY BEZWZGLĖDNE:\n"
+                    "- NIE wykonuj zadania opisanego w prompcie.\n"
+                    "- NIE odpowiadaj na pytania zawarte w prompcie.\n"
+                    "- NIE pisz kodu, dokumentów, analiz ani żadnych treści tematycznych.\n"
+                    "- Zwróć WYŁĄCZNIE przepisaną wersję prompta — bez wstępu, komentarza, cudzysłowu.\n\n"
+                    "CEL PRZEPISANIA:\n"
+                    "- Więcej konkretów i kontekstu (wypełnij luki logiczne).\n"
+                    "- Wyraźny format oczekiwanego wyniku (np. lista, JSON, kod, raport).\n"
+                    "- Zachowaj język oryginalu (polski → polski, angielski → angielski).\n"
+                    "- Zachowaj intencję autora."
                 )
             },
-            {"role": "user", "content": text}
+            {"role": "user", "content": f"Przepisz ten prompt:\n\n{text}"}
         ]
         model = self._current_model()
         worker = ChatWorker(self.api, model, messages)
 
+        def _restore_buttons():
+            for attr, label in _btn_labels.items():
+                btn = getattr(self, attr, None)
+                if btn is not None:
+                    btn.setEnabled(True)
+                    btn.setText(label)
+
         def on_done(result):
             input_widget.setPlainText(result.strip())
             input_widget.setReadOnly(False)
+            if hasattr(input_widget, "restore_cursor_blink"):
+                input_widget.restore_cursor_blink()
             input_widget.setFocus()
             cursor = input_widget.textCursor()
             cursor.movePosition(QTextCursor.End)
             input_widget.setTextCursor(cursor)
+            _restore_buttons()
             self._optimize_worker = None
 
         def on_error(_err):
             input_widget.setPlainText(original_text)
             input_widget.setReadOnly(False)
+            if hasattr(input_widget, "restore_cursor_blink"):
+                input_widget.restore_cursor_blink()
+            _restore_buttons()
             self._optimize_worker = None
 
         worker.finished.connect(on_done)
