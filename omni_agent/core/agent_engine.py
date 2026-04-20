@@ -575,6 +575,41 @@ Begin!"""
             usage_pct = (len(prompt) / MAX_PROMPT_CHARS) * 100
             limit_tokens = int(MAX_PROMPT_CHARS / 3.5)
             self._log(f"Context: {len(prompt)} chars (~{est_tokens} tokens) | {usage_pct:.1f}% of {MAX_PROMPT_CHARS} chars (~{limit_tokens} tokens) limit")
+
+            # ── Proactive Context Compression (60% threshold) ────────────────
+            # Compresses BEFORE the buffer overflows to prevent TTFT spikes.
+            # The reactive overflow guard below (at 100%) stays as safety net.
+            PROACTIVE_THRESHOLD = 0.60
+            usage_ratio = len(prompt) / MAX_PROMPT_CHARS
+            if usage_ratio > PROACTIVE_THRESHOLD and not getattr(self, '_proactive_trim_done_this_step', False):
+                self._proactive_trim_done_this_step = True
+                _header_marker = "\nThought:"
+                _header_end = prompt.find(_header_marker)
+                if _header_end != -1:
+                    _hdr = prompt[: _header_end + len(_header_marker)]
+                    _body = prompt[_header_end + len(_header_marker):]
+                    _obs_blocks = _body.split("\nObservation:")
+                    _n_total = len(_obs_blocks)
+                    _n_remove = max(1, min(8, _n_total // 4))  # remove ~25%, cap at 8 blocks
+                    _removed = 0
+                    while _removed < _n_remove and len(_obs_blocks) > 2:
+                        _obs_blocks.pop(1)
+                        _removed += 1
+                    _trim_notice = (
+                        f"\n[SYSTEM: {_removed} najstarszych kroków skompresowano "
+                        f"(kontekst: {usage_ratio*100:.0f}% limitu). Kontynuuj normalnie.]\n"
+                    )
+                    prompt = _hdr + _trim_notice + "\nObservation:".join(_obs_blocks)
+                    self.active_scratchpad = prompt[_header_end + len(_header_marker):]
+                    self._log(
+                        f"\U0001f5dc\ufe0f Proactive compression at {usage_ratio*100:.0f}%: "
+                        f"removed {_removed}/{_n_total} obs blocks \u2192 {len(prompt):,} chars."
+                    )
+            else:
+                self._proactive_trim_done_this_step = False
+            # ─────────────────────────────────────────────────────────────────
+
+            # ── Reactive overflow guard (100% threshold — safety net) ─────────
             if len(prompt) > MAX_PROMPT_CHARS:
                 # Split at the first "\nThought:" that follows the Question line
                 # Everything before (and including) that marker is the immutable header.
@@ -1540,18 +1575,36 @@ Begin!"""
                         
                         # Observation Loop / Stagnation check
                         if len(observation_history) > 0 and observation == observation_history[-1]:
-                             self._log("⚠️ Stagnation detected (Repeated Observation).")
-                             observation += "\n\n[SYSTEM WARNING: You just received the EXACT SAME observation as your last step. You are stuck in a loop. YOU MUST USE A DIFFERENT TOOL OR DIFFERENT ARGUMENTS NOW. Do not repeat the same action.]"
+                            self._log("⚠️ Stagnation detected (Repeated Observation).")
+                            _stagnation_count = getattr(self, '_stagnation_count', 0) + 1
+                            self._stagnation_count = _stagnation_count
+
+                            if _stagnation_count >= 3:
+                                self._log(f"⚠️ Stagnation HARD STOP after {_stagnation_count} identical observations.")
+                                _recent_obs = str(observation)[:400]
+                                return (
+                                    f"Agent zatrzymany: {_stagnation_count} identycznych obserwacji z rzędu.\n\n"
+                                    f"**Ostatnie narzędzie:** {last_executed_tool}\n"
+                                    f"**Obserwacja:** {_recent_obs}\n\n"
+                                    "Zmień podejście, użyj innego narzędzia lub podaj więcej kontekstu."
+                                )
+
+                            observation += (
+                                f"\n\n[SYSTEM WARNING: Identyczna obserwacja — powtórzenie {_stagnation_count}/3. "
+                                "OBOWIĄZKOWO użyj INNEGO narzędzia z INNYMI argumentami. "
+                                f"Jeszcze {3 - _stagnation_count} powtórzenie(a) i agent zostanie zatrzymany.]"
+                            )
                         else:
-                             # ── Dynamic Step Limit Bonus ──
-                             # If we reaching this point, we didn't loop or error out early.
-                             # This was a "productive" step for the context.
-                             if match and not is_identical_loop and not is_similarity_loop:
-                                 bonus = 2
-                                 old_limit = max_steps
-                                 max_steps = min(600, max_steps + bonus)
-                                 if max_steps > old_limit:
-                                     self._log(f"--- Progress detected (Action: {action}). Limit extended: {max_steps} steps. ---")
+                            self._stagnation_count = 0  # reset on new (different) observation
+                            # ── Dynamic Step Limit Bonus ──
+                            # If we reaching this point, we didn't loop or error out early.
+                            # This was a "productive" step for the context.
+                            if match and not is_identical_loop and not is_similarity_loop:
+                                bonus = 2
+                                old_limit = max_steps
+                                max_steps = min(600, max_steps + bonus)
+                                if max_steps > old_limit:
+                                    self._log(f"--- Progress detected (Action: {action}). Limit extended: {max_steps} steps. ---")
                         
                         observation_history.append(observation)
                     except Exception as e:

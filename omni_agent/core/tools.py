@@ -2082,17 +2082,27 @@ class SearchTools(_WorkspaceMixin):
 
 class TerminalSchema(BaseModel):
     command: str = Field(description="The shell command to execute in the workspace.")
+    timeout: int = Field(
+        default=15,
+        description=(
+            "Max execution time in seconds before the process is killed. "
+            "Default: 15s (quick commands, git, file ops). "
+            "Use 60-300 for long-running scripts (e.g. browser automation with Playwright, "
+            "test suites, slow builds). The process is hard-killed after the timeout."
+        )
+    )
 
 class TerminalTool(_WorkspaceMixin):
     def __init__(self, root_dir: str, max_chars: int = 10000):
         self.root_dir = os.path.abspath(root_dir)
         self.max_chars = max_chars
 
-    def run_terminal(self, command: str) -> str:
+    def run_terminal(self, command: str, timeout: int = 15) -> str:
         """
         Executes a shell command within the workspace directory.
         Args:
             command: The command to run (e.g., 'python app.py' or 'ls -la').
+            timeout: Max execution seconds. Default 15s. Use 60-300 for browser/test scripts.
         """
         try:
             import platform
@@ -2111,7 +2121,7 @@ class TerminalTool(_WorkspaceMixin):
             )
             
             try:
-                stdout, stderr = process.communicate(timeout=15) # Shorter timeout for interactive agents
+                stdout, stderr = process.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
                 # Command took too long. We need to kill it and all its children.
                 if is_unix:
@@ -2129,7 +2139,7 @@ class TerminalTool(_WorkspaceMixin):
                 except subprocess.TimeoutExpired:
                     stdout, stderr = "Output extraction hung", "Output extraction hung"
                     
-                return f"Command execution stopped after 15s timeout (background server/process detected).\n[Partial Stdout]:\n{stdout}\n[Partial Stderr]:\n{stderr}"
+                return f"Command execution stopped after {timeout}s timeout (process killed).\n[Partial Stdout]:\n{stdout}\n[Partial Stderr]:\n{stderr}"
 
             output = stdout
             if stderr:
