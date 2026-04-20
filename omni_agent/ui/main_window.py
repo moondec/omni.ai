@@ -1396,11 +1396,53 @@ class MainWindow(QMainWindow):
             td {{ padding: 5px 10px; border: 1px solid {theme['border']}; color: {theme['foreground']}; }}
         """
 
+    def _patch_code_styles(self, html: str, theme: dict) -> str:
+        """Inject inline styles into <pre> and <code> elements.
+
+        QTextBrowser's HTML renderer ignores setDefaultStyleSheet for pre/code,
+        so document-level CSS is not enough — we must add inline styles directly
+        to each element after markdown conversion.
+        """
+        pre_style = (
+            f'background-color:{theme["code_bg"]};'
+            f'color:{theme["code_pre_fg"]};'
+            f'font-family:"Consolas","Courier New",monospace;'
+            f'font-size:12px;'
+            f'padding:10px 14px;'
+            f'border:1px solid {theme["code_border"]};'
+            f'margin:8px 0;'
+            f'white-space:pre-wrap;'
+            f'display:block;'
+        )
+        code_style = (
+            f'background-color:{theme["code_bg"]};'
+            f'color:{theme["code_fg"]};'
+            f'font-family:"Consolas","Courier New",monospace;'
+            f'font-size:12px;'
+            f'padding:1px 5px;'
+            f'border-radius:3px;'
+        )
+        # Inject style into every <pre ...> tag (may already have class attributes)
+        html = re.sub(
+            r'<pre\b([^>]*)>',
+            lambda m: f'<pre{m.group(1)} style="{pre_style}">',
+            html,
+        )
+        # Inject style into every <code ...> tag; code inside pre will
+        # inherit pre's styling so the duplicate is harmless
+        html = re.sub(
+            r'<code\b([^>]*)>',
+            lambda m: f'<code{m.group(1)} style="{code_style}">',
+            html,
+        )
+        return html
+
     def _message_html(self, role: str, text: str) -> str:
         """Return a styled HTML bubble for a chat/agent message."""
         theme = self.THEMES.get(self.current_theme, self.THEMES['Cobalt'])
         fg = theme['foreground']   # explicit text colour — prevents black-on-dark bug
         m_html = markdown.markdown(text, extensions=['extra', 'nl2br'])
+        m_html = self._patch_code_styles(m_html, theme)
 
         if role in ("User",):
             return (
