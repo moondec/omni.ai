@@ -1399,6 +1399,7 @@ class MainWindow(QMainWindow):
     def _message_html(self, role: str, text: str) -> str:
         """Return a styled HTML bubble for a chat/agent message."""
         theme = self.THEMES.get(self.current_theme, self.THEMES['Cobalt'])
+        fg = theme['foreground']   # explicit text colour — prevents black-on-dark bug
         m_html = markdown.markdown(text, extensions=['extra', 'nl2br'])
 
         if role in ("User",):
@@ -1408,7 +1409,7 @@ class MainWindow(QMainWindow):
                 f' border-left:3px solid {theme["msg_user_border"]};">'
                 f'<div style="color:{theme["msg_user_label"]}; font-size:10px;'
                 f' font-weight:700; letter-spacing:0.07em; margin-bottom:5px;">YOU</div>'
-                f'<div>{m_html}</div>'
+                f'<div style="color:{fg};">{m_html}</div>'
                 f'</div>'
             )
         elif role in ("AI", "Assistant"):
@@ -1418,7 +1419,7 @@ class MainWindow(QMainWindow):
                 f' border-left:3px solid {theme["msg_ai_border"]};">'
                 f'<div style="color:{theme["msg_ai_label"]}; font-size:10px;'
                 f' font-weight:700; letter-spacing:0.07em; margin-bottom:5px;">ASSISTANT</div>'
-                f'<div>{m_html}</div>'
+                f'<div style="color:{fg};">{m_html}</div>'
                 f'</div>'
             )
         elif role in ("Agent",):
@@ -1428,11 +1429,11 @@ class MainWindow(QMainWindow):
                 f' border-left:3px solid {theme["msg_agent_border"]};">'
                 f'<div style="color:{theme["msg_agent_label"]}; font-size:10px;'
                 f' font-weight:700; letter-spacing:0.07em; margin-bottom:5px;">AGENT</div>'
-                f'<div>{m_html}</div>'
+                f'<div style="color:{fg};">{m_html}</div>'
                 f'</div>'
             )
         else:
-            # System / status message — subtle, centred
+            # System / status message — subtle, small
             return (
                 f'<div style="margin:4px 0; padding:5px 12px;'
                 f' background-color:{theme["msg_system_bg"]};">'
@@ -1728,6 +1729,23 @@ class MainWindow(QMainWindow):
             if btn.property("role"):
                 btn.style().unpolish(btn)
                 btn.style().polish(btn)
+
+        # Invalidate ALL cached HTML so the next render regenerates message
+        # bubbles with the new theme's colours instead of showing stale HTML
+        # (inline body bg-color in old HTML overrides the new doc CSS).
+        self._last_render_state_key = None
+        self._cached_history_html = []
+        self._cached_history_len = -1
+        self._cached_user_prompt_html = None
+        self._cached_user_prompt_text = ""
+        self._cached_stream_html = None
+        self._cached_stream_text = ""
+
+        # Force immediate re-render of both display areas
+        if hasattr(self, 'chat_display'):
+            self._render_chat_display()
+        if hasattr(self, 'agent_display'):
+            self._render_chat()
 
     def toggle_theme(self):
         """Toggle between Cobalt and Dreamweaver themes."""
