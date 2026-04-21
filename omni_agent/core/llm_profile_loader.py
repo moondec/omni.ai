@@ -134,6 +134,8 @@ _FAMILY_MAP: List[Tuple[str, str]] = [
     ("deepseek",           "DeepSeek-V3.1-vLLM"),
     # Bielik
     ("bielik",             "bielik_11b"),
+    # Google Gemini Models
+    ("gemini",             "google-gemini"),
     # Generic OpenRouter free routing (must be last — very broad)
     ("free",               "openrouter-free"),
 ]
