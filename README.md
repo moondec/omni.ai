@@ -223,6 +223,7 @@ Recommended if you prefer not to use Conda or encounter installation issues.
     | **vLLM** (local) | `http://127.0.0.1:8000/v1` |
     | **OpenAI** | `https://api.openai.com/v1` |
     | **openrouter** | `https://openrouter.ai/api/v1` |
+    | **Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` |
 
     > [!NOTE]
     > Changing the `base_url` affects **all components**: Chat, Agent, multi-agent Consilium, OCR, and Vision tools.
