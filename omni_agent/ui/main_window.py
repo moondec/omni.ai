@@ -295,7 +295,13 @@ class SettingsDialog(QDialog):
         if workspace_path:
             self.config.set_workspace_path(workspace_path)
             
-        selected_model = self.model_combo.currentText()
+        selected_model = self.model_combo.currentText().strip()
+        # Strip any display-only prefix (e.g. "🆓 " for free-tier models).
+        # Config always stores the bare model ID without decorators.
+        for prefix in ("🆓 ", "⭐ ", "🔒 "):
+            if selected_model.startswith(prefix):
+                selected_model = selected_model[len(prefix):]
+                break
         if selected_model:
             self.config.set("model", selected_model)
 
