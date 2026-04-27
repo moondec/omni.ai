@@ -2,6 +2,18 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.9.1] - 2026-04-27
+
+### Added
+- **Gemini Provider**: Added `https://generativelanguage.googleapis.com/v1beta/openai/` to the default LLM provider list in the UI and settings.
+- **Custom Model Profiles**: `settings.json` now supports a `custom_model_profiles` dictionary, allowing users to manually override automated profile assignments.
+- **Agent Identity**: Added instructions to `_shared.yaml` ensuring the agent identifies itself as **Omni.ai** when asked.
+
+### Changed
+- **Regex-based LLM Profiling**: Replaced hardcoded provider lists in `agent_engine.py` with a heuristic regex system that detects parameter sizes (e.g. `120b`, `8x7b`) to dynamically assign unseen models to appropriate performance tiers (ULTRA, LARGE, BASE, SMALL).
+- **Consolidated LLM YAML Profiles**: Refactored `omni_agent/llm_profiles/` by moving redundant behavioral rules into a unified `_shared.yaml`. Individual model profiles now contain only their unique instructions, saving prompt tokens and simplifying maintenance.
+- **UI Styling**: The `Create Assistant` button in the Agent Tab now uses a green `success` role for better visibility and UX.
+
 ## [0.9.0] - 2026-04-20
 
 ### Added

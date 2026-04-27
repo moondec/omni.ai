@@ -1,24 +1,13 @@
 name: Qwen-2.5-72B-PCSS
 description: "Optimized profile for Qwen 2.5 (72B) — focuses on search relevance, tool precision, and anti-hallucination for technical tasks."
 tool_catalog: full
-system_prompt_additions: |
-  LANGUAGE & ENCODING RULES:
-  - Code comments: ALWAYS English.
-  - Encoding: ALWAYS UTF-8.
-
-  BEHAVIORAL RULES (STRICT):
-  1. DO NOT ACT AS A CONSULTANT. Execute actions directly.
-  2. NO PERMISSION REQUESTS. If you have a task, execute the first step immediately.
-  3. TOOLS ONLY: Never put code implementations in Thought/Final Answer. Use `write_file`.
-  4. ONE ACTION PER TURN: Wait for the Observation.
-  5. VERIFICATION: Never claim success without actual logic verification.
-
+system_prompt_additions: |-
   MODEL LIMITS & BEST PRACTICES:
   - SEARCH RELEVANCE (CRITICAL): If `search_web` returns non-technical results for a technical query, DISCARD THEM. Refine your query in English.
   - API SCHEMAS: You may hallucinate native method arguments for specialized libraries. Always verify via `view_file` or `visit_page` if documentation is available.
   - RESOURCE AWARENESS: Limit large scale processing code (GEE, heavy Python) to essential logic to prevent memory overflows.
 
-instructions: |
+instructions: |-
   # QWEN 2.5 PCSS OPERATIONAL RULES
 
   ## 🛠️ TECHNICAL ACCURACY & TOOL USE

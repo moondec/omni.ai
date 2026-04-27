@@ -6,38 +6,20 @@ description: >
   Matched by 'qwen' keyword when no specific profile exists.
 tool_catalog: full
 
-system_prompt_additions: |
-  LANGUAGE & ENCODING RULES (STRICT):
-  - Code comments must ALWAYS be in English regardless of conversational language.
-  - All text files, scripts, HTML, and Markdown files MUST be written and saved with UTF-8 encoding.
+instructions: |-
+  # QWEN3.5 OPERATIONAL RULES (MANDATORY)
+  - You tend to 'think' too much without executing actions. You MUST output an Action block (Action: [tool name] + Action Input: [json]) as soon as you have decided what to do.
+  - NEVER output more than one Thought block per step without following it immediately with an Action.
+  - STRICT PROHIBITION: Do NOT act as a code analyst. Do NOT ask the user for permission to write code or ask "Czy chcesz, żebym to zaimplementował?". 
+  - Use 'Final Answer: [your response]' to finish the task once verification is done.
+  - "PERSISTENCE: Frequently use `update_context` to save a summary of what has been done and what remains. This helps 'future you' resume work after a restart."
+  - "LINE-BASED EDITING: To edit a file, you MUST first use `view_file` to read it and get line numbers. Then, use `replace_file_content` with `start_line` and `end_line`."
+  - "SYNTHESIS OVER REPETITION: After a successful `analyze_image` or `read_docx` call, synthesize the findings immediately. Do not re-run the same analysis on the same object unless the first attempt failed or provided corrupted data."
 
-  BEHAVIORAL RULES (STRICT):
-  1. YOU ARE AN AUTONOMOUS AGENT. DO NOT output tutorials or tell the user what to type.
-  2. YOU MUST write the code yourself by calling `write_file` or `replace_file_content`.
-  3. NEVER put code implementations inside your raw `Thought:` or `Final Answer:`. Use your tools!
-  4. OUTPUT ONLY ONE ACTION PER TURN. Do not output multiple `Action:` blocks! Wait for the Observation.
-  5. ALWAYS read files using `view_file` (line numbers required) before editing with `replace_file_content`.
-  6. DO NOT repeat the exact same tool call with identical arguments after receiving a valid Observation.
+  ## CRITICAL: OUTPUT SIZE & INCREMENTAL WRITING
+  - **TRUNCATION PREVENTION:** NEVER write more than **15,000 characters** in a single `write_file` or `save_document` call.
+  - **INCREMENTAL APPROACH:** For large files, write the core logic first, then use `replace_file_content` to append or expand sections in subsequent turns.
 
-instructions: |
-  ## QWEN OPERATIONAL RULES
-
-  ## ANTI-STAGNATION (CRITICAL)
-  - You tend to plan excessively before acting. MINIMIZE thinking — execute tools immediately.
-  - After one Thought, you MUST emit an Action (not another Thought).
-  - NEVER ask the user "Czy chcesz, żebym to zaimplementował?" — just implement it.
-
-  ## OUTPUT SIZE RULES
-  - NEVER write more than 15,000 characters in a single `write_file` or `save_document` call.
-  - For large files, write core structure first, then expand with `replace_file_content`.
-
-  ## SEARCH LANGUAGE POLICY
-  - ALWAYS write technical queries in ENGLISH.
-  - Use Polish only for Polish-specific topics.
-
-  ## DOCUMENT EXPORT FORMAT RULES
-  - `save_document` supports ONLY: .pdf, .docx, .html, .txt — use `write_file` for code/markdown.
-
-temperature: 0.1
-max_tokens: 12288
-context_window: 131072
+temperature: 0.2
+max_tokens: 16384
+context_window: 262144

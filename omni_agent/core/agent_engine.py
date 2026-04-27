@@ -59,42 +59,59 @@ class ModelProfile:
     max_read_blocks: int
     max_read_rows: int
 
-def get_model_profile(model_name: str) -> ModelProfile:
+def get_model_profile(model_name: str, custom_profiles: dict = None) -> ModelProfile:
+    PROFILES = {
+        1: ModelProfile(1, "ULTRA", 256_000, 60_000, 500, 200),
+        2: ModelProfile(2, "LARGE", 262_144, 40_000, 300, 150),
+        3: ModelProfile(3, "BASE",  64_000, 20_000, 150, 80),
+        4: ModelProfile(4, "SMALL", 16_000, 8_000, 50, 20)
+    }
+
     m_lower = model_name.lower()
+    custom_profiles = custom_profiles or {}
 
-    # Tier 1: ULTRA (Massive MoE / High-Cap Agents)
-    if any(kw in m_lower for kw in ["397b", "deepseek-v3", "671b", "deepseek-r1"]):
-        return ModelProfile(1, "ULTRA", 256_000, 60_000, 500, 200)
+    # 1. Check User Override (Exact or partial match)
+    for custom_name, tier in custom_profiles.items():
+        if custom_name.lower() == m_lower or custom_name.lower() in m_lower:
+            return PROFILES.get(int(tier), PROFILES[3])
 
-    # Tier 2: LARGE (High-Quality 70B+ or known large models)
-    # Covers OpenRouter families: llama-70b, nemotron-70b, gemma-31b, qwen-72b, etc.
-    if any(kw in m_lower for kw in [
-        "glm-4.7", "minimax-m2.5", "gpt-oss-120b",
-        "72b", "70b", "235b",
-        "nemotron",           # llama-3.1-nemotron-70b
-        "llama-3.3",          # llama-3.3-70b
-        "gemma-4-31b",        # gemma-4-31b-it:free (31B)
-        "gemma-3-27b",        # gemma-3-27b-it
-        "mistral-large",
-        "mistral-small-3",    # mistral-small-3.2-24b
-        "mixtral",
-        "elephant",           # openrouter/elephant-alpha (100B)
-    ]):
-        return ModelProfile(2, "LARGE", 262_144, 40_000, 300, 150)
+    # 2. Check Regex for Mixture of Experts (MoE), e.g., 8x7b
+    moe_match = re.search(r'(\d+)x(\d+(?:\.\d+)?)b\b', m_lower)
+    if moe_match:
+        experts = float(moe_match.group(1))
+        size_per_expert = float(moe_match.group(2))
+        total_params = experts * size_per_expert
+    else:
+        # 3. Check Regex for Standard Models, e.g., 70b, 8.0b
+        std_match = re.search(r'(\d+(?:\.\d+)?)b\b', m_lower)
+        if std_match:
+            total_params = float(std_match.group(1))
+        else:
+            total_params = None
 
-    # Tier 3: BASE (Standard Medium Models — known families)
-    if any(kw in m_lower for kw in [
-        "qwen", "glm", "minimax",
-        "gpt-4o", "claude-3",
-        "llama",              # llama-3.1-8b, llama-3.2-3b, etc.
-        "gemma",              # smaller gemma variants
-        "mistral",
-        "phi-4", "phi-3",
-    ]):
-        return ModelProfile(3, "BASE", 64_000, 20_000, 150, 80)
+    # Thresholds for Tiers
+    if total_params is not None:
+        if total_params >= 100:
+            return PROFILES[1]
+        elif total_params >= 35:
+            return PROFILES[2]
+        elif total_params >= 10:
+            return PROFILES[3]
+        else:
+            return PROFILES[4]
 
-    # Tier 4: SMALL (Compact / Unknown Models)
-    return ModelProfile(4, "SMALL", 16_000, 8_000, 50, 20)
+    # 4. Fallback to Known Flagships (Commercial APIs / Models without 'B')
+    if any(kw in m_lower for kw in ["deepseek-v3", "deepseek-r1", "o1-preview"]):
+        return PROFILES[1]
+    
+    if any(kw in m_lower for kw in ["gpt-4", "claude-3-opus", "claude-3-5-sonnet", "claude-3.5-sonnet", "claude-3-7-sonnet", "claude-3.7-sonnet", "gemini-1.5-pro", "gemini-2.0-pro"]):
+        return PROFILES[2]
+
+    if any(kw in m_lower for kw in ["gpt-3.5", "gpt-4o-mini", "claude-3-haiku", "claude-3.5-haiku", "claude-3-5-haiku", "gemini-1.5-flash", "gemini-2.0-flash", "o1-mini"]):
+        return PROFILES[3]
+
+    # 5. Default Fallback
+    return PROFILES[3]
 
 class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
@@ -117,7 +134,14 @@ class LangChainAgentEngine:
         self.max_tokens = max_tokens
         
         # --- Tiered Model Profiling ---
-        self.profile = get_model_profile(self.model_name)
+        try:
+            from omni_agent.config import ConfigManager
+            config_mgr = ConfigManager()
+            custom_profiles = config_mgr.get("custom_model_profiles", {})
+        except ImportError:
+            custom_profiles = {}
+            
+        self.profile = get_model_profile(self.model_name, custom_profiles)
         
         # Override context window if provided explicitly by user/profile
         self.context_window = context_window if context_window > 0 else self.profile.context_window

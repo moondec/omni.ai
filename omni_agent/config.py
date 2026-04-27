@@ -25,6 +25,10 @@ class ConfigManager:
             self._config["base_url"] = "https://llm.hpc.pcss.pl/v1"
             modified = True
             
+        if "custom_model_profiles" not in self._config:
+            self._config["custom_model_profiles"] = {}
+            modified = True
+            
         if modified:
             self.save_config()
 

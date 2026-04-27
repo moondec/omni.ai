@@ -261,7 +261,8 @@ class SettingsDialog(QDialog):
             "http://127.0.0.1:1234/v1",
             "http://127.0.0.1:11434/v1",
             "http://127.0.0.1:8000/v1",
-            "https://api.openai.com/v1"
+            "https://api.openai.com/v1",
+            "https://generativelanguage.googleapis.com/v1beta/openai/"
         ]
         self.base_url_input.addItems(common_urls)
         self.base_url_input.setCurrentText(self.config.get_base_url())
@@ -1009,6 +1010,7 @@ class MainWindow(QMainWindow):
         config_layout.addStretch()
         
         create_agent_btn = QPushButton("Create Assistant")
+        create_agent_btn.setProperty("role", "success")
         create_agent_btn.clicked.connect(self.create_assistant)
         config_layout.addWidget(create_agent_btn)
 
@@ -1586,6 +1588,14 @@ class MainWindow(QMainWindow):
                 background-color: {theme['destructive_bg']};
                 color: {theme['destructive_fg']};
                 border: 1px solid {theme['border']};
+            }}
+            QPushButton[role="success"] {{
+                background-color: {theme['success']};
+                color: white;
+                border: 1px solid {theme['success']};
+            }}
+            QPushButton[role="success"]:hover {{
+                border-color: {theme['foreground']};
             }}
 
             /* ── List ── */

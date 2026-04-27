@@ -5,11 +5,7 @@ description: >
   Matched by 'llama' or 'nemotron' keyword in model name.
 tool_catalog: compact
 
-instructions: |
-  LANGUAGE & ENCODING RULES (STRICT):
-  - Code comments must ALWAYS be in English regardless of conversational language.
-  - All text files, scripts, HTML, and Markdown files MUST be written and saved with UTF-8 encoding.
-
+instructions: |-
   ## BEHAVIORAL RULES (STRICT)
   1. YOU ARE AN AUTONOMOUS AGENT. DO NOT output tutorials or tell the user what to type.
   2. YOU MUST write the code yourself by calling `write_file` or `replace_file_content`.
@@ -38,13 +34,6 @@ instructions: |
   ## ANTI-CONSULTANT RULE
   - Do NOT ask the user for permission or confirmation before taking action.
   - If you have enough information, proceed immediately.
-
-  ## SEARCH LANGUAGE POLICY
-  - ALWAYS write technical queries in ENGLISH for `search_web`, `search_news`, `deep_research`.
-  - Use Polish only for Polish-specific topics (law, current events, culture).
-
-  ## DOCUMENT EXPORT FORMAT RULES
-  - `save_document` supports ONLY: .pdf, .docx, .html, .txt — use `write_file` for code/markdown.
 
 temperature: 0.2
 max_tokens: 8192

@@ -44,7 +44,7 @@ class CheckpointManager:
     def create(self, label: str) -> Optional[str]:
         """Create a checkpoint before an agent task. Returns id or None."""
         try:
-            if self._is_git_repo():
+            if self._use_git_mode():
                 return self._git_create(label)
             return self._file_create(label)
         except Exception:
@@ -53,7 +53,7 @@ class CheckpointManager:
     def list(self) -> List[Dict]:
         """Return checkpoints newest-first."""
         try:
-            if self._is_git_repo():
+            if self._use_git_mode():
                 return self._git_list()
             return self._file_list()
         except Exception:
@@ -62,7 +62,7 @@ class CheckpointManager:
     def restore(self, checkpoint_id: str) -> bool:
         """Restore workspace to checkpoint. Returns True on success."""
         try:
-            if self._is_git_repo():
+            if self._use_git_mode():
                 return self._git_restore(checkpoint_id)
             return self._file_restore(checkpoint_id)
         except Exception:
@@ -71,7 +71,7 @@ class CheckpointManager:
     def diff_summary(self, checkpoint_id: str) -> str:
         """Human-readable summary of changes since the checkpoint."""
         try:
-            if self._is_git_repo():
+            if self._use_git_mode():
                 r = self._git('diff', '--stat', checkpoint_id, 'HEAD')
                 if r.returncode == 0:
                     return r.stdout.strip() or "(no file changes since checkpoint)"
@@ -80,7 +80,7 @@ class CheckpointManager:
             return "(could not compute diff)"
 
     def mode(self) -> str:
-        return "git" if self._is_git_repo() else "file"
+        return "git" if self._use_git_mode() else "file"
 
     # ------------------------------------------------------------------ #
     #  Git helpers                                                         #
@@ -96,6 +96,19 @@ class CheckpointManager:
             return r.returncode == 0
         except Exception:
             return False
+
+    def _use_git_mode(self) -> bool:
+        """Decide if we should use git for checkpoints. Returns True if git repo AND not ignored."""
+        if not self._is_git_repo():
+            return False
+        try:
+            # git check-ignore returns 0 if the path is ignored
+            r = self._git('check-ignore', '-q', '.')
+            if r.returncode == 0:
+                return False  # Workspace is ignored by git, fallback to file mode
+            return True
+        except Exception:
+            return True  # Fallback to git if check-ignore fails for some reason
 
     def _git(self, *args) -> subprocess.CompletedProcess:
         return subprocess.run(
