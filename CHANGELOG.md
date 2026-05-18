@@ -2,6 +2,46 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.10.0] - 2026-05-18
+
+### Added
+- **New LLM Profiles**: Added profiles for popular commercial and open-source models:
+  - `gpt-4o.yaml` — GPT-4o (128K context, 16K max tokens)
+  - `gpt-4o-mini.yaml` — GPT-4o Mini (fast, cost-effective)
+  - `claude-3-5-sonnet.yaml` — Claude 3.5 Sonnet (200K context, strong reasoning)
+  - `claude-3-opus.yaml` — Claude 3 Opus (200K context, most powerful)
+  - `llama-3.1-70b.yaml` — Llama 3.1 70B (131K context, open-source)
+  - `llama-3.2-90b.yaml` — Llama 3.2 90B (131K context, vision capabilities)
+
+- **New Agent Profiles**: Specialized agent personas for specific domains:
+  - `data_analyst.yaml` — Statistical analysis, data exploration, visualization
+  - `security_auditor.yaml` — Code security auditing, vulnerability detection (OWASP Top 10)
+  - `devops_engineer.yaml` — CI/CD, Docker, Kubernetes, infrastructure as code
+  - `product_manager.yaml` — Requirements, user stories, roadmaps, stakeholder communication
+
+- **New Tool Categories**:
+  - **Git Tools**: `git_status`, `git_diff`, `git_log` — version control operations
+  - **API Tools**: `http_request` — REST/GraphQL API testing with full response inspection
+  - **Database Tools**: `execute_sql_query` — SQLite/PostgreSQL read-only queries (safety-first)
+
+- **Multi-Provider Support**: Enhanced `_shared.yaml` with universal compatibility rules for:
+  - PCSS, OpenRouter, Ollama, LM Studio, vLLM, OpenAI, Gemini
+  - Rate limit handling (429), server errors (500), timeout recovery
+  - Model-specific format adaptation (<think> tags, XML format)
+
+### Changed
+- **Tool Catalog Expansion**: Updated `_shared.yaml` to include Git, API, and Database tools in the canonical tool list
+- **Agent Engine**: Modified `agent_engine.py` to auto-load new tool categories (Git, API, Database)
+- **Profile Instructions**: All new profiles include incremental writing rules to prevent truncation
+
+### Security
+- **Database Safety**: `execute_sql_query` blocks dangerous operations (DROP, TRUNCATE, DELETE, UPDATE) — only SELECT allowed
+- **Git Sandbox**: All Git operations restricted to workspace directory via `_safe_path()`
+
+### Technical
+- **Import Chain**: Updated `agent_engine.py` imports to include `GitTools`, `APITools`, `DatabaseTools`
+- **Tool Initialization**: New tools logged at startup with checkmarks (✓) or info messages (ℹ)
+
 ## [0.9.1] - 2026-04-27
 
 ### Added

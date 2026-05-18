@@ -42,7 +42,8 @@ from omni_agent.core.tools import (
     DocumentTools, OCRTools, CountPatternTool, FolderTools, 
     PandocTools, VisionTools, WebSearchTools, ChartTools, 
     PythonREPL, SearchTools, ViewFileTool, ReplaceFileContentTool, 
-    TerminalTool, UpdateContextTool, AudioTools
+    TerminalTool, UpdateContextTool, AudioTools,
+    GitTools, APITools, DatabaseTools
 )
 
 try:
@@ -404,6 +405,30 @@ class LangChainAgentEngine:
         # Add Context Tool
         context_tool = UpdateContextTool(root_dir=str(self.workspace_path))
         self.tools.extend(context_tool.get_tools())
+
+        # Add Git Tools
+        try:
+            git_tools = GitTools(root_dir=str(self.workspace_path))
+            self.tools.extend(git_tools.get_tools())
+            self._log("✓ Git Tools loaded (git_status, git_diff, git_log)")
+        except Exception as e:
+            self._log(f"ℹ Git Tools unavailable: {e}")
+
+        # Add API Tools
+        try:
+            api_tools = APITools()
+            self.tools.extend(api_tools.get_tools())
+            self._log("✓ API Tools loaded (http_request)")
+        except Exception as e:
+            self._log(f"ℹ API Tools unavailable: {e}")
+
+        # Add Database Tools
+        try:
+            db_tools = DatabaseTools(root_dir=str(self.workspace_path))
+            self.tools.extend(db_tools.get_tools())
+            self._log("✓ Database Tools loaded (execute_sql_query)")
+        except Exception as e:
+            self._log(f"ℹ Database Tools unavailable: {e}")
 
         # Add MCP Tools (Playwright Server)
         if PlaywrightMCPTools is not None:

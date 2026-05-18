@@ -1,0 +1,8 @@
+{
+    "workspace_path": "/Users/marekurbaniak/Documents/AI_prezentacja maj2026-kopia",
+    "model": "models/gemini-flash-latest",
+    "theme": "Cobalt",
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "transcription_model": "whisper-large-turbo",
+    "custom_model_profiles": {}
+}

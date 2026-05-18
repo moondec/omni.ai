@@ -2279,3 +2279,406 @@ class AudioTools(_WorkspaceMixin):
                 args_schema=TranscribeAudioSchema
             )
         ]
+
+
+# =============================================================================
+# GIT TOOLS — Version control operations
+# =============================================================================
+
+class GitStatusSchema(BaseModel):
+    repo_path: str = Field(default=".", description="Path to git repository (default: workspace root)")
+
+class GitDiffSchema(BaseModel):
+    repo_path: str = Field(default=".", description="Path to git repository")
+    file_path: str = Field(default=None, description="Specific file to diff (optional)")
+    staged: bool = Field(default=False, description="Show staged changes (True) or unstaged (False)")
+
+class GitLogSchema(BaseModel):
+    repo_path: str = Field(default=".", description="Path to git repository")
+    max_commits: int = Field(default=10, description="Maximum number of commits to show")
+
+class GitTools(_WorkspaceMixin):
+    """Git version control operations for code review and change tracking."""
+    
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+    
+    def git_status(self, repo_path: str = ".") -> str:
+        """
+        Returns git status output showing changed, staged, and untracked files.
+        Args:
+            repo_path: Path to git repository relative to workspace root.
+        """
+        try:
+            full_path = self._get_full_path(repo_path)
+            if not os.path.exists(os.path.join(full_path, ".git")):
+                return "Error: Not a git repository (no .git directory found)."
+            
+            result = subprocess.run(
+                ["git", "status", "--short"],
+                cwd=full_path,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                return f"Error: {result.stderr}"
+            
+            output = f"[GIT STATUS] {repo_path}\n\n"
+            if not result.stdout.strip():
+                output += "✓ Working tree clean (no changes)"
+            else:
+                output += "Changed files:\n"
+                for line in result.stdout.strip().split("\n"):
+                    status = line[:2].strip()
+                    file = line[3:]
+                    output += f"  [{status}] {file}\n"
+            
+            return output
+            
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error running git status: {str(e)}"
+    
+    def git_diff(self, repo_path: str = ".", file_path: str = None, staged: bool = False) -> str:
+        """
+        Returns git diff output showing changes.
+        Args:
+            repo_path: Path to git repository relative to workspace root.
+            file_path: Specific file to diff (optional, None for all files).
+            staged: Show staged changes (True) or unstaged (False).
+        """
+        try:
+            full_path = self._get_full_path(repo_path)
+            if not os.path.exists(os.path.join(full_path, ".git")):
+                return "Error: Not a git repository."
+            
+            cmd = ["git", "diff"]
+            if staged:
+                cmd.append("--cached")
+            if file_path:
+                cmd.append("--")
+                cmd.append(file_path)
+            
+            result = subprocess.run(
+                cmd,
+                cwd=full_path,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                return f"Error: {result.stderr}"
+            
+            output = f"[GIT DIFF] {repo_path}"
+            if staged:
+                output += " (staged changes)"
+            if file_path:
+                output += f" — {file_path}"
+            output += "\n\n"
+            
+            if not result.stdout.strip():
+                output += "✓ No changes"
+            else:
+                output += result.stdout
+            
+            return output
+            
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error running git diff: {str(e)}"
+    
+    def git_log(self, repo_path: str = ".", max_commits: int = 10) -> str:
+        """
+        Returns git log showing recent commits.
+        Args:
+            repo_path: Path to git repository relative to workspace root.
+            max_commits: Maximum number of commits to show (default: 10).
+        """
+        try:
+            full_path = self._get_full_path(repo_path)
+            if not os.path.exists(os.path.join(full_path, ".git")):
+                return "Error: Not a git repository."
+            
+            result = subprocess.run(
+                ["git", "log", f"-{max_commits}", "--pretty=format:%h|%an|%ad|%s", "--date=short"],
+                cwd=full_path,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                return f"Error: {result.stderr}"
+            
+            output = f"[GIT LOG] {repo_path} (last {max_commits} commits)\n\n"
+            for line in result.stdout.strip().split("\n"):
+                parts = line.split("|")
+                if len(parts) == 4:
+                    hash, author, date, message = parts
+                    output += f"  {hash} | {author} | {date} | {message}\n"
+            
+            return output
+            
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error running git log: {str(e)}"
+    
+    def get_tools(self):
+        from langchain_core.tools import StructuredTool
+        
+        return [
+            StructuredTool.from_function(
+                func=self.git_status,
+                name="git_status",
+                description="Shows git status: changed, staged, and untracked files. Use to check what files have been modified.",
+                args_schema=GitStatusSchema
+            ),
+            StructuredTool.from_function(
+                func=self.git_diff,
+                name="git_diff",
+                description="Shows git diff (changes). Use staged=True for staged changes, or specify file_path for specific file.",
+                args_schema=GitDiffSchema
+            ),
+            StructuredTool.from_function(
+                func=self.git_log,
+                name="git_log",
+                description="Shows recent git commits with author, date, and message.",
+                args_schema=GitLogSchema
+            ),
+        ]
+
+
+# =============================================================================
+# API TOOLS — HTTP requests for REST/GraphQL testing
+# =============================================================================
+
+class APIRequestSchema(BaseModel):
+    method: str = Field(default="GET", description="HTTP method: GET, POST, PUT, DELETE, PATCH")
+    url: str = Field(description="Full URL to request (e.g., 'https://api.example.com/users')")
+    headers: str = Field(default="{}", description="JSON string of HTTP headers (e.g., '{\"Content-Type\": \"application/json\"}')")
+    body: str = Field(default="{}", description="JSON string of request body (for POST/PUT/PATCH)")
+    timeout: int = Field(default=30, description="Request timeout in seconds")
+
+class APITools:
+    """HTTP request tools for API testing and integration."""
+    
+    def http_request(self, method: str, url: str, headers: str = "{}", body: str = "{}", timeout: int = 30) -> str:
+        """
+        Makes HTTP request and returns response status, headers, and body.
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE, PATCH)
+            url: Full URL to request
+            headers: JSON string of HTTP headers
+            body: JSON string of request body (for POST/PUT/PATCH)
+            timeout: Request timeout in seconds
+        """
+        try:
+            import requests
+            
+            method = method.upper()
+            if method not in ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]:
+                return f"Error: Invalid HTTP method '{method}'. Use GET, POST, PUT, DELETE, PATCH, HEAD, or OPTIONS."
+            
+            try:
+                headers_dict = json.loads(headers) if headers else {}
+            except json.JSONDecodeError as e:
+                return f"Error: Invalid JSON in headers: {e}"
+            
+            try:
+                body_dict = json.loads(body) if body else {}
+            except json.JSONDecodeError as e:
+                return f"Error: Invalid JSON in body: {e}"
+            
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers_dict,
+                json=body_dict if body_dict and method in ["POST", "PUT", "PATCH"] else None,
+                timeout=timeout
+            )
+            
+            output = f"[HTTP {response.status_code}] {method} {url}\n\n"
+            output += f"Response Time: {response.elapsed.total_seconds():.2f}s\n\n"
+            output += "Headers:\n"
+            for key, value in response.headers.items():
+                output += f"  {key}: {value}\n"
+            
+            output += "\nBody:\n"
+            try:
+                json_body = response.json()
+                output += json.dumps(json_body, indent=2)
+            except:
+                output += response.text[:5000]  # Limit output size
+                if len(response.text) > 5000:
+                    output += "\n\n[...truncated, response too large...]"
+            
+            return output
+            
+        except PermissionError:
+            raise
+        except requests.exceptions.Timeout:
+            return f"Error: Request timed out after {timeout}s"
+        except requests.exceptions.ConnectionError as e:
+            return f"Error: Connection failed — {str(e)}"
+        except Exception as e:
+            return f"Error making HTTP request: {str(e)}"
+    
+    def get_tools(self):
+        from langchain_core.tools import StructuredTool
+        
+        return [
+            StructuredTool.from_function(
+                func=self.http_request,
+                name="http_request",
+                description="Makes HTTP request (GET, POST, PUT, DELETE, PATCH) and returns status, headers, and body. Use for API testing.",
+                args_schema=APIRequestSchema
+            ),
+        ]
+
+
+# =============================================================================
+# DATABASE TOOLS — SQL operations for SQLite/PostgreSQL
+# =============================================================================
+
+class SQLQuerySchema(BaseModel):
+    database_type: str = Field(default="sqlite", description="Database type: 'sqlite' or 'postgresql'")
+    database_path: str = Field(default="database.db", description="SQLite file path or PostgreSQL connection string")
+    query: str = Field(description="SQL query to execute (SELECT, INSERT, UPDATE, DELETE)")
+    params: str = Field(default="{}", description="JSON string of query parameters for prepared statements")
+
+class DatabaseTools(_WorkspaceMixin):
+    """Database operations for SQL queries and data management."""
+    
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+    
+    def execute_query(self, database_type: str, database_path: str, query: str, params: str = "{}") -> str:
+        """
+        Executes SQL query and returns results.
+        Args:
+            database_type: 'sqlite' or 'postgresql'
+            database_path: SQLite file path (relative to workspace) or PostgreSQL connection string
+            query: SQL query to execute
+            params: JSON string of query parameters for prepared statements
+        """
+        try:
+            query = query.strip()
+            
+            # Security check: block dangerous operations
+            dangerous_keywords = ["DROP", "TRUNCATE", "DELETE FROM", "UPDATE"]
+            if not query.upper().startswith("SELECT"):
+                for keyword in dangerous_keywords:
+                    if keyword in query.upper():
+                        return f"Error: Dangerous operation blocked ({keyword}). Only SELECT queries are allowed for safety."
+            
+            try:
+                params_dict = json.loads(params) if params else {}
+            except json.JSONDecodeError as e:
+                return f"Error: Invalid JSON in params: {e}"
+            
+            if database_type.lower() == "sqlite":
+                return self._execute_sqlite(database_path, query, params_dict)
+            elif database_type.lower() == "postgresql":
+                return self._execute_postgresql(database_path, query, params_dict)
+            else:
+                return f"Error: Unsupported database type '{database_type}'. Use 'sqlite' or 'postgresql'."
+                
+        except PermissionError:
+            raise
+        except Exception as e:
+            return f"Error executing query: {str(e)}"
+    
+    def _execute_sqlite(self, db_path: str, query: str, params: dict) -> str:
+        """Execute query on SQLite database."""
+        import sqlite3
+        
+        try:
+            full_path = self._get_full_path(db_path)
+            if not os.path.exists(full_path):
+                return f"Error: Database file '{db_path}' not found."
+            
+            conn = sqlite3.connect(full_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute(query, params)
+            
+            if query.strip().upper().startswith("SELECT"):
+                rows = cursor.fetchall()
+                columns = [description[0] for description in cursor.description]
+                
+                output = f"[SQLite] Query executed successfully. Rows: {len(rows)}\n\n"
+                output += "Columns: " + ", ".join(columns) + "\n\n"
+                
+                # Format as markdown table
+                if rows:
+                    output += "| " + " | ".join(columns) + " |\n"
+                    output += "| " + " | ".join(["---"] * len(columns)) + " |\n"
+                    for row in rows[:100]:  # Limit output
+                        output += "| " + " | ".join(str(val) for val in row) + " |\n"
+                    if len(rows) > 100:
+                        output += f"\n[...{len(rows) - 100} more rows...]"
+            else:
+                conn.commit()
+                output = f"[SQLite] Query executed successfully. Rows affected: {cursor.rowcount}"
+            
+            conn.close()
+            return output
+            
+        except sqlite3.Error as e:
+            return f"SQLite error: {str(e)}"
+    
+    def _execute_postgresql(self, conn_string: str, query: str, params: dict) -> str:
+        """Execute query on PostgreSQL database."""
+        try:
+            import psycopg2
+            
+            conn = psycopg2.connect(conn_string)
+            cur = conn.cursor()
+            
+            cur.execute(query, params)
+            
+            if query.strip().upper().startswith("SELECT"):
+                rows = cur.fetchall()
+                columns = [desc[0] for desc in cur.description]
+                
+                output = f"[PostgreSQL] Query executed successfully. Rows: {len(rows)}\n\n"
+                output += "Columns: " + ", ".join(columns) + "\n\n"
+                
+                if rows:
+                    output += "| " + " | ".join(columns) + " |\n"
+                    output += "| " + " | ".join(["---"] * len(columns)) + " |\n"
+                    for row in rows[:100]:
+                        output += "| " + " | ".join(str(val) for val in row) + " |\n"
+                    if len(rows) > 100:
+                        output += f"\n[...{len(rows) - 100} more rows...]"
+            else:
+                conn.commit()
+                output = f"[PostgreSQL] Query executed successfully. Rows affected: {cur.rowcount}"
+            
+            cur.close()
+            conn.close()
+            return output
+            
+        except ImportError:
+            return "Error: psycopg2 not installed. Install with: pip install psycopg2-binary"
+        except Exception as e:
+            return f"PostgreSQL error: {str(e)}"
+    
+    def get_tools(self):
+        from langchain_core.tools import StructuredTool
+        
+        return [
+            StructuredTool.from_function(
+                func=self.execute_query,
+                name="execute_sql_query",
+                description="Executes SQL SELECT query on SQLite or PostgreSQL database. Returns results as markdown table. For safety, only SELECT queries are allowed.",
+                args_schema=SQLQuerySchema
+            ),
+        ]

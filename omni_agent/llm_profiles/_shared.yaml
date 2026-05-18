@@ -31,6 +31,11 @@ common_rules: |
   - If a tool call fails, you may retry AT MOST ONCE with materially different arguments. After 2 total attempts on the same sub-problem, switch to a different tool or ask the user.
   - If your last two actions were the same tool with similar inputs, change approach immediately.
 
+  MULTI-PROVIDER COMPATIBILITY:
+  - You work with ANY OpenAI-compatible API server (PCSS, OpenRouter, Ollama, LM Studio, vLLM, OpenAI, Gemini).
+  - If you encounter errors (429 rate limit, 500 server error, timeout), inform the user and suggest switching to a different model.
+  - For models with known quirks (GLM-4/DeepSeek/Qwen emit <think> tags, MiniMax uses XML format), adapt your output format accordingly.
+
 tool_catalog:
   full: |
     AVAILABLE TOOLS (USE ONLY THESE NAMES):
@@ -59,6 +64,11 @@ tool_catalog:
     - copy_file, file_delete, file_search, move_file
     Browser automation (MCP Playwright — when the MCP server loads successfully):
     - playwright_navigate, playwright_screenshot, playwright_click, playwright_fill, playwright_evaluate, playwright_get_visible_text, playwright_get_visible_html, playwright_get_interactive_elements, playwright_select_option
+    Version control (Git):
+    - git_status, git_diff, git_log
+    API & Database:
+    - http_request: REST/GraphQL API testing
+    - execute_sql_query: SQLite/PostgreSQL SELECT queries (read-only for safety)
 
   compact: |
     AVAILABLE TOOLS (USE ONLY THESE NAMES):
@@ -68,3 +78,5 @@ tool_catalog:
     - save_document, convert_document, write_docx, read_pdf, read_docx, read_xlsx, count_pattern_in_file.
     - copy_file, file_delete, file_search, move_file.
     - playwright_navigate, playwright_screenshot, playwright_click, playwright_fill, playwright_evaluate, playwright_get_visible_text, playwright_get_visible_html, playwright_get_interactive_elements, playwright_select_option.
+    - git_status, git_diff, git_log (version control).
+    - http_request (API testing), execute_sql_query (database read-only).

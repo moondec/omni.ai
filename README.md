@@ -4,7 +4,9 @@
 
 A Python desktop application (GUI) for interacting with the PCSS LLM Service, built with **PySide6 (Qt)** and **LangChain**.
 
-> Actively developed on macOS; Windows and Linux supported. See [CHANGELOG.md](CHANGELOG.md) for recent feature updates.
+> **Version 0.10.0** — Major expansion with new LLM profiles (GPT-4, Claude, Llama), specialized agent personas (Data Analyst, Security Auditor, DevOps, Product Manager), and powerful new tools (Git, API, Database). See [CHANGELOG.md](CHANGELOG.md) for details.
+
+> Actively developed on macOS; Windows and Linux supported.
 
 ## ✨ Key Features
 
@@ -38,8 +40,17 @@ The application features a powerful Agent capable of performing complex, multi-s
 **Browser Automation (MCP)**
 -   `playwright_*` — 33+ tools for headless browser control (navigate, click, type, screenshot) using **Model Context Protocol**
 
+**Version Control (Git)**
+-   `git_status` — check modified, staged, and untracked files
+-   `git_diff` — view changes (staged or unstaged)
+-   `git_log` — recent commit history
+
+**API & Database Tools**
+-   `http_request` — REST/GraphQL API testing (GET, POST, PUT, DELETE, PATCH)
+-   `execute_sql_query` — SQLite/PostgreSQL read-only queries (safety-first, SELECT only)
+
 **Document Processing**
--   `read_pdf`, `read_docx`, `read_xlsx`, `save_document`,-   `convert_document` — read and generate files
+-   `read_pdf`, `read_docx`, `read_xlsx`, `save_document`, `convert_document` — read and generate files
 -   `ocr_image` — extract text from images/scans (Nanonets OCR)
 -   `generate_chart` — generate charts and visualizations from data
 
@@ -276,12 +287,28 @@ When dependencies are added or updated (e.g., changes to `requirements.txt` or `
      pip install -r requirements.txt
      ```
 
+### Agent Profiles (Specialized Personas)
+
+The application includes pre-configured agent profiles optimized for specific tasks:
+
+-   **`coder.yaml`** — Lead Developer & Architect: clean code, SOLID principles, incremental testing
+-   **`researcher.yaml`** — Research Assistant: deep technical research, multi-source synthesis
+-   **`reviewer.yaml`** — Scientific Reviewer: bibliography verification, structural evaluation
+-   **`document_writer.yaml`** — Document Writer: professional reports with citations
+-   **`data_analyst.yaml`** — Data Analyst: statistical analysis, visualization, pandas/numpy
+-   **`security_auditor.yaml`** — Security Auditor: OWASP Top 10, CWE/SANS Top 25, vulnerability detection
+-   **`devops_engineer.yaml`** — DevOps Engineer: CI/CD, Docker, Kubernetes, infrastructure as code
+-   **`product_manager.yaml`** — Product Manager: user stories, roadmaps, requirements
+
 ### Tips
 -   **Chat**: `Shift+Enter` for new lines, `Enter` to send.
 -   **Agent**: Go to **Agent Mode** → **Create Assistant** to initialize the engine. Then type requests like:
     -   *"Perform deep research on AI in Poland and save the report to report.md"*
     -   *"Read report.pdf and create a summary summary.txt"*
     -   *"Write a Python script and run it to check the data"*
+    -   *"Audit this codebase for security vulnerabilities"* (Security Auditor profile)
+    -   *"Analyze sales_data.xlsx and create visualizations"* (Data Analyst profile)
+    -   *"Create a CI/CD pipeline for this project"* (DevOps Engineer profile)
 
 ## 🔍 Troubleshooting
 
