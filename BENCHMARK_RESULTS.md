@@ -156,3 +156,30 @@ For a detailed description of the tasks being tested, see **[`BENCHMARK_TASKS.md
 |-------|---------|----------|---------------|
 | DeepSeek-V3.1-vLLM | 0.0% | 0.0% | 11337.2 |
 
+
+## 🤖 Agent Benchmark Run (Mode: mock, Date: 2026-05-18 22:25:25)
+
+### Agent Metrics (MOCK)
+
+| Model | Success | Tool Acc | Avg Time (ms) |
+|-------|---------|----------|---------------|
+| bielik_11b | 0.0% | 0.0% | 8442.3 |
+
+
+## 🤖 Agent Benchmark Run (Mode: mock, Date: 2026-05-18 22:31:58)
+
+### Agent Metrics (MOCK)
+
+| Model | Success | Tool Acc | Avg Time (ms) |
+|-------|---------|----------|---------------|
+| bielik_11b | 0.0% | 0.0% | 9372.6 |
+
+
+## 🤖 Agent Benchmark Run (Mode: mock, Date: 2026-05-18 22:33:42)
+
+### Agent Metrics (MOCK)
+
+| Model | Success | Tool Acc | Avg Time (ms) |
+|-------|---------|----------|---------------|
+| bielik_11b | 0.0% | 0.0% | 11399.2 |
+

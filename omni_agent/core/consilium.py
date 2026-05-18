@@ -1,21 +1,24 @@
 """
-ConsiliumOrchestrator — Multi-LLM Debate System.
+ConsiliumOrchestrator — Advanced Multi-Agent Debate and Consensus System.
 
-Implements a Debate pattern where an Executor model performs the task
-and Reviewer/Skeptic models provide critical feedback to improve results.
-
-Usage:
-    orchestrator = ConsiliumOrchestrator(api_key, workspace, ...)
-    for chunk in orchestrator.run("task description"):
-        print(chunk)  # yields streamed text from all models
+Implements a highly collaborative Multi-Agent pattern where:
+1. Executor performs the task inside the workspace.
+2. Reviewer inspects the workspace, verifies findings, and writes `.consilium_review.md`.
+3. Skeptic stress-tests assumptions, proposes alternatives, and writes `.consilium_skeptic.md`.
+4. Workspace is checkpointed at every step using CheckpointManager for safe rollbacks.
+5. The next revision automatically loads the previous outputs and selectively targets fixes.
 """
 from __future__ import annotations
 
 import os
+import re
+import json
+import datetime
 from typing import List, Optional, Set
 
 from omni_agent.core.agent_engine import LangChainAgentEngine
 from omni_agent.core.llm_profile_loader import load_llm_profile
+from omni_agent.core.checkpoint_manager import CheckpointManager
 
 # ── Default Team ──────────────────────────────────────────────────────────
 DEFAULT_CONSILIUM_TEAM = {
@@ -34,7 +37,7 @@ READONLY_TOOLS: Set[str] = {
 # ── Prompt Templates ──────────────────────────────────────────────────────
 
 REVIEW_PROMPT_TEMPLATE = """You are a CRITICAL REVIEWER in a multi-agent consilium.
-Another AI model (the Executor, running {executor_model}) has performed the following task.
+Another AI model (the Executor, running {executor_model}) has performed the following task inside the workspace.
 
 ## ORIGINAL USER TASK
 {original_task}
@@ -45,15 +48,16 @@ Another AI model (the Executor, running {executor_model}) has performed the foll
 ## YOUR REVIEW INSTRUCTIONS
 1. VERIFY ACCURACY: Check facts, logic, and calculations in the Executor's work.
 2. ASSESS COMPLETENESS: Did the Executor address ALL aspects of the user's request?
-3. FIND ERRORS: Logical errors, bugs, inconsistencies, or missed edge cases.
-4. SUGGEST IMPROVEMENTS: Concrete, actionable suggestions (not vague advice).
+3. FIND ERRORS: Identify logical errors, bugs, inconsistencies, or missed edge cases.
+4. SUGGEST IMPROVEMENTS: Provide concrete, actionable suggestions (not vague advice).
 
-Use your tools (view_file, list_directory, search_files) to VERIFY claims the Executor made.
-Do NOT re-do the task — only evaluate what was done.
+Use your tools (view_file, list_directory, search_files) to inspect the workspace files and VERIFY the claims/changes the Executor made.
+Do NOT modify files — only evaluate what was done.
 
-Your review MUST end with exactly one of these lines:
-- VERDICT: APPROVE — if the work is satisfactory
-- VERDICT: REVISE — if significant issues need fixing (list specific issues)
+At the end of your analysis, summarize your review and write a brief final comment.
+Your response MUST end with exactly one of these lines:
+- VERDICT: APPROVE — if the work is satisfactory and fully correct.
+- VERDICT: REVISE — if issues exist (list the specific errors/omissions to fix).
 """
 
 SKEPTIC_PROMPT_TEMPLATE = """You are the SKEPTIC (Devil's Advocate) in a multi-agent consilium.
@@ -77,13 +81,20 @@ You have seen both the Executor's work AND the Reviewer's evaluation.
 Be constructively critical. Your goal is NOT to reject everything, but to 
 strengthen the final result by exposing weaknesses early.
 
-End with exactly one of:
-- VERDICT: APPROVE — if you agree the work is solid
-- VERDICT: REVISE — if critical issues remain (list them)
+At the end of your analysis, summarize your challenges and write a brief final comment.
+Your response MUST end with exactly one of:
+- VERDICT: APPROVE — if you agree the work is solid.
+- VERDICT: REVISE — if critical issues or assumptions remain unaddressed.
 """
 
 REVISION_PROMPT_TEMPLATE = """You previously worked on this task and produced a result.
-Your work was reviewed by two independent AI models. Please address their feedback.
+Your work has been audited and analyzed by two independent AI agents: the Reviewer and the Skeptic.
+
+The full review reports have been generated and saved directly in your workspace:
+- Reviewer Report: `.consilium_review.md`
+- Skeptic Report: `.consilium_skeptic.md`
+
+Please inspect these files in your workspace using `view_file` to see the complete evaluation.
 
 ## ORIGINAL TASK
 {original_task}
@@ -91,30 +102,32 @@ Your work was reviewed by two independent AI models. Please address their feedba
 ## YOUR PREVIOUS ANSWER
 {executor_output}
 
-## REVIEWER FEEDBACK
-{review_output}
+## BRIEF SUMMARY OF REVIEWER FEEDBACK
+{review_summary}
 
-## SKEPTIC FEEDBACK
-{skeptic_output}
+## BRIEF SUMMARY OF SKEPTIC FEEDBACK
+{skeptic_summary}
 
 ## REVISION INSTRUCTIONS
-Address the specific issues raised above. Focus on:
-1. Fix any errors or bugs identified
-2. Add missing elements pointed out by reviewers
-3. Strengthen weak areas highlighted by the Skeptic
-
-Produce an improved, complete answer.
+1. Use `view_file` to read `.consilium_review.md` and `.consilium_skeptic.md` inside your workspace.
+2. Fix all errors, bugs, or missing requirements identified by the Reviewer.
+3. Address the challenged assumptions and alternative solutions highlighted by the Skeptic.
+4. Execute the required code/file modifications in the workspace to fix these issues.
+5. Produce an improved, fully complete, and correct final answer.
 """
 
 
 class ConsiliumOrchestrator:
     """
-    Manages multi-LLM collaboration for a single task using the Debate pattern.
+    Manages multi-LLM collaboration for a single task using the Debate and Consensus patterns.
     
     Creates three LangChainAgentEngine instances:
-    - Executor: full toolset, performs the task
+    - Executor: full toolset, performs/modifies the task
     - Reviewer: read-only tools, evaluates the Executor's work
     - Skeptic: read-only tools, challenges assumptions
+    
+    Uses CheckpointManager for robust workspace rollback.
+    Uses workspace files (.consilium_review.md, .consilium_skeptic.md) for context preservation.
     """
     
     def __init__(
@@ -136,6 +149,9 @@ class ConsiliumOrchestrator:
         self._log_callback = log_callback
         self._is_cancelled = False
         
+        # Initialize the CheckpointManager
+        self.checkpoint_manager = CheckpointManager(workspace_path)
+        
         # Resolve model names (use defaults if not provided)
         self.executor_model = executor_model or DEFAULT_CONSILIUM_TEAM["executor"]
         self.reviewer_model = reviewer_model or DEFAULT_CONSILIUM_TEAM["reviewer"]
@@ -143,7 +159,7 @@ class ConsiliumOrchestrator:
         
         self._log(f"🏛️ Consilium initialized: Executor={self.executor_model}, "
                   f"Reviewer={self.reviewer_model}, Skeptic={self.skeptic_model}, "
-                  f"Rounds={self.max_rounds}")
+                  f"Rounds={self.max_rounds} (Workspace: {self.workspace_path})")
         
         # Load LLM profiles for each model
         llm_profiles_dir = os.path.abspath(
@@ -222,6 +238,7 @@ class ConsiliumOrchestrator:
             chat_history = []
         
         executor_result = ""
+        last_checkpoint_id = None
         
         for round_num in range(1, self.max_rounds + 1):
             if self._is_cancelled:
@@ -230,6 +247,14 @@ class ConsiliumOrchestrator:
             self._log(f"\n{'='*60}")
             self._log(f"🏛️ CONSILIUM ROUND {round_num}/{self.max_rounds}")
             self._log(f"{'='*60}\n")
+            
+            # Create a checkpoint before Executor starts modifying files
+            checkpoint_label = f"consilium_round_{round_num}_pre_executor"
+            try:
+                last_checkpoint_id = self.checkpoint_manager.create(checkpoint_label)
+                self._log(f"🔖 Workspace checkpoint created: {last_checkpoint_id}")
+            except Exception as ce:
+                self._log(f"⚠️ Failed to create checkpoint: {ce}")
             
             # ── Phase 1: Executor ──
             self._log(f"📝 Phase 1: Executor ({self.executor_model}) working...")
@@ -256,6 +281,10 @@ class ConsiliumOrchestrator:
             if self._is_cancelled:
                 return executor_result
             
+            # Save Reviewer's report directly to the workspace for the Executor's future reference
+            self._write_workspace_file(".consilium_review.md", review_result)
+            self._log("📄 Saved reviewer report to `.consilium_review.md` in workspace.")
+            
             # ── Phase 3: Skeptic ──
             self._log(f"🤔 Phase 3: Skeptic ({self.skeptic_model}) challenging...")
             yield f"\n\n**[SKEPTIC: {self.skeptic_model}]** szuka luk...\n\n"
@@ -270,29 +299,43 @@ class ConsiliumOrchestrator:
             if self._is_cancelled:
                 return executor_result
             
-            # ── Phase 4: Check verdict ──
+            # Save Skeptic's report directly to the workspace for the Executor's future reference
+            self._write_workspace_file(".consilium_skeptic.md", skeptic_result)
+            self._log("📄 Saved skeptic report to `.consilium_skeptic.md` in workspace.")
+            
+            # ── Phase 4: Consensus & Verdict Checking ──
             verdict = self._parse_verdict(review_result, skeptic_result)
             self._log(f"⚖️ Consilium verdict: {verdict}")
             
             if verdict == "APPROVE":
                 yield f"\n\n**🏛️ CONSILIUM VERDICT: ✅ APPROVE** — Runda {round_num}\n"
                 self._log(f"✅ Consilium approved the result in round {round_num}.")
+                
+                # Cleanup workspace communication files on approval to keep workspace tidy
+                self._delete_workspace_file(".consilium_review.md")
+                self._delete_workspace_file(".consilium_skeptic.md")
                 break
             
             if round_num < self.max_rounds:
                 yield f"\n\n**🏛️ CONSILIUM VERDICT: 🔄 REVISE** — Rozpoczynam rundę {round_num + 1}\n"
                 self._log(f"🔄 Revision requested. Starting round {round_num + 1}.")
                 
-                # Build revision prompt for next round
+                # Build concise feedback summaries to pass inside the prompt
+                review_summary = self._make_brief_summary(review_result)
+                skeptic_summary = self._make_brief_summary(skeptic_result)
+                
+                # Build revision prompt for next round pointing to workspace report files
                 task = REVISION_PROMPT_TEMPLATE.format(
                     original_task=task,
                     executor_output=executor_result,
-                    review_output=review_result,
-                    skeptic_output=skeptic_result,
+                    review_summary=review_summary,
+                    skeptic_summary=skeptic_summary,
                 )
             else:
                 yield f"\n\n**🏛️ CONSILIUM: Max rounds reached** — Zwracam ostatni wynik Executora.\n"
                 self._log(f"⚠️ Max rounds ({self.max_rounds}) reached. Returning last result.")
+                
+                # Keep reports in workspace in case user needs to debug maximum rounds failure
         
         return executor_result
     
@@ -354,15 +397,78 @@ class ConsiliumOrchestrator:
     
     def _parse_verdict(self, review: str, critique: str) -> str:
         """
-        Parse VERDICT from reviewer and skeptic outputs.
-        If either says REVISE, the overall verdict is REVISE.
+        Parse VERDICT using semantic analyses and negative-sentiment weight checking.
         """
         review_lower = (review or "").lower()
         critique_lower = (critique or "").lower()
         
+        # 1. Look for explicit VERDICT matches
         if "verdict: revise" in review_lower or "verdict: revise" in critique_lower:
             return "REVISE"
-        return "APPROVE"
+        if "verdict: reject" in review_lower or "verdict: reject" in critique_lower:
+            return "REVISE"
+            
+        # 2. Look for semantic negative signals that bypass standard positive formats
+        critical_keywords = [
+            "must fix", "critical issue", "syntax error", "failed", 
+            "does not work", "incorrectly", "flaw", "broken", 
+            "correction is needed", "bug", "missing aspect"
+        ]
+        
+        reasons_to_revise = 0
+        for kw in critical_keywords:
+            if kw in review_lower:
+                reasons_to_revise += 1
+            if kw in critique_lower:
+                reasons_to_revise += 1
+                
+        if reasons_to_revise >= 2:
+            self._log(f"⚠️ Detected multiple critical issues semantically: Revise requested ({reasons_to_revise} matches)")
+            return "REVISE"
+            
+        # 3. Explicit Approve Check
+        if "verdict: approve" in review_lower and "verdict: approve" in critique_lower:
+            return "APPROVE"
+            
+        # Default safety: if any is uncertain or has minor comments, it's safer to request one revision
+        if "verdict: approve" in review_lower or "verdict: approve" in critique_lower:
+             # If one approves and one hasn't explicitly rejected, we can approve
+             if "revise" not in review_lower and "revise" not in critique_lower:
+                 return "APPROVE"
+                 
+        return "REVISE"
+    
+    def _make_brief_summary(self, text: str) -> str:
+        """Extract a short, high-density summary from the agent feedback."""
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        summary_lines = []
+        for line in lines:
+            if line.startswith("-") or line.startswith("*") or line.startswith("1.") or line.startswith("2.") or line.startswith("3."):
+                summary_lines.append(line)
+            if len(summary_lines) >= 8:
+                break
+        if not summary_lines:
+            # Fallback to the first 4 lines if no list items found
+            summary_lines = lines[:4]
+        return "\n".join(summary_lines)
+
+    def _write_workspace_file(self, filename: str, content: str):
+        """Write a helper communication file directly to the workspace."""
+        path = os.path.join(self.workspace_path, filename)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception as e:
+            self._log(f"Warning: Failed to write {filename}: {e}")
+
+    def _delete_workspace_file(self, filename: str):
+        """Delete helper communication file from workspace."""
+        path = os.path.join(self.workspace_path, filename)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception as e:
+                self._log(f"Warning: Failed to delete {filename}: {e}")
     
     def _load_agent_profile(self, profiles_dir: str, filename: str) -> str:
         """Load instructions from a consilium agent profile YAML."""

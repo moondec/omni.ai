@@ -144,6 +144,23 @@ class LangChainAgentEngine:
             
         self.profile = get_model_profile(self.model_name, custom_profiles)
         
+        # Check if native function calling is enabled in model profile or based on known model capabilities
+        llm_profiles_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "llm_profiles")
+        )
+        try:
+            from omni_agent.core.llm_profile_loader import load_llm_profile_dict
+            profile_dict = load_llm_profile_dict(self.model_name, llm_profiles_dir)
+            m_lower = self.model_name.lower()
+            is_known_tool_caller = any(kw in m_lower for kw in [
+                "gpt-4o", "claude-3-5", "claude-3.5", "claude-3-7", "claude-3.7",
+                "gemini-1.5-pro", "gemini-2.0-pro", "qwen3.5", "qwen2.5",
+                "deepseek-v3", "glm-4"
+            ])
+            self.use_native_tools = profile_dict.get("use_native_tools", is_known_tool_caller)
+        except Exception:
+            self.use_native_tools = False
+
         # Override context window if provided explicitly by user/profile
         self.context_window = context_window if context_window > 0 else self.profile.context_window
 
@@ -450,6 +467,15 @@ class LangChainAgentEngine:
 
         self.tool_map = {t.name: t for t in self.tools}
 
+        # 3. Bind tools for native function calling if active
+        if self.use_native_tools:
+            try:
+                self.llm_with_tools = self.llm.bind_tools(self.tools)
+                self._log("✓ Native Function Calling active: tools bound natively to LLM.")
+            except Exception as e:
+                self._log(f"⚠️ Failed to bind tools natively, falling back to text ReAct: {e}")
+                self.use_native_tools = False
+
     def run_step(self, prompt, stop=None):
          return self.llm.invoke(prompt, stop=stop).content
 
@@ -726,11 +752,22 @@ Begin!"""
             _t_first_token = None
             _token_count = 0
             _stream_error = None
+            accumulated = None
             try:
-                for chunk in self.llm.stream(prompt, stop=["Observation:"]):
+                stream_target = self.llm_with_tools if (self.use_native_tools and hasattr(self, 'llm_with_tools')) else self.llm
+                for chunk in stream_target.stream(prompt, stop=["Observation:"]):
                     if self._is_cancelled:
                         _stream_break_reason = "user_cancelled"
                         break
+                    
+                    if accumulated is None:
+                        accumulated = chunk
+                    else:
+                        try:
+                            accumulated += chunk
+                        except Exception:
+                            pass
+
                     if chunk.content:
                         # Record Time-to-First-Token
                         if _t_first_token is None:
@@ -740,17 +777,18 @@ Begin!"""
                         _token_count += 1
                         output += chunk.content
                         yield chunk.content
-                        # Break as soon as we have a parseable Action + Input pair
-                        has_react = "Action:" in output and "Action Input:" in output
-                        has_xml = "<invoke" in output
-
-                        if has_react or has_xml:
-                            if has_xml and "</invoke>" in output:
-                                _stream_break_reason = "active_break_xml_invoke"
-                                break
-                            elif has_react and _action_input_done_re.search(output):
-                                _stream_break_reason = "active_break_complete_action"
-                                break
+                        
+                        # Break as soon as we have a parseable Action + Input pair (only for ReAct)
+                        if not self.use_native_tools:
+                            has_react = "Action:" in output and "Action Input:" in output
+                            has_xml = "<invoke" in output
+                            if has_react or has_xml:
+                                if has_xml and "</invoke>" in output:
+                                    _stream_break_reason = "active_break_xml_invoke"
+                                    break
+                                elif has_react and _action_input_done_re.search(output):
+                                    _stream_break_reason = "active_break_complete_action"
+                                    break
             except Exception as stream_exc:
                 _stream_error = stream_exc
                 _stream_break_reason = f"stream_exception:{type(stream_exc).__name__}"
@@ -997,54 +1035,93 @@ Begin!"""
             self.active_scratchpad += output # Mirror to scratchpad
             
             # Parse Action
-            # Safety check: enforce SINGLE Action per step.
-            # If multiple "Action:" markers appear in one LLM turn, salvage progress by
-            # executing ONLY the first action, and attach a warning to the Observation.
-            action_markers = output.count("Action:")
-            invoke_markers = output.count("<invoke")
-            if (action_markers > 1 or invoke_markers > 1) and "Final Answer:" not in output:
-                self._log(f"⚠️ Format error: detected multiple action blocks in a single step. Salvaging by executing ONLY the first action.")
-                pending_observation_prefix = (
-                    "SYSTEM WARNING: You produced multiple 'Action:' blocks in a single step. "
-                    "I will execute ONLY the FIRST action and ignore the rest. "
-                    "Next time, output exactly ONE 'Action:' and ONE 'Action Input:' pair, then wait for the Observation.\n"
-                )
-                # Truncate output to the first Action/Input pair so parsers don't pick up later actions.
-                first_pair_pattern = r"(Action:\s*.+?\n+Action Input:\s*.+?)(?=\n+Thought:|\n+Final Answer:|$)"
-                first_pair_match = re.search(first_pair_pattern, output, re.DOTALL)
-                if first_pair_match:
-                    output = first_pair_match.group(1).strip()
-                else:
-                    # If we can't reliably salvage, fall back to correction prompt.
-                    fmt_obs = "\nObservation: Format error: You produced multiple 'Action:' blocks but I could not reliably extract the first one. Output exactly ONE action.\nThought:"
-                    prompt += fmt_obs
-                    self.active_scratchpad += fmt_obs
-                    continue
-                # IMPORTANT: this is a pure format issue, so we should not treat this
-                # step as part of an action loop. Clear recent action history snapshot
-                # to avoid accidental loop kills caused by long, repeated plans.
-                if action_history:
-                    action_history.pop()
+            action = None
+            tool_args = None
+            action_input = ""
+            match = False
 
-            # Use non-greedy for Action and a more precise match for Input to allow trailing text
-            pattern = r"Action:\s*(.+?)\n+Action Input:\s*(.+?)(?=\n+Thought:|\n+Final Answer:|$)"
-            match = re.search(pattern, output, re.DOTALL)
-            
-            # Fallback for Bielik and others that fail to provide newlines
-            if not match:
-                # Try more aggressive search for Action/Input pairs
-                bielik_pattern = r"Action:\s*([a-zA-Z0-9_]+)[\s\S]*?Action Input:\s*([\s\S]+)"
-                match = re.search(bielik_pattern, output)
-                if match:
-                    action = match.group(1).strip()
-                    raw_input = match.group(2).strip()
-                    # Clean up trailing Thought/Final Answer markers from the greedy capture
-                    raw_input = re.split(r'\nThought:|\nFinal Answer:|\nObservation:', raw_input)[0].strip()
-                    # We store it for later processing
+            # --- Native Function Calling Extractor ---
+            if self.use_native_tools and accumulated is not None:
+                tool_calls = getattr(accumulated, "tool_calls", [])
+                if not tool_calls and hasattr(accumulated, "additional_kwargs"):
+                    tool_calls = accumulated.additional_kwargs.get("tool_calls", [])
+                
+                if tool_calls:
+                    tool_call = tool_calls[0]
+                    if hasattr(tool_call, "get"):
+                        action = tool_call.get("name")
+                        tool_args = tool_call.get("args")
+                    else:
+                        action = getattr(tool_call, "name", None)
+                        tool_args = getattr(tool_call, "args", {})
+                    
+                    if action:
+                        match = True
+                        if isinstance(tool_args, str):
+                            try:
+                                tool_args = json.loads(tool_args)
+                            except Exception:
+                                pass
+                        action_input = json.dumps(tool_args, ensure_ascii=False)
+                        self._log(f"⚙️ Native Tool Call detected: {action} with args: {tool_args}")
+                else:
+                    self._log("⚙️ Native response received, but no tool call detected.")
+                    if output.strip() and "Final Answer:" not in output:
+                        output = f"Final Answer: {output}"
+
+            if not self.use_native_tools or not match:
+                # Safety check: enforce SINGLE Action per step.
+                # If multiple "Action:" markers appear in one LLM turn, salvage progress by
+                # executing ONLY the first action, and attach a warning to the Observation.
+                action_markers = output.count("Action:")
+                invoke_markers = output.count("<invoke")
+                if (action_markers > 1 or invoke_markers > 1) and "Final Answer:" not in output:
+                    self._log(f"⚠️ Format error: detected multiple action blocks in a single step. Salvaging by executing ONLY the first action.")
+                    pending_observation_prefix = (
+                        "SYSTEM WARNING: You produced multiple 'Action:' blocks in a single step. "
+                        "I will execute ONLY the FIRST action and ignore the rest. "
+                        "Next time, output exactly ONE 'Action:' and ONE 'Action Input:' pair, then wait for the Observation.\n"
+                    )
+                    # Truncate output to the first Action/Input pair so parsers don't pick up later actions.
+                    first_pair_pattern = r"(Action:\s*.+?\n+Action Input:\s*.+?)(?=\n+Thought:|\n+Final Answer:|$)"
+                    first_pair_match = re.search(first_pair_pattern, output, re.DOTALL)
+                    if first_pair_match:
+                        output = first_pair_match.group(1).strip()
+                    else:
+                        # If we can't reliably salvage, fall back to correction prompt.
+                        fmt_obs = "\nObservation: Format error: You produced multiple 'Action:' blocks but I could not reliably extract the first one. Output exactly ONE action.\nThought:"
+                        prompt += fmt_obs
+                        self.active_scratchpad += fmt_obs
+                        continue
+                    # IMPORTANT: this is a pure format issue, so we should not treat this
+                    # step as part of an action loop. Clear recent action history snapshot
+                    # to avoid accidental loop kills caused by long, repeated plans.
+                    if action_history:
+                        action_history.pop()
+
+                # Use non-greedy for Action and a more precise match for Input to allow trailing text
+                pattern = r"Action:\s*(.+?)\n+Action Input:\s*(.+?)(?=\n+Thought:|\n+Final Answer:|$)"
+                react_match = re.search(pattern, output, re.DOTALL)
+                
+                # Fallback for Bielik and others that fail to provide newlines
+                if not react_match:
+                    # Try more aggressive search for Action/Input pairs
+                    bielik_pattern = r"Action:\s*([a-zA-Z0-9_]+)[\s\S]*?Action Input:\s*([\s\S]+)"
+                    react_match = re.search(bielik_pattern, output)
+                    if react_match:
+                        action = react_match.group(1).strip()
+                        raw_input = react_match.group(2).strip()
+                        # Clean up trailing Thought/Final Answer markers from the greedy capture
+                        raw_input = re.split(r'\nThought:|\nFinal Answer:|\nObservation:', raw_input)[0].strip()
+                        action_input = raw_input
+                        match = True
+                else:
+                    action = react_match.group(1).strip()
+                    action_input = react_match.group(2).strip()
+                    match = True
             
             # Priority: If we found an action, EXECUTE IT. Ignore Final Answer in this turn.
             if match:
-                # Proceed to process action (logic moved down or kept here)
                 pass
             elif "Final Answer:" in output:
                 final_ans = output.split("Final Answer:")[-1].strip()
@@ -1195,119 +1272,122 @@ Begin!"""
                     action = match.group(1).strip()
                     action_input = match.group(2).strip()
 
-                # Backtick / markdown sanitizer for the action name.
-                # Some models (e.g. nvidia/llama-3.1-nemotron) wrap tool names in
-                # backticks: `view_file` → the raw string contains the backtick chars
-                # and the tool lookup fails with "tool not found".
-                # Strip all leading/trailing backticks, asterisks, spaces.
-                if action:
-                    action = action.strip().strip('`').strip('*').strip()
+                if self.use_native_tools and isinstance(tool_args, dict):
+                    self._consecutive_format_errors = 0
+                else:
+                    # Backtick / markdown sanitizer for the action name.
+                    # Some models (e.g. nvidia/llama-3.1-nemotron) wrap tool names in
+                    # backticks: `view_file` → the raw string contains the backtick chars
+                    # and the tool lookup fails with "tool not found".
+                    # Strip all leading/trailing backticks, asterisks, spaces.
+                    if action:
+                        action = action.strip().strip('`').strip('*').strip()
                 
-                # Safe Sanitization: stripping markdown wrappers only if they encompass the whole input
-                action_input = action_input.strip()
-                if "```" in action_input:
-                    # Look for a block that starts at the beginning and ends at the end
-                    block_match = re.search(r"^```(?:json)?\s*(.*?)\s*```$", action_input, re.DOTALL)
-                    if block_match:
-                        action_input = block_match.group(1).strip()
-                    else:
-                        # If not a whole-block wrap, only strip if it explicitly starts and ends with backticks
-                        if action_input.startswith("```") and action_input.endswith("```"):
-                             action_input = re.sub(r"^```(?:json)?", "", action_input)
-                             action_input = re.sub(r"```$", "", action_input).strip()
-
-                self._consecutive_format_errors = 0
-                
-                # Remove surrounding quotes only if they wrap the whole thing
-                if (action_input.startswith('"') and action_input.endswith('"')) or \
-                   (action_input.startswith("'") and action_input.endswith("'")):
-                    action_input = action_input[1:-1].strip()
-                
-                # Try parsing as JSON
-                try:
-                    tool_args = json.loads(action_input)
-                except json.JSONDecodeError:
-                    # JSON Repair Block: attempt to close unclosed JSON (common for truncated outputs)
-                    # e.g. GLM-4 emits only `{` or `{"` when stop=Observation: interrupts mid-JSON.
-                    try:
-                        stripped = action_input.strip()
-                        # Case 1: Missing closing brace
-                        if stripped.count('{') > stripped.count('}'):
-                            # Sub-case 1a: bare `{` — close it to produce `{}`
-                            if stripped == '{':
-                                tool_args = {}
-                            # Sub-case 1b: `{"` — close immediately to produce `{}`
-                            elif stripped == '{"':
-                                tool_args = {}
-                            else:
-                                tool_args = json.loads(stripped + '}')
-                        # Case 2: Missing closing quote and brace (especially in 'text' blocks)
-                        elif not stripped.endswith('"') and stripped.startswith('{'):
-                             tool_args = json.loads(stripped + '"}')
+                    # Safe Sanitization: stripping markdown wrappers only if they encompass the whole input
+                    action_input = action_input.strip()
+                    if "```" in action_input:
+                        # Look for a block that starts at the beginning and ends at the end
+                        block_match = re.search(r"^```(?:json)?\s*(.*?)\s*```$", action_input, re.DOTALL)
+                        if block_match:
+                            action_input = block_match.group(1).strip()
                         else:
-                            raise json.JSONDecodeError("Manual trigger for fallback", action_input, 0)
-                    except:
-                        pass
-                    # Only run further fallbacks if the repair above did NOT produce a valid dict/list.
-                    # Without this guard, the ast / manual fallback would overwrite a correctly repaired {}.
-                    if not isinstance(tool_args, (dict, list)):
-                        try:
-                            # Sometimes LLMs output Python dicts instead of JSON
-                            tool_args = ast.literal_eval(action_input)
-                        except (SyntaxError, ValueError):
-                            fixed_input = action_input.replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
-                            # VERY common issue: LLMs output unescaped double quotes inside JSON strings
-                            # We try to escape quotes that are followed by characters other than , or } or ] or end of string
-                            # This is a bit risky but often helpful. Better yet: try to find the text block and escape it.
-                            if '"text": "' in fixed_input or '"replacement_content": "' in fixed_input:
-                                 # Regex to find the content between the start of a key and the end of the JSON object
-                                 pass # We use a more robust fallback below
-                            
-                            try:
-                                tool_args = json.loads(fixed_input)
-                            except json.JSONDecodeError:
-                                # Robust extraction: finding the outer-most JSON object if parsing failed
-                                # Using manual string trimming instead of regex for speed on large strings
-                                start_idx = fixed_input.find('{')
-                                end_idx = fixed_input.rfind('}')
-                                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                                    try:
-                                        tool_args = json.loads(fixed_input[start_idx:end_idx+1])
-                                    except:
-                                        # Final attempt: try to manually extract the fields if it's still broken
-                                        tool_args = fixed_input # Fallback to string for regex extractor below
-                                else:
-                                     tool_args = action_input
+                            # If not a whole-block wrap, only strip if it explicitly starts and ends with backticks
+                            if action_input.startswith("```") and action_input.endswith("```"):
+                                 action_input = re.sub(r"^```(?:json)?", "", action_input)
+                                 action_input = re.sub(r"```$", "", action_input).strip()
 
-                # Heuristic Fallback for broken JSON (especially write_file with unescaped newlines/quotes)
-                if isinstance(tool_args, str) and ("{" in tool_args or ":" in tool_args):
+                    self._consecutive_format_errors = 0
+                
+                    # Remove surrounding quotes only if they wrap the whole thing
+                    if (action_input.startswith('"') and action_input.endswith('"')) or \
+                       (action_input.startswith("'") and action_input.endswith("'")):
+                        action_input = action_input[1:-1].strip()
+                
+                    # Try parsing as JSON
                     try:
-                        # Try to manually regex out file_path and text for write_file/edit_file
-                        fp_match = re.search(r'"(?:file_path|path|directory_path|source_path)"\s*:\s*"([^"]+)"', tool_args)
-                        if fp_match:
-                            extracted_path = fp_match.group(1)
-                            # Now try to get the text/content field if it exists
-                            # We consume the rest of the string to avoid CAT, then trim manually
-                            text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)', tool_args, re.DOTALL)
-                            if text_match:
-                                extracted_text = text_match.group(1)
-                                is_truncated_fallback = False
-                                # Try to strip trailing braces, spaces, and the final quote
-                                rstripped = extracted_text.rstrip(' \n\r\t}')
-                                if rstripped.endswith('"'):
-                                    extracted_text = rstripped[:-1]
+                        tool_args = json.loads(action_input)
+                    except json.JSONDecodeError:
+                        # JSON Repair Block: attempt to close unclosed JSON (common for truncated outputs)
+                        # e.g. GLM-4 emits only `{` or `{"` when stop=Observation: interrupts mid-JSON.
+                        try:
+                            stripped = action_input.strip()
+                            # Case 1: Missing closing brace
+                            if stripped.count('{') > stripped.count('}'):
+                                # Sub-case 1a: bare `{` — close it to produce `{}`
+                                if stripped == '{':
+                                    tool_args = {}
+                                # Sub-case 1b: `{"` — close immediately to produce `{}`
+                                elif stripped == '{"':
+                                    tool_args = {}
                                 else:
-                                    is_truncated_fallback = True
-                                    extracted_text = rstripped
-                                
-                                tool_args = {"file_path": extracted_path, "text": extracted_text}
-                                if is_truncated_fallback:
-                                    tool_args["_is_truncated"] = True
+                                    tool_args = json.loads(stripped + '}')
+                            # Case 2: Missing closing quote and brace (especially in 'text' blocks)
+                            elif not stripped.endswith('"') and stripped.startswith('{'):
+                                 tool_args = json.loads(stripped + '"}')
                             else:
-                                # Maybe it only had a path (like read_file, create_directory)
-                                tool_args = {"file_path": extracted_path}
-                    except Exception:
-                        pass
+                                raise json.JSONDecodeError("Manual trigger for fallback", action_input, 0)
+                        except:
+                            pass
+                        # Only run further fallbacks if the repair above did NOT produce a valid dict/list.
+                        # Without this guard, the ast / manual fallback would overwrite a correctly repaired {}.
+                        if not isinstance(tool_args, (dict, list)):
+                            try:
+                                # Sometimes LLMs output Python dicts instead of JSON
+                                tool_args = ast.literal_eval(action_input)
+                            except (SyntaxError, ValueError):
+                                fixed_input = action_input.replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
+                                # VERY common issue: LLMs output unescaped double quotes inside JSON strings
+                                # We try to escape quotes that are followed by characters other than , or } or ] or end of string
+                                # This is a bit risky but often helpful. Better yet: try to find the text block and escape it.
+                                if '"text": "' in fixed_input or '"replacement_content": "' in fixed_input:
+                                     # Regex to find the content between the start of a key and the end of the JSON object
+                                     pass # We use a more robust fallback below
+                            
+                                try:
+                                    tool_args = json.loads(fixed_input)
+                                except json.JSONDecodeError:
+                                    # Robust extraction: finding the outer-most JSON object if parsing failed
+                                    # Using manual string trimming instead of regex for speed on large strings
+                                    start_idx = fixed_input.find('{')
+                                    end_idx = fixed_input.rfind('}')
+                                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                                        try:
+                                            tool_args = json.loads(fixed_input[start_idx:end_idx+1])
+                                        except:
+                                            # Final attempt: try to manually extract the fields if it's still broken
+                                            tool_args = fixed_input # Fallback to string for regex extractor below
+                                    else:
+                                         tool_args = action_input
+
+                    # Heuristic Fallback for broken JSON (especially write_file with unescaped newlines/quotes)
+                    if isinstance(tool_args, str) and ("{" in tool_args or ":" in tool_args):
+                        try:
+                            # Try to manually regex out file_path and text for write_file/edit_file
+                            fp_match = re.search(r'"(?:file_path|path|directory_path|source_path)"\s*:\s*"([^"]+)"', tool_args)
+                            if fp_match:
+                                extracted_path = fp_match.group(1)
+                                # Now try to get the text/content field if it exists
+                                # We consume the rest of the string to avoid CAT, then trim manually
+                                text_match = re.search(r'"(?:text|content|file_text|body|data)"\s*:\s*"(.*)', tool_args, re.DOTALL)
+                                if text_match:
+                                    extracted_text = text_match.group(1)
+                                    is_truncated_fallback = False
+                                    # Try to strip trailing braces, spaces, and the final quote
+                                    rstripped = extracted_text.rstrip(' \n\r\t}')
+                                    if rstripped.endswith('"'):
+                                        extracted_text = rstripped[:-1]
+                                    else:
+                                        is_truncated_fallback = True
+                                        extracted_text = rstripped
+                                
+                                    tool_args = {"file_path": extracted_path, "text": extracted_text}
+                                    if is_truncated_fallback:
+                                        tool_args["_is_truncated"] = True
+                                else:
+                                    # Maybe it only had a path (like read_file, create_directory)
+                                    tool_args = {"file_path": extracted_path}
+                        except Exception:
+                            pass
 
                 # Argument Mapping Fallback
                 if isinstance(tool_args, dict):

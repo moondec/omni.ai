@@ -213,3 +213,24 @@ def load_llm_profile(
         profile.get("system_prompt_additions", "") or "",
         int(profile.get("context_window", 0) or 0),
     )
+
+
+def load_llm_profile_dict(
+    model_name: str,
+    profiles_dir: str,
+) -> Dict[str, Any]:
+    """
+    Load the complete parsed LLM profile dictionary.
+    """
+    target_file = _find_profile_file(profiles_dir, model_name)
+
+    shared_path = os.path.join(profiles_dir, "_shared.yaml")
+    shared = _load_yaml(shared_path) or {}
+
+    profile = _load_yaml(target_file)
+    if not profile:
+        return {}
+
+    merge_profile_with_shared(profile, shared)
+    return profile
+

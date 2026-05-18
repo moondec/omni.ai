@@ -140,6 +140,18 @@ class DocumentTools(_WorkspaceMixin):
             else:
                 final_content = text
 
+            # Preflight check for Python files to prevent SyntaxError corruption
+            if file_path.lower().endswith(".py"):
+                try:
+                    compile(final_content, file_path, "exec")
+                except SyntaxError as syntax_err:
+                    return (
+                        f"Error: Preflight compilation failed with SyntaxError in {file_path}:\n"
+                        f"Line {syntax_err.lineno}: {syntax_err.msg}\n"
+                        f"Code: {syntax_err.text.strip() if syntax_err.text else ''}\n"
+                        "The file was NOT created or modified. Please check your indentation, closing parentheses, quotes, or colons."
+                    )
+
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(final_content)
                 
@@ -1869,6 +1881,18 @@ class ReplaceFileContentTool(_WorkspaceMixin):
             # Construct new content
             new_lines = lines[:start_idx] + lines_to_insert + lines[end_idx:]
             
+            # Preflight check for Python files to prevent SyntaxError corruption
+            if file_path.lower().endswith(".py"):
+                try:
+                    compile("".join(new_lines), file_path, "exec")
+                except SyntaxError as syntax_err:
+                    return (
+                        f"Error: Preflight compilation failed with SyntaxError in {file_path}:\n"
+                        f"Line {syntax_err.lineno}: {syntax_err.msg}\n"
+                        f"Code: {syntax_err.text.strip() if syntax_err.text else ''}\n"
+                        "The file was NOT modified. Please check your indentation, closing parentheses, quotes, or colons."
+                    )
+
             with open(full_path, "w", encoding="utf-8") as f:
                 f.writelines(new_lines)
                 

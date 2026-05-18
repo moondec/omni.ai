@@ -2,6 +2,19 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.11.0] - 2026-05-18
+
+### Added
+- **Native Function Calling Support**: Introduced a native Structured Tool bypass in the agent engine, enabling seamless function parameter dictionary passing for models that support it natively (e.g. GPT-4o, Claude 3.5 Sonnet, Qwen), decreasing parsing overhead and tokens.
+- **Consilium (Multi-Agent) Debate & Consensus**: Completely overhauled the collaborative agentic workflow:
+  - **Cooperative Agent Roles**: Executor (with full toolset), Reviewer (read-only tools), and Skeptic (read-only tools) interact as dedicated agent engines.
+  - **Workspace File Messaging**: The Reviewer and Skeptic write structured analysis reports directly to `.consilium_review.md` and `.consilium_skeptic.md` in the workspace, preventing prompt token bloat.
+  - **Safe Rollbacks**: Integrates with `CheckpointManager` to snapshot the workspace before each revision round.
+  - **Resilient Verdict Scoring**: A semantic sentiment check based on keyword mapping ensures accurate consensus assessment.
+
+### Changed
+- **Automatic Clean-up**: Enabled automatic removal of `.consilium_review.md` and `.consilium_skeptic.md` files from the workspace upon successful debate completion (`APPROVE` verdict).
+
 ## [0.10.0] - 2026-05-18
 
 ### Added
