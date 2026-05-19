@@ -232,13 +232,54 @@ class ConsiliumOrchestrator:
         """
         Execute the consilium workflow. Generator that yields streamed chunks.
         
+        If the chat_history indicates this is follow-up feedback on a previous result,
+        runs a lightweight refinement path (Executor only) instead of the full debate cycle.
+        
         Returns the final executor result via StopIteration.value.
         """
         if chat_history is None:
             chat_history = []
         
+        # Get original task from history if available
+        original_task = chat_history[0].content if chat_history else task
+        
+        # Construct unified task if this is follow-up
+        is_followup = self._is_followup_feedback(task, chat_history)
+        
+        # Check for simple acknowledgment/filler messages
+        is_filler = False
+        if is_followup:
+            task_clean = task.lower().strip().strip('.').strip('!').strip()
+            # If it's a short message or just a friendly filler/acknowledgement
+            filler_words = {"dzięki", "dzieki", "super", "ok", "okay", "yes", "tak", "nie", "no",
+                            "dziękuje", "dziękuję", "thanks", "thank you", "gotowe", "clear"}
+            if len(task_clean) < 15 or task_clean in filler_words or any(w == task_clean for w in filler_words):
+                is_filler = True
+        
+        # ── Follow-up Filler / Simple Refinement Path ───────────────────
+        if is_followup and is_filler:
+            self._log("💬 Consilium: Simple follow-up/filler detected. Running executor directly.")
+            yield "\n\n---\n**🏛️ CONSILIUM — Tryb Poprawki (Refinement)**\n\n"
+            yield f"**[EXECUTOR: {self.executor_model}]** odpowiada...\n\n"
+            
+            # Run only the Executor with full chat_history (contains the previous result context)
+            executor_result = yield from self._run_engine(self.executor, task, chat_history)
+            
+            yield "\n\n**🏛️ CONSILIUM: ✅ Gotowe.**\n"
+            self._log("✅ Consilium simple refinement completed.")
+            return executor_result
+        
         executor_result = ""
         last_checkpoint_id = None
+        
+        # Define unified task to keep Reviewer and Skeptic aligned on history
+        if is_followup:
+            unified_task = (
+                f"Original Task: {original_task}\n"
+                f"Follow-up Instructions / Feedback: {task}"
+            )
+        else:
+            unified_task = task
         
         for round_num in range(1, self.max_rounds + 1):
             if self._is_cancelled:
@@ -273,7 +314,7 @@ class ConsiliumOrchestrator:
             
             review_prompt = REVIEW_PROMPT_TEMPLATE.format(
                 executor_model=self.executor_model,
-                original_task=task,
+                original_task=unified_task,
                 executor_output=executor_result,
             )
             review_result = yield from self._run_engine(self.reviewer, review_prompt, [])
@@ -290,7 +331,7 @@ class ConsiliumOrchestrator:
             yield f"\n\n**[SKEPTIC: {self.skeptic_model}]** szuka luk...\n\n"
             
             skeptic_prompt = SKEPTIC_PROMPT_TEMPLATE.format(
-                original_task=task,
+                original_task=unified_task,
                 executor_output=executor_result,
                 review_output=review_result,
             )
@@ -326,7 +367,7 @@ class ConsiliumOrchestrator:
                 
                 # Build revision prompt for next round pointing to workspace report files
                 task = REVISION_PROMPT_TEMPLATE.format(
-                    original_task=task,
+                    original_task=unified_task,
                     executor_output=executor_result,
                     review_summary=review_summary,
                     skeptic_summary=skeptic_summary,
@@ -350,6 +391,37 @@ class ConsiliumOrchestrator:
             self.skeptic.cancel()
     
     # ── Private helpers ───────────────────────────────────────────────────
+    
+    def _is_followup_feedback(self, task: str, chat_history: List) -> bool:
+        """
+        Detect whether the user's message is follow-up feedback on a previous result
+        rather than a genuinely new task.
+        
+        Heuristic: if chat_history contains at least one Q/A pair AND the current
+        message doesn't start with a "new task" marker, treat it as feedback.
+        """
+        if len(chat_history) < 2:
+            return False
+        
+        # Check if there's at least one AI answer in history
+        from langchain_core.messages import AIMessage
+        has_ai_answer = any(isinstance(msg, AIMessage) for msg in chat_history)
+        if not has_ai_answer:
+            return False
+        
+        # Check for explicit "new task" markers
+        new_task_markers = [
+            "zrób nowy", "nowe zadanie", "new task", "start fresh", "nowy projekt", "fresh start"
+        ]
+        task_lower = task.lower().strip()
+        looks_like_new_task = any(task_lower.startswith(m) for m in new_task_markers)
+        
+        if looks_like_new_task:
+            return False
+        
+        self._log(f"💬 Follow-up detection: chat_history has {len(chat_history)} messages, "
+                  f"task doesn't match new-task markers → treating as feedback.")
+        return True
     
     def _run_engine(self, engine: LangChainAgentEngine, task: str, chat_history: List):
         """
@@ -493,6 +565,18 @@ class ConsiliumOrchestrator:
         return callback
     
     def _log(self, message: str):
-        """Log a message through the callback."""
+        """Log a message through the callback and to the file log."""
+        prefix_msg = f"[CONSILIUM] {message}"
         if self._log_callback:
-            self._log_callback(f"[CONSILIUM] {message}")
+            self._log_callback(prefix_msg)
+        try:
+            app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            log_path = os.path.join(app_dir, "agent_debug.log")
+            if os.path.exists(log_path) and os.path.getsize(log_path) > 5 * 1024 * 1024:
+                with open(log_path, "w", encoding="utf-8") as f:
+                    f.write(f"[LOG ROTATED at {datetime.datetime.now().isoformat()}]\n")
+            ts = datetime.datetime.now().strftime("%H:%M:%S")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{ts}]{prefix_msg}\n")
+        except Exception:
+            pass

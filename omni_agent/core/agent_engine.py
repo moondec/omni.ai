@@ -561,22 +561,40 @@ Begin!"""
         
         # Build conversation history
         history_text = ""
+        last_ai_answer = ""
         for msg in chat_history:
             role = "Question" if isinstance(msg, HumanMessage) else "Final Answer" 
             content = msg.content if hasattr(msg, "content") else str(msg)
             if isinstance(msg, HumanMessage):
                 history_text += f"Question: {content}\n"
             else:
-                 history_text += f"Final Answer: {content}\n"
+                # Strip rating links from display content before injecting into prompt
+                clean_content = re.sub(r"\n*\s*<br>\s*(?:<a href='rate:[^']*'>[^<]*</a>\s*)+", "", content).strip()
+                history_text += f"Final Answer: {clean_content}\n"
+                last_ai_answer = clean_content
 
-        # Continuation logic: if user says "continue" (or similar) and we have a scratchpad, resume.
+        # ── Smart Feedback Detection ─────────────────────────────────────
+        # Three-tier intent classification:
+        # 1. Structural continue: short "kontynuuj"/"continue" → resume scratchpad
+        # 2. Follow-up feedback: chat_history has prior Q/A → treat as refinement
+        # 3. New task: no prior history or explicit new-task markers
         continue_keywords = ["kontynuuj", "continue", "wznów", "resume", "dalej", "go on"]
-        # Only treat as structural continue if it's a short "continue" type message
         is_continuation_intent = any(kw in input_text.lower() for kw in continue_keywords) and len(input_text.strip().split()) <= 3
+        
+        # Detect follow-up feedback: user provides additional instructions after a completed task
+        has_prior_conversation = len(chat_history) >= 2 and last_ai_answer
+        new_task_markers = [
+            "zrób nowy", "nowe zadanie", "new task", "start fresh", "nowy projekt", "fresh start"
+        ]
+        looks_like_new_task = any(input_text.lower().strip().startswith(m) for m in new_task_markers)
+        is_followup_feedback = has_prior_conversation and not looks_like_new_task and not is_continuation_intent
         
         if is_continuation_intent and initial_scratchpad:
             self.active_scratchpad = initial_scratchpad
             self._log("🔄 Resuming from saved scratchpad context.")
+        elif is_followup_feedback:
+            self.active_scratchpad = ""  # Clean scratchpad but inject context below
+            self._log("💬 Follow-up feedback detected. Injecting previous result context.")
         else:
             self.active_scratchpad = ""  # Ensure clean start for genuinely new tasks
             
@@ -605,7 +623,28 @@ Begin!"""
             )
             system_template = system_template.replace("Begin!", planning_block + "Begin!")
 
-        prompt = f"{system_template}\n{history_text}\nQuestion: {input_text}\nThought:"
+        # ── Follow-up Feedback Context Injection ─────────────────────────
+        # When user gives feedback on a previous result, inject a compact summary
+        # of the last AI output + a system instruction to modify incrementally.
+        followup_context = ""
+        if is_followup_feedback and last_ai_answer:
+            # Truncate last answer to avoid prompt bloat (keep first 2000 chars)
+            truncated_answer = last_ai_answer[:2000]
+            if len(last_ai_answer) > 2000:
+                truncated_answer += "\n... [truncated for brevity — use view_file to read full output if needed]"
+            followup_context = (
+                f"\n[PREVIOUS RESULT — your last completed output]\n"
+                f"{truncated_answer}\n"
+                f"[END PREVIOUS RESULT]\n\n"
+                f"[SYSTEM] The user is providing FEEDBACK on your previous work above. "
+                f"Do NOT restart the task from scratch. Instead:\n"
+                f"1. Read the user's feedback carefully.\n"
+                f"2. Identify which specific parts of your previous output need modification.\n"
+                f"3. Apply the requested changes incrementally (e.g., use view_file + replace_file_content to edit existing files).\n"
+                f"4. If the user asks to add something, ADD it to the existing work — do not recreate everything.\n\n"
+            )
+
+        prompt = f"{system_template}\n{history_text}{followup_context}\nQuestion: {input_text}\nThought:"
 
         max_steps = 100
         self._consecutive_format_errors = 0  # Reset format error counter
@@ -1066,7 +1105,16 @@ Begin!"""
                         self._log(f"⚙️ Native Tool Call detected: {action} with args: {tool_args}")
                 else:
                     self._log("⚙️ Native response received, but no tool call detected.")
-                    if output.strip() and "Final Answer:" not in output:
+                    # Only prepend "Final Answer:" if the text does not look like any text-based tool call format
+                    has_text_action = (
+                        "Action:" in output or 
+                        "<invoke" in output or 
+                        "<tool_call" in output or 
+                        "<parameter=" in output or 
+                        "function call" in output or
+                        "<arg_key>" in output
+                    )
+                    if not has_text_action and output.strip() and "Final Answer:" not in output:
                         output = f"Final Answer: {output}"
 
             if not self.use_native_tools or not match:
@@ -1266,6 +1314,60 @@ Begin!"""
                     action_input = broken_invoke.group(2).strip()
                     match = True
                     self._log(f"⚙️ Using broken MiniMax XML parser for: {action}")
+
+            # Fallback 7: Qwen3 XML arg_key/arg_value format
+            # Qwen3 sometimes emits:
+            #   Action: view_file
+            #   <arg_key>file_path</arg_key>
+            #   <arg_value>report.html</arg_value>
+            #   </function>
+            #   </tool_call>
+            if not match:
+                qwen_xml_action = re.search(r'Action:\s*([a-zA-Z0-9_]+)', output)
+                qwen_xml_args = re.findall(
+                    r'<arg_key>\s*([a-zA-Z0-9_]+)\s*</arg_key>\s*<arg_value>\s*([\s\S]*?)\s*</arg_value>',
+                    output
+                )
+                if qwen_xml_action and qwen_xml_args:
+                    action = qwen_xml_action.group(1).strip()
+                    args_dict = {}
+                    for arg_name, arg_val in qwen_xml_args:
+                        arg_val = arg_val.strip()
+                        # Try parsing as JSON value first (for numbers, booleans, nested objects)
+                        try:
+                            args_dict[arg_name] = json.loads(arg_val)
+                        except (json.JSONDecodeError, ValueError):
+                            args_dict[arg_name] = arg_val
+                    action_input = json.dumps(args_dict, ensure_ascii=False)
+                    match = True
+                    self._log(f"⚙️ Using Qwen3 XML arg_key/arg_value parser for: {action}")
+
+            # Fallback 8: Qwen3 XML <parameter=key>value</parameter> format
+            # Qwen3 also emits this variation:
+            #   Action: list_directory
+            #   <parameter=dir_path>
+            #   .
+            #   </parameter>
+            #   </function>
+            #   </tool_call>
+            if not match:
+                qwen_param_action = re.search(r'Action:\s*([a-zA-Z0-9_]+)', output)
+                qwen_param_args = re.findall(
+                    r'<parameter=([a-zA-Z0-9_]+)>\s*([\s\S]*?)\s*</parameter>',
+                    output
+                )
+                if qwen_param_action and qwen_param_args:
+                    action = qwen_param_action.group(1).strip()
+                    args_dict = {}
+                    for arg_name, arg_val in qwen_param_args:
+                        arg_val = arg_val.strip()
+                        try:
+                            args_dict[arg_name] = json.loads(arg_val)
+                        except (json.JSONDecodeError, ValueError):
+                            args_dict[arg_name] = arg_val
+                    action_input = json.dumps(args_dict, ensure_ascii=False)
+                    match = True
+                    self._log(f"⚙️ Using Qwen3 XML <parameter=key> parser for: {action}")
 
             if match:
                 if hasattr(match, 'group'):

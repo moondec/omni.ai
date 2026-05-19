@@ -2,6 +2,15 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.11.1] - 2026-05-19
+
+### Fixed
+- **Consilium Follow-Up Feedback**: Agent no longer restarts the entire task from scratch when user provides incremental feedback after task completion. Introduced a three-tier intent classification (structural continue → follow-up feedback → new task) that correctly detects feedback intent and preserves the previous result context.
+- **Consilium Refinement Mode**: When follow-up feedback is detected in Consilium mode, the system now runs a lightweight refinement path (Executor only) instead of the full Executor→Reviewer→Skeptic debate cycle, dramatically reducing latency and token cost for simple corrections.
+- **Previous Result Context Injection**: Follow-up messages now receive a compact `[PREVIOUS RESULT]` block in the prompt with the last AI output + explicit instructions to modify incrementally rather than recreate.
+- **Qwen3 XML Tool Call Parser (Fallback 7)**: Fixed a critical parsing failure where Qwen3 emitted tool calls in `<arg_key>/<arg_value>` XML format that was unrecognized, causing immediate task termination with "Native response received, but no tool call detected" → "Task Completed. Clearing Context." on the very first step.
+- **Rating Link Sanitization**: Stripped `<a href='rate:...'/>` HTML tags from chat_history content before injecting into prompts, preventing the agent from seeing irrelevant HTML markup in conversation context.
+
 ## [0.11.0] - 2026-05-18
 
 ### Added
