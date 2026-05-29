@@ -140,5 +140,5 @@ omni_agent/
 - Full feature docs: `README.md`
 - Model guide: `MODEL_GUIDE.md`
 - Tool reference: `TOOLS_GUIDE.md` (if exists)
-- Version history: `CHANGELOG.md` (v0.11.1 current)
+- Version history: `CHANGELOG.md` (v0.11.2 current)
 - Existing AI context: `CLAUDE.md` (system brief)

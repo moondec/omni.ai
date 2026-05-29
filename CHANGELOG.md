@@ -2,6 +2,17 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.11.2] - 2026-05-29
+
+### Added
+- **Lead Developer Profile Enrichment**: Integrated agent prompt guidelines from the `anomalyco/opencode` repository to strengthen the Lead Developer profile (`coder.yaml`).
+  - **Project Alignment**: Mandated strict matching of existing project conventions, style, typing, and architecture.
+  - **Library Verification**: Enforced check-before-import verification of project configuration files (`environment.yml`, `requirements.txt`, etc.).
+  - **Professional Objectivity**: Focused on factual accuracy and respectful, evidence-backed correction over false agreement.
+  - **Verification Loop & Testing**: Directed the agent to run local linting/testing commands (`ruff check .`, `pytest`) on changes, test edge cases, and avoid yielding control prematurely.
+  - **Operational Rules**: Explicit rules for absolute path handling and avoiding unnecessary undos.
+- **Simplified Communication**: Instructed the agent to minimize output tokens, avoid unnecessary preambles/postambles, and avoid using emojis or code comments for user communication.
+
 ## [0.11.1] - 2026-05-19
 
 ### Fixed

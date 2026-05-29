@@ -1,0 +1,92 @@
+{
+    "metadata": {
+        "mode": "agent_mock",
+        "models_tested": [
+            "bielik_11b"
+        ],
+        "total_tasks": 5
+    },
+    "model_metrics": {
+        "bielik_11b": {
+            "total_tasks": 5,
+            "successful_tasks": 0,
+            "total_time_ms": 38567.424058914185,
+            "total_tool_acc": 0.0,
+            "success_rate": 0.0,
+            "tool_accuracy": 0.0,
+            "avg_response_time_ms": 7713.484811782837
+        }
+    },
+    "task_results": {
+        "bielik_11b": [
+            {
+                "task_id": "agent_001",
+                "category": "workflow",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 8796.233177185059,
+                "tokens": 772,
+                "called_tools": [],
+                "expected": [
+                    "search_web",
+                    "run_python",
+                    "write_file"
+                ]
+            },
+            {
+                "task_id": "agent_002",
+                "category": "computation",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 3458.6799144744873,
+                "tokens": 417,
+                "called_tools": [],
+                "expected": [
+                    "run_python"
+                ]
+            },
+            {
+                "task_id": "agent_003",
+                "category": "system",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 11959.309101104736,
+                "tokens": 1175,
+                "called_tools": [],
+                "expected": [
+                    "view_file",
+                    "run_terminal"
+                ]
+            },
+            {
+                "task_id": "agent_004",
+                "category": "document",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 8230.588912963867,
+                "tokens": 832,
+                "called_tools": [],
+                "expected": [
+                    "save_document"
+                ]
+            },
+            {
+                "task_id": "agent_005",
+                "category": "search",
+                "success": false,
+                "tool_accuracy": 0.0,
+                "call_accuracy": 0.0,
+                "duration_ms": 6122.612953186035,
+                "tokens": 640,
+                "called_tools": [],
+                "expected": [
+                    "search_web"
+                ]
+            }
+        ]
+    }
+}

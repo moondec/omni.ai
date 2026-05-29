@@ -183,3 +183,21 @@ For a detailed description of the tasks being tested, see **[`BENCHMARK_TASKS.md
 |-------|---------|----------|---------------|
 | bielik_11b | 0.0% | 0.0% | 11399.2 |
 
+
+## 🤖 Agent Benchmark Run (Mode: mock, Date: 2026-05-19 10:30:35)
+
+### Agent Metrics (MOCK)
+
+| Model | Success | Tool Acc | Avg Time (ms) |
+|-------|---------|----------|---------------|
+| bielik_11b | 0.0% | 0.0% | 6723.8 |
+
+
+## 🤖 Agent Benchmark Run (Mode: mock, Date: 2026-05-29 10:01:20)
+
+### Agent Metrics (MOCK)
+
+| Model | Success | Tool Acc | Avg Time (ms) |
+|-------|---------|----------|---------------|
+| bielik_11b | 0.0% | 0.0% | 7713.5 |
+

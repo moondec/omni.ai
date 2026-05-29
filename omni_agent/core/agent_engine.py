@@ -559,19 +559,31 @@ Rules:
 {few_shot_text}
 Begin!"""
         
-        # Build conversation history
+        # Build conversation history.
+        # IMPORTANT: render prior turns with neutral labels ("User:"/"Assistant:")
+        # inside an explicit fenced block — NOT with the ReAct control tokens
+        # "Question:"/"Final Answer:". Reusing those tokens makes every past turn
+        # look like a live instruction, which is the root cause of the agent
+        # re-executing the original task instead of responding to the latest message.
         history_text = ""
         last_ai_answer = ""
+        history_lines = []
         for msg in chat_history:
-            role = "Question" if isinstance(msg, HumanMessage) else "Final Answer" 
             content = msg.content if hasattr(msg, "content") else str(msg)
             if isinstance(msg, HumanMessage):
-                history_text += f"Question: {content}\n"
+                history_lines.append(f"User: {content}")
             else:
                 # Strip rating links from display content before injecting into prompt
                 clean_content = re.sub(r"\n*\s*<br>\s*(?:<a href='rate:[^']*'>[^<]*</a>\s*)+", "", content).strip()
-                history_text += f"Final Answer: {clean_content}\n"
+                history_lines.append(f"Assistant: {clean_content}")
                 last_ai_answer = clean_content
+        if history_lines:
+            history_text = (
+                "[CONVERSATION HISTORY — context only, these turns are already "
+                "completed. Do NOT re-execute them.]\n"
+                + "\n".join(history_lines)
+                + "\n[END CONVERSATION HISTORY]\n"
+            )
 
         # ── Smart Feedback Detection ─────────────────────────────────────
         # Three-tier intent classification:
@@ -624,27 +636,36 @@ Begin!"""
             system_template = system_template.replace("Begin!", planning_block + "Begin!")
 
         # ── Follow-up Feedback Context Injection ─────────────────────────
-        # When user gives feedback on a previous result, inject a compact summary
-        # of the last AI output + a system instruction to modify incrementally.
+        # The previous result is already present verbatim inside the fenced
+        # CONVERSATION HISTORY block above, so we do NOT duplicate it here — we
+        # only inject the incremental-modification directive. This avoids
+        # re-spending ~500 tokens copying the last answer on every follow-up turn.
         followup_context = ""
         if is_followup_feedback and last_ai_answer:
-            # Truncate last answer to avoid prompt bloat (keep first 2000 chars)
-            truncated_answer = last_ai_answer[:2000]
-            if len(last_ai_answer) > 2000:
-                truncated_answer += "\n... [truncated for brevity — use view_file to read full output if needed]"
             followup_context = (
-                f"\n[PREVIOUS RESULT — your last completed output]\n"
-                f"{truncated_answer}\n"
-                f"[END PREVIOUS RESULT]\n\n"
-                f"[SYSTEM] The user is providing FEEDBACK on your previous work above. "
-                f"Do NOT restart the task from scratch. Instead:\n"
-                f"1. Read the user's feedback carefully.\n"
-                f"2. Identify which specific parts of your previous output need modification.\n"
-                f"3. Apply the requested changes incrementally (e.g., use view_file + replace_file_content to edit existing files).\n"
-                f"4. If the user asks to add something, ADD it to the existing work — do not recreate everything.\n\n"
+                "[SYSTEM] The user is providing FEEDBACK on your previous work "
+                "shown in the conversation history above. "
+                "Do NOT restart the task from scratch. Instead:\n"
+                "1. Read the user's feedback carefully.\n"
+                "2. Identify which specific parts of your previous output need modification.\n"
+                "3. Apply the requested changes incrementally (e.g., use view_file + replace_file_content to edit existing files).\n"
+                "4. If the user asks to add something, ADD it to the existing work — do not recreate everything.\n\n"
             )
 
-        prompt = f"{system_template}\n{history_text}{followup_context}\nQuestion: {input_text}\nThought:"
+        # ── Current-request framing (always-on when history exists) ──────
+        # Mark the live message explicitly so the single ReAct "Question:" below
+        # is unambiguously the one to act on, independent of the feedback
+        # heuristic. The history block above is background only.
+        current_request_marker = (
+            "[CURRENT REQUEST — respond to THIS message; the conversation history "
+            "above is background context only]\n"
+            if history_text else ""
+        )
+
+        prompt = (
+            f"{system_template}\n{history_text}{followup_context}\n"
+            f"{current_request_marker}Question: {input_text}\nThought:"
+        )
 
         max_steps = 100
         self._consecutive_format_errors = 0  # Reset format error counter
