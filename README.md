@@ -56,7 +56,10 @@ The application features a powerful Agent capable of performing complex, multi-s
 
 ### 3. 🎙️ Audio Transcription & Dictation
 -   **Configurable Transcription**: Choose your preferred Whisper model (e.g., `whisper-large-v3-turbo:0.8b`) in Settings to use with the `transcribe_audio` tool.
--   **System-wide Dictation App**: A standalone utility (`voice_typing.py`) that runs in the tray and allows you to dictate text into **any** application via a global hotkey (`Left Ctrl + Space`).
+-   **System-wide Dictation App**: A standalone cross-platform utility (`voice_typing.py`) that runs in the tray and allows you to dictate text into **any** application via a global hotkey (`Left Ctrl + Space`).
+    -   **Multi-Platform Support**: Works natively on **macOS**, **Windows**, and **Linux** (both X11 and Wayland).
+    -   **Robust Text Injection**: Includes automatic fallbacks (`pynput`, AppleScript, PowerShell `SendKeys`, `xdotool`, `wl-copy` / `wtype`) ensuring compatibility across all modern desktop environments.
+    -   **UX Warnings**: Visual system-tray alerts inform you instantly if microphone permissions are missing or if transcription fails.
 -   **Secure Keys**: Both apps share a secure connection to PCSS via the system Keyring.
 
 ### 4. 💬 Chat vs. 🤖 Agent (Important!)
