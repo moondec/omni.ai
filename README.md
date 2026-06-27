@@ -4,7 +4,7 @@
 
 A Python desktop application (GUI) for interacting with the PCSS LLM Service, built with **PySide6 (Qt)** and **LangChain**.
 
-> **Version 0.11.2** — Major expansion with Native Function Calling, rebuilt Consilium Multi-Agent debate system, smart follow-up feedback handling, and powerful new tools (Git, API, Database). See [CHANGELOG.md](CHANGELOG.md) for details.
+> **Version 0.11.3** — Added keyword-based heuristic capability profiling for dynamic tier assignment, optimized default model flagships to Tier 2 (LARGE), and introduced GLM-5.1 support via native function calling. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 > Actively developed on macOS; Windows and Linux supported.
 

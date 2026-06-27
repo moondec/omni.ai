@@ -102,7 +102,7 @@ def get_model_profile(model_name: str, custom_profiles: dict = None) -> ModelPro
             return PROFILES[4]
 
     # 4. Fallback to Known Flagships (Commercial APIs / Models without 'B')
-    if any(kw in m_lower for kw in ["deepseek-v3", "deepseek-r1", "o1-preview"]):
+    if any(kw in m_lower for kw in ["deepseek-v3", "deepseek-r1", "o1-preview", "glm-5"]):
         return PROFILES[1]
     
     if any(kw in m_lower for kw in ["gpt-4", "claude-3-opus", "claude-3-5-sonnet", "claude-3.5-sonnet", "claude-3-7-sonnet", "claude-3.7-sonnet", "gemini-1.5-pro", "gemini-2.0-pro"]):
@@ -111,8 +111,18 @@ def get_model_profile(model_name: str, custom_profiles: dict = None) -> ModelPro
     if any(kw in m_lower for kw in ["gpt-3.5", "gpt-4o-mini", "claude-3-haiku", "claude-3.5-haiku", "claude-3-5-haiku", "gemini-1.5-flash", "gemini-2.0-flash", "o1-mini"]):
         return PROFILES[3]
 
-    # 5. Default Fallback
-    return PROFILES[3]
+    # 5. Keyword Heuristics
+    if any(kw in m_lower for kw in ["mini", "flash", "haiku", "light", "small", "base", "turbo"]):
+        return PROFILES[3]
+    
+    if any(kw in m_lower for kw in ["pro", "opus", "ultra", "max", "large", "heavy", "v3", "v4"]):
+        return PROFILES[2]
+
+    # 6. Default Fallback
+    # If a model doesn't have a parameter size (B) and isn't explicitly known,
+    # it's very likely a powerful closed-source or un-parameterized API flagship.
+    # Default to LARGE (Tier 2) to avoid truncating their context window.
+    return PROFILES[2]
 
 class LangChainAgentEngine:
     def __init__(self, api_key: str, model_name: str, workspace_path: str, 
@@ -155,7 +165,7 @@ class LangChainAgentEngine:
             is_known_tool_caller = any(kw in m_lower for kw in [
                 "gpt-4o", "claude-3-5", "claude-3.5", "claude-3-7", "claude-3.7",
                 "gemini-1.5-pro", "gemini-2.0-pro", "qwen3.5", "qwen2.5",
-                "deepseek-v3", "glm-4"
+                "deepseek-v3", "glm-4", "glm-5"
             ])
             self.use_native_tools = profile_dict.get("use_native_tools", is_known_tool_caller)
         except Exception:

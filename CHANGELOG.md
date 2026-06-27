@@ -2,6 +2,15 @@
 
 All notable changes to the Bielik (omni.ai) project will be documented in this file.
 
+## [0.11.3] - 2026-06-27
+
+### Added
+- **GLM-5.1 Support**: Created `GLM-5.1.yaml` profile to automatically enable `use_native_tools` and an expanded 128k context window.
+
+### Changed
+- **Model Heuristics Fallback**: Enhanced dynamic model capability detection in `agent_engine.py` to identify lightweight vs. flagship capabilities based on common name keywords (`mini`, `pro`, `opus`, etc.).
+- **Flagship Defaulting**: Modified un-parameterized fallback logic to default unknown models to `LARGE` (Tier 2) to protect context windows of modern unversioned releases.
+
 ## [0.11.2] - 2026-05-29
 
 ### Added
